@@ -54,6 +54,7 @@ export default function PrdView() {
   const [communities, setCommunities] = useState<CommunityData | null>(null);
   const [isCheckingReality, setIsCheckingReality] = useState(false);
   const [realityCheck, setRealityCheck] = useState<RealityCheckData | null>(null);
+  const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
   const { toast } = useToast();
 
   const projectId = params?.id ? parseInt(params.id) : null;
@@ -437,35 +438,70 @@ export default function PrdView() {
           </Button>
         </div>
 
-        {/* PRD Content */}
-        <div className="prose prose-slate dark:prose-invert max-w-none">
-          <ReactMarkdown
-            components={{
-              h1: ({ ...props }) => <h1 className="text-4xl font-display font-bold mt-8 mb-4 text-foreground" {...props} />,
-              h2: ({ ...props }) => <h2 className="text-3xl font-display font-bold mt-6 mb-3 text-foreground" {...props} />,
-              h3: ({ ...props }) => <h3 className="text-2xl font-semibold mt-4 mb-2 text-foreground" {...props} />,
-              p: ({ ...props }) => <p className="mb-4 leading-relaxed text-foreground/90" {...props} />,
-              ul: ({ ...props }) => <ul className="list-disc pl-6 mb-4 space-y-2" {...props} />,
-              ol: ({ ...props }) => <ol className="list-decimal pl-6 mb-4 space-y-2" {...props} />,
-              li: ({ ...props }) => <li className="text-foreground/90" {...props} />,
-              strong: ({ ...props }) => <strong className="font-semibold text-foreground" {...props} />,
-              code: ({ className, children, ...props }: any) => {
-                const match = /language-(\w+)/.exec(className || '');
-                return match ? (
-                  <code className="block bg-muted p-4 rounded-lg overflow-x-auto text-sm" {...props}>
-                    {children}
-                  </code>
-                ) : (
-                  <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
-                    {children}
-                  </code>
-                );
-              },
-            }}
+        {/* View Mode Toggle */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setViewMode("formatted")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+              viewMode === "formatted" 
+                ? "bg-primary text-primary-foreground" 
+                : "bg-muted hover:bg-muted/80"
+            }`}
+            data-testid="button-view-formatted"
           >
-            {project.prdContent}
-          </ReactMarkdown>
+            Formatted
+          </button>
+          <button
+            onClick={() => setViewMode("raw")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+              viewMode === "raw" 
+                ? "bg-primary text-primary-foreground" 
+                : "bg-muted hover:bg-muted/80"
+            }`}
+            data-testid="button-view-raw"
+          >
+            Raw Markdown
+          </button>
         </div>
+
+        {/* PRD Content */}
+        {viewMode === "formatted" ? (
+          <div className="prose prose-slate dark:prose-invert max-w-none break-words overflow-wrap-anywhere">
+            <ReactMarkdown
+              components={{
+                h1: ({ ...props }) => <h1 className="text-4xl font-display font-bold mt-8 mb-4 text-foreground break-words" {...props} />,
+                h2: ({ ...props }) => <h2 className="text-3xl font-display font-bold mt-6 mb-3 text-foreground break-words" {...props} />,
+                h3: ({ ...props }) => <h3 className="text-2xl font-semibold mt-4 mb-2 text-foreground break-words" {...props} />,
+                p: ({ ...props }) => <p className="mb-4 leading-relaxed text-foreground/90 break-words whitespace-pre-wrap" {...props} />,
+                ul: ({ ...props }) => <ul className="list-disc pl-6 mb-4 space-y-2" {...props} />,
+                ol: ({ ...props }) => <ol className="list-decimal pl-6 mb-4 space-y-2" {...props} />,
+                li: ({ ...props }) => <li className="text-foreground/90 break-words" {...props} />,
+                strong: ({ ...props }) => <strong className="font-semibold text-foreground" {...props} />,
+                code: ({ className, children, ...props }: any) => {
+                  const match = /language-(\w+)/.exec(className || '');
+                  return match ? (
+                    <code className="block bg-muted p-4 rounded-lg overflow-x-auto text-sm whitespace-pre-wrap break-words" {...props}>
+                      {children}
+                    </code>
+                  ) : (
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono break-words" {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                pre: ({ ...props }) => <pre className="bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap break-words" {...props} />,
+              }}
+            >
+              {project.prdContent}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          <div className="bg-muted rounded-lg p-4 overflow-x-auto" data-testid="raw-markdown-view">
+            <pre className="text-sm font-mono whitespace-pre-wrap break-words text-foreground/90">
+              {project.prdContent}
+            </pre>
+          </div>
+        )}
 
         {/* Validation Tools Section */}
         <div className="mt-12 pt-8 border-t">

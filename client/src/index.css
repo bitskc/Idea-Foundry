@@ -185,4 +185,9 @@
   .glass-panel {
     @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl;
   }
+  
+  .overflow-wrap-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
