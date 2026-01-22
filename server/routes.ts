@@ -673,5 +673,132 @@ Format in clean markdown with proper headers, bullet points, and structure. Be s
     }
   });
 
+  // Generate landing page for idea validation
+  app.post("/api/projects/:id/generate-landing-page", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get conversation to provide context
+      const conversation = await storage.getConversationByProjectId(projectId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      const messages = await storage.getMessagesByConversation(conversation.id);
+      const conversationContext = messages
+        .map((m: { role: string; content: string }) => `${m.role === "user" ? "Founder" : "AI"}: ${m.content}`)
+        .join("\n\n");
+
+      // Generate landing page content
+      const landingPagePrompt = `Based on this conversation about a product idea, create a "Coming Soon" landing page in a single self-contained HTML file.
+
+${conversationContext}
+
+Create an HTML file with:
+1. Modern, attractive design with CSS included (dark theme, gradient accents)
+2. Compelling headline and tagline
+3. Value proposition bullets (3-4 points)
+4. Email capture form (just the form, no backend needed)
+5. Social proof placeholder section
+6. Call-to-action button
+
+Requirements:
+- Single file with embedded CSS (no external dependencies)
+- Mobile responsive
+- Professional, modern aesthetic
+- Include Font Awesome CDN for icons
+- Email form should POST to "#" with a data-testid="email-form"
+- Include meta tags for SEO and social sharing
+
+Return ONLY the complete HTML code, no explanation.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.1",
+        messages: [{ role: "user", content: landingPagePrompt }],
+        max_completion_tokens: 8000,
+      });
+
+      const htmlContent = response.choices[0]?.message?.content || "<!DOCTYPE html><html><body>Failed to generate</body></html>";
+      
+      // Clean up the response - remove markdown code blocks if present
+      const cleanHtml = htmlContent
+        .replace(/^```html?\n?/i, "")
+        .replace(/\n?```$/i, "")
+        .trim();
+
+      res.json({ html: cleanHtml });
+    } catch (error) {
+      console.error("Error generating landing page:", error);
+      res.status(500).json({ error: "Failed to generate landing page" });
+    }
+  });
+
+  // Find communities for idea validation
+  app.post("/api/projects/:id/find-communities", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const communityPrompt = `Based on this product idea, suggest communities where the founder can validate interest and find early adopters.
+
+Product Idea: ${project.rawIdea}
+Product Type: ${project.type}
+
+Provide a JSON response with this structure:
+{
+  "reddit": [
+    {"name": "r/subreddit", "subscribers": "estimate", "relevance": "why this is relevant"}
+  ],
+  "discord": [
+    {"name": "Server Name", "description": "what it's about", "invite_hint": "how to find it"}
+  ],
+  "twitter": [
+    {"hashtag": "#hashtag", "usage": "how active", "tip": "how to use it"}
+  ],
+  "other": [
+    {"platform": "Platform Name", "community": "Community Name", "description": "why relevant"}
+  ],
+  "timing_tips": ["Best time/way to post", "How to introduce yourself"]
+}
+
+Include 3-5 suggestions per category. Focus on active communities that would be receptive to new product announcements.
+Return ONLY valid JSON, no explanation.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.1",
+        messages: [{ role: "user", content: communityPrompt }],
+        max_completion_tokens: 2000,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      
+      // Parse and validate JSON
+      try {
+        const communities = JSON.parse(content.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim());
+        res.json(communities);
+      } catch {
+        res.json({ 
+          reddit: [], 
+          discord: [], 
+          twitter: [], 
+          other: [],
+          timing_tips: ["Share your idea and ask for feedback", "Be genuine and engage with responses"]
+        });
+      }
+    } catch (error) {
+      console.error("Error finding communities:", error);
+      res.status(500).json({ error: "Failed to find communities" });
+    }
+  });
+
   return httpServer;
 }

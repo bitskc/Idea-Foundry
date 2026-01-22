@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Share2, Edit, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code } from "lucide-react";
+import { Download, FileText, Share2, Edit, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Project, Conversation } from "@shared/schema";
@@ -12,6 +12,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+type CommunityData = {
+  reddit?: Array<{ name: string; subscribers: string; relevance: string }>;
+  discord?: Array<{ name: string; description: string; invite_hint: string }>;
+  twitter?: Array<{ hashtag: string; usage: string; tip: string }>;
+  other?: Array<{ platform: string; community: string; description: string }>;
+  timing_tips?: string[];
+};
 
 type ProjectWithConversation = Project & { conversation?: Conversation };
 type PRDFormat = "full" | "business" | "pitch";
@@ -29,6 +37,9 @@ export default function PrdView() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentFormat, setCurrentFormat] = useState<PRDFormat>("full");
+  const [isGeneratingLandingPage, setIsGeneratingLandingPage] = useState(false);
+  const [isFindingCommunities, setIsFindingCommunities] = useState(false);
+  const [communities, setCommunities] = useState<CommunityData | null>(null);
   const { toast } = useToast();
 
   const projectId = params?.id ? parseInt(params.id) : null;
@@ -161,6 +172,74 @@ export default function PrdView() {
     }
   };
 
+  const generateLandingPage = async () => {
+    if (!projectId) return;
+    
+    setIsGeneratingLandingPage(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/generate-landing-page`, {
+        method: "POST",
+      });
+      
+      if (!response.ok) throw new Error("Failed to generate landing page");
+      
+      const data = await response.json();
+      
+      // Download the HTML file
+      const blob = new Blob([data.html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project?.title.replace(/[^a-z0-9]/gi, "_")}_landing_page.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Landing Page Generated",
+        description: "Download started! Open the HTML file to preview.",
+      });
+    } catch (error) {
+      console.error("Error generating landing page:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate landing page",
+      });
+    } finally {
+      setIsGeneratingLandingPage(false);
+    }
+  };
+
+  const findCommunities = async () => {
+    if (!projectId) return;
+    
+    setIsFindingCommunities(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/find-communities`, {
+        method: "POST",
+      });
+      
+      if (!response.ok) throw new Error("Failed to find communities");
+      
+      const data = await response.json();
+      setCommunities(data);
+      
+      toast({
+        title: "Communities Found",
+        description: "Scroll down to see where to share your idea!",
+      });
+    } catch (error) {
+      console.error("Error finding communities:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to find communities",
+      });
+    } finally {
+      setIsFindingCommunities(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -263,7 +342,7 @@ export default function PrdView() {
             {project.conversation && (
               <Button 
                 variant="outline"
-                onClick={() => setLocation(`/conversation/${project.conversation.id}`)}
+                onClick={() => project.conversation && setLocation(`/conversation/${project.conversation.id}`)}
                 data-testid="button-edit"
               >
                 <Edit className="w-4 h-4 mr-2" />
@@ -342,6 +421,165 @@ export default function PrdView() {
           >
             {project.prdContent}
           </ReactMarkdown>
+        </div>
+
+        {/* Validation Tools Section */}
+        <div className="mt-12 pt-8 border-t">
+          <h2 className="text-2xl font-display font-bold mb-6">Validate Your Idea</h2>
+          <p className="text-muted-foreground mb-6">Test market interest before you build. Generate a landing page and find communities to share it.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="p-6 rounded-xl border bg-card">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Landing Page Generator</h3>
+                  <p className="text-xs text-muted-foreground">Create a "Coming Soon" page with email capture</p>
+                </div>
+              </div>
+              <Button 
+                onClick={generateLandingPage}
+                disabled={isGeneratingLandingPage}
+                className="w-full"
+                data-testid="button-generate-landing-page"
+              >
+                {isGeneratingLandingPage ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Generate & Download
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="p-6 rounded-xl border bg-card">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-cyan-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Community Finder</h3>
+                  <p className="text-xs text-muted-foreground">Find Reddit, Discord, and Twitter communities</p>
+                </div>
+              </div>
+              <Button 
+                onClick={findCommunities}
+                disabled={isFindingCommunities}
+                variant="outline"
+                className="w-full"
+                data-testid="button-find-communities"
+              >
+                {isFindingCommunities ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Users className="w-4 h-4 mr-2" />
+                    Find Communities
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Communities Results */}
+          {communities && (
+            <div className="space-y-6">
+              {communities.reddit && communities.reddit.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <ExternalLink className="w-4 h-4 text-orange-500" />
+                    Reddit Communities
+                  </h3>
+                  <div className="grid gap-2">
+                    {communities.reddit.map((sub, i) => (
+                      <div key={i} className="p-3 rounded-lg border bg-card/50">
+                        <div className="font-medium text-orange-500">{sub.name}</div>
+                        <div className="text-xs text-muted-foreground">{sub.subscribers} subscribers</div>
+                        <div className="text-sm mt-1">{sub.relevance}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {communities.discord && communities.discord.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-indigo-500" />
+                    Discord Servers
+                  </h3>
+                  <div className="grid gap-2">
+                    {communities.discord.map((server, i) => (
+                      <div key={i} className="p-3 rounded-lg border bg-card/50">
+                        <div className="font-medium text-indigo-500">{server.name}</div>
+                        <div className="text-sm">{server.description}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{server.invite_hint}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {communities.twitter && communities.twitter.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Hash className="w-4 h-4 text-sky-500" />
+                    Twitter/X Hashtags
+                  </h3>
+                  <div className="grid gap-2">
+                    {communities.twitter.map((tag, i) => (
+                      <div key={i} className="p-3 rounded-lg border bg-card/50">
+                        <div className="font-medium text-sky-500">{tag.hashtag}</div>
+                        <div className="text-sm">{tag.usage}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{tag.tip}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {communities.other && communities.other.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-green-500" />
+                    Other Communities
+                  </h3>
+                  <div className="grid gap-2">
+                    {communities.other.map((community, i) => (
+                      <div key={i} className="p-3 rounded-lg border bg-card/50">
+                        <div className="font-medium text-green-500">{community.platform}: {community.community}</div>
+                        <div className="text-sm">{community.description}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {communities.timing_tips && communities.timing_tips.length > 0 && (
+                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                  <h3 className="font-semibold mb-2">Tips for Sharing</h3>
+                  <ul className="space-y-1">
+                    {communities.timing_tips.map((tip, i) => (
+                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        {tip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </Layout>
