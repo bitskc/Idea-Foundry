@@ -386,12 +386,12 @@ export default function PrdView() {
 
             {project.conversation && (
               <Button 
-                variant="outline"
                 onClick={() => project.conversation && setLocation(`/conversation/${project.conversation.id}`)}
-                data-testid="button-edit"
+                data-testid="button-continue-chat"
+                className="bg-cyan-600 hover:bg-cyan-700"
               >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Continue Chat
               </Button>
             )}
           </div>
@@ -492,7 +492,7 @@ export default function PrdView() {
                 pre: ({ ...props }) => <pre className="bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap break-words" {...props} />,
               }}
             >
-              {project.prdContent}
+              {project.prdContent?.replace(/^```(?:markdown)?\n?/i, "").replace(/\n?```$/i, "").trim()}
             </ReactMarkdown>
           </div>
         ) : (

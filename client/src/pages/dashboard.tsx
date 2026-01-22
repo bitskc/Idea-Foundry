@@ -184,7 +184,7 @@ export default function Dashboard() {
                   }}
                   data-testid={`button-view-${project.id}`}
                 >
-                  {project.status === "completed" ? "View PRD" : "Continue"} <ArrowRight className="w-3 h-3" />
+                  {project.status === "completed" ? "View Idea" : "Continue"} <ArrowRight className="w-3 h-3" />
                 </Button>
               </CardFooter>
             </Card>
