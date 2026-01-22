@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Share2, Edit, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle } from "lucide-react";
+import { Download, FileText, Share2, Edit, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle, Clock, AlertTriangle, CheckCircle, Rabbit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Project, Conversation } from "@shared/schema";
@@ -19,6 +19,18 @@ type CommunityData = {
   twitter?: Array<{ hashtag: string; usage: string; tip: string }>;
   other?: Array<{ platform: string; community: string; description: string }>;
   timing_tips?: string[];
+};
+
+type RealityCheckData = {
+  time_to_mvp?: { estimate: string; hours_per_week: string; total_hours: string; reality: string };
+  skills_required?: Array<{ skill: string; level: string; learning_time: string }>;
+  complexity_score?: { score: number; label: string; breakdown: string };
+  hidden_work?: string[];
+  financial_reality?: { minimum_budget: string; what_it_covers: string; hidden_costs: string[] };
+  opportunity_cost?: { what_else_could_you_do: string; is_now_the_right_time: boolean; reasoning: string };
+  red_flags?: string[];
+  green_flags?: string[];
+  bottom_line?: string;
 };
 
 type ProjectWithConversation = Project & { conversation?: Conversation };
@@ -40,6 +52,8 @@ export default function PrdView() {
   const [isGeneratingLandingPage, setIsGeneratingLandingPage] = useState(false);
   const [isFindingCommunities, setIsFindingCommunities] = useState(false);
   const [communities, setCommunities] = useState<CommunityData | null>(null);
+  const [isCheckingReality, setIsCheckingReality] = useState(false);
+  const [realityCheck, setRealityCheck] = useState<RealityCheckData | null>(null);
   const { toast } = useToast();
 
   const projectId = params?.id ? parseInt(params.id) : null;
@@ -237,6 +251,36 @@ export default function PrdView() {
       });
     } finally {
       setIsFindingCommunities(false);
+    }
+  };
+
+  const checkReality = async () => {
+    if (!projectId) return;
+    
+    setIsCheckingReality(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/reality-check`, {
+        method: "POST",
+      });
+      
+      if (!response.ok) throw new Error("Failed to run reality check");
+      
+      const data = await response.json();
+      setRealityCheck(data);
+      
+      toast({
+        title: "Reality Check Complete",
+        description: "Scroll down to see the honest assessment.",
+      });
+    } catch (error) {
+      console.error("Error running reality check:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to run reality check",
+      });
+    } finally {
+      setIsCheckingReality(false);
     }
   };
 
@@ -489,7 +533,182 @@ export default function PrdView() {
                 )}
               </Button>
             </div>
+
+            <div className="p-6 rounded-xl border bg-card md:col-span-2">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Rabbit className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Rabbit Hole Reality Check</h3>
+                  <p className="text-xs text-muted-foreground">Honest assessment of time, skills, and commitment required</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                For founders who know they chase shiny objects. Get a brutally honest assessment of whether this is worth your time right now.
+              </p>
+              <Button 
+                onClick={checkReality}
+                disabled={isCheckingReality}
+                variant="outline"
+                className="w-full border-amber-500/50 hover:bg-amber-500/10"
+                data-testid="button-reality-check"
+              >
+                {isCheckingReality ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4 mr-2" />
+                    Run Reality Check
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
+
+          {/* Reality Check Results */}
+          {realityCheck && (
+            <div className="mb-8 p-6 rounded-xl border-2 border-amber-500/30 bg-amber-500/5" data-testid="reality-check-results">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Rabbit className="w-5 h-5 text-amber-500" />
+                Reality Check Results
+              </h3>
+
+              {/* Bottom Line */}
+              {realityCheck.bottom_line && (
+                <div className="p-4 rounded-lg bg-card border mb-6" data-testid="text-reality-bottom-line">
+                  <p className="text-lg font-medium">{realityCheck.bottom_line}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Complexity Score */}
+                {realityCheck.complexity_score && (
+                  <div className="p-4 rounded-lg bg-card border" data-testid="card-complexity-score">
+                    <h4 className="font-semibold mb-2">Complexity Score</h4>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="text-3xl font-bold text-amber-500" data-testid="text-complexity-score">{realityCheck.complexity_score.score}/10</div>
+                      <div className="text-sm font-medium">{realityCheck.complexity_score.label}</div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{realityCheck.complexity_score.breakdown}</p>
+                  </div>
+                )}
+
+                {/* Time to MVP */}
+                {realityCheck.time_to_mvp && (
+                  <div className="p-4 rounded-lg bg-card border" data-testid="card-time-commitment">
+                    <h4 className="font-semibold mb-2 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Time Commitment
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      <p><span className="font-medium">To MVP:</span> {realityCheck.time_to_mvp.estimate}</p>
+                      <p><span className="font-medium">Weekly:</span> {realityCheck.time_to_mvp.hours_per_week}</p>
+                      <p><span className="font-medium">Total:</span> {realityCheck.time_to_mvp.total_hours}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">{realityCheck.time_to_mvp.reality}</p>
+                  </div>
+                )}
+
+                {/* Financial Reality */}
+                {realityCheck.financial_reality && (
+                  <div className="p-4 rounded-lg bg-card border" data-testid="card-financial-reality">
+                    <h4 className="font-semibold mb-2">Financial Reality</h4>
+                    <p className="text-lg font-bold text-primary mb-1">{realityCheck.financial_reality.minimum_budget}</p>
+                    <p className="text-sm text-muted-foreground mb-2">{realityCheck.financial_reality.what_it_covers}</p>
+                    {realityCheck.financial_reality.hidden_costs?.length > 0 && (
+                      <div className="text-xs">
+                        <span className="font-medium">Hidden costs: </span>
+                        {realityCheck.financial_reality.hidden_costs.join(", ")}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Opportunity Cost */}
+                {realityCheck.opportunity_cost && (
+                  <div className="p-4 rounded-lg bg-card border">
+                    <h4 className="font-semibold mb-2">Opportunity Cost</h4>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium mb-2 ${realityCheck.opportunity_cost.is_now_the_right_time ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
+                      {realityCheck.opportunity_cost.is_now_the_right_time ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                      {realityCheck.opportunity_cost.is_now_the_right_time ? "Good timing" : "Consider waiting"}
+                    </div>
+                    <p className="text-sm">{realityCheck.opportunity_cost.what_else_could_you_do}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{realityCheck.opportunity_cost.reasoning}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Skills Required */}
+              {realityCheck.skills_required && realityCheck.skills_required.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-semibold mb-3">Skills Required</h4>
+                  <div className="grid gap-2">
+                    {realityCheck.skills_required.map((skill, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-card border">
+                        <div>
+                          <span className="font-medium">{skill.skill}</span>
+                          <span className={`ml-2 text-xs px-2 py-0.5 rounded ${skill.level === "beginner" ? "bg-green-500/10 text-green-600" : skill.level === "intermediate" ? "bg-yellow-500/10 text-yellow-600" : "bg-red-500/10 text-red-600"}`}>
+                            {skill.level}
+                          </span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">{skill.learning_time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Hidden Work */}
+              {realityCheck.hidden_work && realityCheck.hidden_work.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-semibold mb-3">Things People Forget About</h4>
+                  <ul className="space-y-1">
+                    {realityCheck.hidden_work.map((item, i) => (
+                      <li key={i} className="text-sm flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Red Flags & Green Flags */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                {realityCheck.red_flags && realityCheck.red_flags.length > 0 && (
+                  <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20">
+                    <h4 className="font-semibold mb-2 text-red-600 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Red Flags
+                    </h4>
+                    <ul className="space-y-1">
+                      {realityCheck.red_flags.map((flag, i) => (
+                        <li key={i} className="text-sm text-red-600/90">{flag}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {realityCheck.green_flags && realityCheck.green_flags.length > 0 && (
+                  <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
+                    <h4 className="font-semibold mb-2 text-green-600 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Green Flags
+                    </h4>
+                    <ul className="space-y-1">
+                      {realityCheck.green_flags.map((flag, i) => (
+                        <li key={i} className="text-sm text-green-600/90">{flag}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Communities Results */}
           {communities && (

@@ -800,5 +800,99 @@ Return ONLY valid JSON, no explanation.`;
     }
   });
 
+  // Reality Check - estimate time/effort for an idea
+  app.post("/api/projects/:id/reality-check", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get conversation for context
+      const conversation = await storage.getConversationByProjectId(projectId);
+      let conversationContext = "";
+      if (conversation) {
+        const messages = await storage.getMessagesByConversation(conversation.id);
+        conversationContext = messages
+          .map((m: { role: string; content: string }) => `${m.role === "user" ? "Founder" : "AI"}: ${m.content}`)
+          .join("\n\n");
+      }
+
+      const realityCheckPrompt = `You are a brutally honest startup advisor. Based on this idea and conversation, provide a "Reality Check" to help the founder understand the true commitment required.
+
+Product Idea: ${project.rawIdea}
+Product Type: ${project.type}
+
+${conversationContext ? `Conversation:\n${conversationContext}\n` : ""}
+
+Provide a JSON response with this structure:
+{
+  "time_to_mvp": {
+    "estimate": "X weeks/months",
+    "hours_per_week": "X-Y hours",
+    "total_hours": "X-Y hours total",
+    "reality": "honest assessment of the time commitment"
+  },
+  "skills_required": [
+    {"skill": "Skill Name", "level": "beginner/intermediate/advanced", "learning_time": "X hours/days to learn if needed"}
+  ],
+  "complexity_score": {
+    "score": 1-10,
+    "label": "Simple Side Project / Moderate Challenge / Serious Undertaking / Major Commitment / Life-Consuming Venture",
+    "breakdown": "what makes it this complex"
+  },
+  "hidden_work": [
+    "Thing people forget about #1",
+    "Thing people forget about #2"
+  ],
+  "financial_reality": {
+    "minimum_budget": "$X-Y",
+    "what_it_covers": "hosting, tools, etc.",
+    "hidden_costs": ["cost 1", "cost 2"]
+  },
+  "opportunity_cost": {
+    "what_else_could_you_do": "honest assessment",
+    "is_now_the_right_time": true/false,
+    "reasoning": "why or why not"
+  },
+  "red_flags": [
+    "potential issue #1",
+    "potential issue #2"
+  ],
+  "green_flags": [
+    "positive indicator #1",
+    "positive indicator #2"
+  ],
+  "bottom_line": "1-2 sentence honest verdict on whether to proceed"
+}
+
+Be honest and direct. Don't sugarcoat. Founders with this feature enabled WANT tough love.
+Return ONLY valid JSON, no explanation.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.1",
+        messages: [{ role: "user", content: realityCheckPrompt }],
+        max_completion_tokens: 3000,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      
+      try {
+        const realityCheck = JSON.parse(content.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim());
+        res.json(realityCheck);
+      } catch {
+        res.json({ 
+          complexity_score: { score: 5, label: "Unknown", breakdown: "Could not analyze" },
+          bottom_line: "Unable to provide assessment. Please try again."
+        });
+      }
+    } catch (error) {
+      console.error("Error generating reality check:", error);
+      res.status(500).json({ error: "Failed to generate reality check" });
+    }
+  });
+
   return httpServer;
 }
