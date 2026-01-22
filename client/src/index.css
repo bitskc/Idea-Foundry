@@ -69,7 +69,7 @@
 }
 
 :root {
-  /* VibePlan Light Theme - Clean, crisp, with electric violet accents */
+  /* Idea Foundry Light Theme - Clean, crisp, with electric violet accents */
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
   
@@ -119,7 +119,7 @@
 }
 
 .dark {
-  /* VibePlan Dark Theme - Deep Indigo/Space, Neon Accents */
+  /* Idea Foundry Dark Theme - Deep Indigo/Space, Neon Accents */
   --background: 260 30% 8%;
   --foreground: 0 0% 98%;
   
@@ -176,7 +176,7 @@
   }
 }
 
-/* Custom Utilities for VibePlan */
+/* Custom Utilities for Idea Foundry */
 @layer utilities {
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-cyan-500;

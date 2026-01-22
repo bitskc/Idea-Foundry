@@ -293,11 +293,11 @@ Return only the JSON array, no other text.`
       // Add initial AI greeting message based on start mode and conversation mode
       let greetingMessage: string;
       if (conversationMode === "challenger") {
-        greetingMessage = "Hey. I'm VibePlan in Challenger Mode - think of me as your brutally honest friend who won't let you waste months building something that won't work. I'll push back, point out competition, and stress-test your thinking. Don't worry, I'm on your side - I just want your idea to be bulletproof. So... what are you thinking about building?";
+        greetingMessage = "Hey. I'm Idea Foundry in Challenger Mode - think of me as your brutally honest friend who won't let you waste months building something that won't work. I'll push back, point out competition, and stress-test your thinking. Don't worry, I'm on your side - I just want your idea to be bulletproof. So... what are you thinking about building?";
       } else if (startMode === "problem") {
-        greetingMessage = "Hi there! I'm VibePlan, your AI product strategist. I see you've identified a problem worth solving. Let's explore it together, brainstorm potential solutions, and find profitable opportunities. Tell me more about the problem you've spotted!";
+        greetingMessage = "Hi there! I'm here to help you explore this problem. Let's dig into it together, brainstorm potential solutions, and find profitable opportunities. Tell me more about the problem you've spotted!";
       } else {
-        greetingMessage = "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!";
+        greetingMessage = "Hi there! I'm here to help you flesh out this idea. Share your thoughts and let's explore it together!";
       }
       
       await storage.createMessage({

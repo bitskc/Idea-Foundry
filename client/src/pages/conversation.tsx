@@ -491,7 +491,7 @@ export default function ConversationPage() {
               </Button>
             </div>
             <p className="text-[10px] text-center text-muted-foreground mt-2">
-              VibePlan can make mistakes. Review generated PRDs.
+              Idea Foundry can make mistakes. Review generated PRDs.
             </p>
           </div>
         </div>

@@ -1,8 +1,8 @@
-# VibePlan - AI PRD Generator
+# Idea Foundry - Shape Your Ideas Into Reality
 
 ## Overview
 
-VibePlan is a web application that helps founders and product managers create comprehensive Product Requirements Documents (PRDs) through conversational AI. Users input their initial idea, and the AI guides them through a structured conversation covering problem statement, target audience, solution overview, core features, monetization, technical stack, success metrics, and go-to-market strategy. The system then generates a complete PRD document in markdown format.
+Idea Foundry is a web application that helps founders vet, refine, and transform raw ideas into actionable plans. Users can capture ideas quickly, explore them through AI-powered conversations, run competitor research, get viability scores, and generate comprehensive PRDs. The platform supports the full journey from brainstorming through validation to documentation.
 
 ## User Preferences
 

@@ -131,10 +131,10 @@ export default function Home() {
       {/* Nav */}
       <nav className="container mx-auto px-6 py-6 flex items-center justify-between relative z-10">
         <div className="flex items-center gap-2 font-display font-bold text-2xl text-primary">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center text-white text-sm">
-            V
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center text-white text-sm font-bold">
+            IF
           </div>
-          VibePlan
+          Idea Foundry
         </div>
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => setLocation("/dashboard")}>My Ideas</Button>
@@ -161,7 +161,7 @@ export default function Home() {
                   Turn your <span className="text-gradient">Vision</span> into a <span className="text-primary">Plan</span>.
                 </h1>
                 <p className="text-lg text-muted-foreground mb-8 max-w-lg leading-relaxed">
-                  Whether you have a solution in mind or just see a problem worth solving—VibePlan helps you build a comprehensive, dev-ready PRD.
+                  Whether you have a solution in mind or just see a problem worth solving—Idea Foundry helps you vet, refine, and transform ideas into actionable plans.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -403,7 +403,7 @@ export default function Home() {
                   What are you building?
                 </h2>
                 <p className="text-muted-foreground mb-8">
-                  This helps VibePlan ask the right questions for your product type.
+                  This helps Idea Foundry ask the right questions for your product type.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">

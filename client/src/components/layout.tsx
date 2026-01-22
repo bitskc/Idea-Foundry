@@ -16,8 +16,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard", label: "New Project", icon: MessageSquare }, // Simplified for mockup
+    { href: "/dashboard", label: "My Ideas", icon: LayoutDashboard },
+    { href: "/", label: "New Idea", icon: MessageSquare },
     { href: "/dashboard", label: "Templates", icon: FileText },
     { href: "/dashboard", label: "Settings", icon: Settings },
   ];
@@ -27,10 +27,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b bg-card z-20 sticky top-0">
         <div className="flex items-center gap-2 font-display font-bold text-xl text-primary">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center text-white text-sm">
-            V
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center text-white text-sm font-bold">
+            IF
           </div>
-          VibePlan
+          Idea Foundry
         </div>
         <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           {mobileMenuOpen ? <X /> : <Menu />}
@@ -43,10 +43,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         mobileMenuOpen ? "translate-x-0 pt-20" : "-translate-x-full md:pt-0"
       )}>
         <div className="p-6 hidden md:flex items-center gap-2 font-display font-bold text-2xl text-primary mb-6">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center text-white text-sm">
-            V
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center text-white text-sm font-bold">
+            IF
           </div>
-          VibePlan
+          Idea Foundry
         </div>
 
         <nav className="px-4 space-y-2">
@@ -71,7 +71,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="absolute bottom-4 left-4 right-4">
            <div className="p-4 rounded-lg bg-gradient-to-br from-primary/10 to-cyan-500/10 border border-primary/20">
              <p className="text-xs font-semibold text-primary mb-1">Free Plan</p>
-             <p className="text-xs text-muted-foreground mb-3">2/3 projects used</p>
+             <p className="text-xs text-muted-foreground mb-3">2/3 ideas used</p>
              <Button size="sm" className="w-full text-xs" variant="outline">Upgrade to Pro</Button>
            </div>
         </div>
