@@ -47,8 +47,16 @@ Preferred communication style: Simple, everyday language.
 ```
 ├── client/           # React frontend
 │   ├── src/
-│   │   ├── components/ui/  # shadcn/ui components
-│   │   ├── pages/          # Route components
+│   │   ├── components/
+│   │   │   ├── ui/         # shadcn/ui components
+│   │   │   └── app-layout.tsx  # App layout with sidebar navigation
+│   │   ├── pages/
+│   │   │   ├── landing.tsx     # Marketing landing page (/)
+│   │   │   ├── dashboard.tsx   # App dashboard (/app)
+│   │   │   ├── new-idea.tsx    # New idea creation (/app/new)
+│   │   │   ├── idea-detail.tsx # Idea detail view (/app/ideas/:id)
+│   │   │   ├── conversation.tsx # AI conversation (/app/conversation/:id)
+│   │   │   └── prd-view.tsx    # PRD view (/app/prd/:id)
 │   │   ├── hooks/          # Custom React hooks
 │   │   └── lib/            # Utilities
 ├── server/           # Express backend
@@ -58,6 +66,14 @@ Preferred communication style: Simple, everyday language.
 ├── shared/           # Shared code (schema, types)
 └── migrations/       # Drizzle migrations
 ```
+
+### URL Structure
+- `/` - Marketing landing page (www.ideafoundry.app)
+- `/app` - User dashboard with all ideas
+- `/app/new` - Create new idea
+- `/app/ideas/:id` - Idea detail (Overview/Think/Make tabs)
+- `/app/conversation/:id` - AI conversation
+- `/app/prd/:id` - Generated PRD view
 
 ## External Dependencies
 
