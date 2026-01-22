@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X } from "lucide-react";
+import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X, Lightbulb, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,6 +11,8 @@ type NameSuggestion = {
   tagline: string;
   style: string;
 };
+
+type StartMode = "idea" | "problem";
 
 const AUDIENCE_TYPES = [
   { id: "b2b_saas", label: "B2B SaaS", icon: Building2, description: "Enterprise software, tools for businesses" },
@@ -24,7 +26,8 @@ const AUDIENCE_TYPES = [
 export default function Home() {
   const [, setLocation] = useLocation();
   const [idea, setIdea] = useState("");
-  const [step, setStep] = useState<"idea" | "type">("idea");
+  const [startMode, setStartMode] = useState<StartMode>("idea");
+  const [step, setStep] = useState<"mode" | "input" | "type">("mode");
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [nameSuggestions, setNameSuggestions] = useState<NameSuggestion[]>([]);
@@ -67,12 +70,17 @@ export default function Home() {
     }
   };
 
+  const handleSelectMode = (mode: StartMode) => {
+    setStartMode(mode);
+    setStep("input");
+  };
+
   const handleContinue = () => {
     if (idea.length < 10) {
       toast({
         variant: "destructive",
-        title: "Idea too short",
-        description: "Please describe your idea in at least 10 characters.",
+        title: startMode === "idea" ? "Idea too short" : "Problem too short",
+        description: `Please describe your ${startMode} in at least 10 characters.`,
       });
       return;
     }
@@ -94,7 +102,7 @@ export default function Home() {
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawIdea: idea, type: selectedType }),
+        body: JSON.stringify({ rawIdea: idea, type: selectedType, startMode }),
       });
 
       if (!response.ok) throw new Error("Failed to create project");
@@ -135,9 +143,9 @@ export default function Home() {
       <main className="flex-1 container mx-auto px-6 flex flex-col md:flex-row items-center gap-12 relative z-10">
         <div className="flex-1 max-w-2xl pt-10 md:pt-0">
           <AnimatePresence mode="wait">
-            {step === "idea" ? (
+            {step === "mode" ? (
               <motion.div
-                key="idea-step"
+                key="mode-step"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -148,15 +156,108 @@ export default function Home() {
                   AI-Powered Product Manager
                 </div>
                 <h1 className="text-5xl md:text-7xl font-display font-bold leading-[1.1] mb-6">
-                  Turn your <span className="text-gradient">Idea</span> into a <span className="text-primary">Plan</span>.
+                  Turn your <span className="text-gradient">Vision</span> into a <span className="text-primary">Plan</span>.
                 </h1>
                 <p className="text-lg text-muted-foreground mb-8 max-w-lg leading-relaxed">
-                  Don't let your ideas die in the notes app. VibePlan interviews you to create a comprehensive, dev-ready PRD in minutes.
+                  Whether you have a solution in mind or just see a problem worth solving—VibePlan helps you build a comprehensive, dev-ready PRD.
                 </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleSelectMode("idea")}
+                    className="group p-6 rounded-2xl border-2 border-border bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+                    data-testid="mode-idea"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+                      <Lightbulb className="w-6 h-6 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-display font-bold mb-2">Start with an Idea</h3>
+                    <p className="text-sm text-muted-foreground">
+                      You already have a product concept in mind. Let's refine it into a detailed PRD.
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectMode("problem")}
+                    className="group p-6 rounded-2xl border-2 border-border bg-card hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left"
+                    data-testid="mode-problem"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center mb-4 group-hover:bg-cyan-500/20 transition-colors">
+                      <AlertCircle className="w-6 h-6 text-cyan-500" />
+                    </div>
+                    <h3 className="text-xl font-display font-bold mb-2">Start with a Problem</h3>
+                    <p className="text-sm text-muted-foreground">
+                      You've spotted a pain point. Let's brainstorm solutions and find profitable opportunities.
+                    </p>
+                  </button>
+                </div>
+
+                <div className="mt-12 flex items-center gap-8 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span>Dev-Ready Specs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span>Market Analysis</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span>Free to Start</span>
+                  </div>
+                </div>
+              </motion.div>
+            ) : step === "input" ? (
+              <motion.div
+                key="input-step"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setStep("mode")} 
+                  className="mb-4 -ml-2"
+                  data-testid="button-back-to-mode"
+                >
+                  Back
+                </Button>
+
+                {startMode === "idea" ? (
+                  <>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">
+                      <Lightbulb className="w-3 h-3" />
+                      Starting with an Idea
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-display font-bold mb-3">
+                      What's your product idea?
+                    </h2>
+                    <p className="text-muted-foreground mb-6">
+                      Describe your vision. We'll help you turn it into a complete PRD.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-500 text-xs font-medium mb-4">
+                      <AlertCircle className="w-3 h-3" />
+                      Starting with a Problem
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-display font-bold mb-3">
+                      What problem have you spotted?
+                    </h2>
+                    <p className="text-muted-foreground mb-6">
+                      Describe the pain point. We'll brainstorm solutions and explore profitable opportunities.
+                    </p>
+                  </>
+                )}
 
                 <div className="bg-card border border-border/50 shadow-xl rounded-2xl p-2 relative overflow-hidden group focus-within:ring-2 focus-within:ring-primary/50 transition-all">
                   <Textarea 
-                    placeholder="Describe your idea... (e.g., 'A mobile app that helps contractors manage schedules and get paid faster')" 
+                    placeholder={startMode === "idea" 
+                      ? "Describe your idea... (e.g., 'A mobile app that helps contractors manage schedules and get paid faster')"
+                      : "Describe the problem... (e.g., 'Small business owners waste 10+ hours a week on invoicing and chasing payments')"
+                    }
                     className="resize-none border-none shadow-none focus-visible:ring-0 text-lg min-h-[120px] bg-transparent p-4"
                     value={idea}
                     onChange={(e) => setIdea(e.target.value)}
@@ -168,21 +269,23 @@ export default function Home() {
                       <span className="text-xs text-muted-foreground px-2">
                         {idea.length}/10 min chars
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={generateNames}
-                        disabled={idea.length < 10 || isGeneratingNames}
-                        className="text-xs gap-1 h-7"
-                        data-testid="button-generate-names"
-                      >
-                        {isGeneratingNames ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Wand2 className="w-3 h-3" />
-                        )}
-                        Suggest Names
-                      </Button>
+                      {startMode === "idea" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={generateNames}
+                          disabled={idea.length < 10 || isGeneratingNames}
+                          className="text-xs gap-1 h-7"
+                          data-testid="button-generate-names"
+                        >
+                          {isGeneratingNames ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Wand2 className="w-3 h-3" />
+                          )}
+                          Suggest Names
+                        </Button>
+                      )}
                     </div>
                     <Button 
                       size="lg" 
@@ -287,7 +390,7 @@ export default function Home() {
               >
                 <Button 
                   variant="ghost" 
-                  onClick={() => setStep("idea")} 
+                  onClick={() => setStep("input")} 
                   className="mb-4 -ml-2"
                   data-testid="button-back"
                 >

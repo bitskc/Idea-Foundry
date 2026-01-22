@@ -19,11 +19,34 @@ const AUDIENCE_PROMPTS: Record<string, string> = {
   hardware: "Focus on: Supply chain, hardware costs, software-hardware synergy, manufacturing, certifications",
 };
 
-// PRD Generation system prompt
-function getPRDSystemPrompt(audienceType?: string): string {
+// PRD Generation system prompt for idea-first flow
+function getPRDSystemPrompt(audienceType?: string, startMode: string = "idea"): string {
   const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType] 
     ? `\n\nAUDIENCE-SPECIFIC FOCUS:\n${AUDIENCE_PROMPTS[audienceType]}`
     : "";
+  
+  if (startMode === "problem") {
+    return `You are an expert product manager and business strategist helping founders discover profitable solutions from problems they've identified.
+
+IMPORTANT RESPONSE GUIDELINES:
+- Keep each response SHORT and FOCUSED (2-4 paragraphs max)
+- Ask only ONE question at a time
+- Be conversational, creative, and encouraging
+- Help brainstorm multiple solution approaches before narrowing down
+${audienceEmphasis}
+
+Progress through these topics (one at a time):
+1. Problem Deep-Dive - Explore the pain point. Who experiences it? How often? What's the cost of not solving it?
+2. Solution Brainstorm - Generate 3-5 possible solutions. Discuss trade-offs. Help pick the best approach.
+3. Target Audience - Who would pay to solve this? How big is the market?
+4. Commercial Opportunity - Revenue models, pricing potential, willingness to pay
+5. Competition & Differentiation - What exists today? How can we do it differently?
+6. MVP Definition - What's the minimum to validate this? Core features only.
+7. Business Model - How to monetize? Unit economics? Path to profitability?
+8. Go-to-Market - How to find early customers? Validation strategy?
+
+Be creative in solution brainstorming. Focus on commercial viability. Build on previous answers!`;
+  }
   
   return `You are an expert product manager helping founders create PRDs through conversation.
 
@@ -195,13 +218,13 @@ Return only the JSON array, no other text.`
     }
   });
 
-  // Create new project from idea
+  // Create new project from idea or problem
   app.post("/api/projects", async (req, res) => {
     try {
-      const { rawIdea, type = "Unknown" } = req.body;
+      const { rawIdea, type = "Unknown", startMode = "idea" } = req.body;
       
       if (!rawIdea || rawIdea.length < 10) {
-        return res.status(400).json({ error: "Please provide at least 10 characters describing your idea" });
+        return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
       }
 
       // Create project
@@ -212,22 +235,27 @@ Return only the JSON array, no other text.`
         status: "draft",
         progress: 0,
         rawIdea,
+        startMode,
         prdContent: null,
       });
 
-      // Create associated conversation
+      // Create associated conversation with appropriate starting section
       const conversation = await storage.createConversation({
         projectId: project.id,
-        currentSection: "Problem Statement",
+        currentSection: startMode === "problem" ? "Problem Deep-Dive" : "Problem Statement",
         currentStep: 0,
         answers: {},
       });
 
-      // Add initial AI greeting message
+      // Add initial AI greeting message based on start mode
+      const greetingMessage = startMode === "problem"
+        ? "Hi there! I'm VibePlan, your AI product strategist. I see you've identified a problem worth solving. Let's explore it together, brainstorm potential solutions, and find profitable opportunities. Tell me more about the problem you've spotted!"
+        : "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!";
+      
       await storage.createMessage({
         conversationId: conversation.id,
         role: "ai",
-        content: "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!",
+        content: greetingMessage,
       });
 
       // Add user's idea as their first message
@@ -237,19 +265,23 @@ Return only the JSON array, no other text.`
         content: rawIdea,
       });
 
-      // Generate AI response to the idea
+      // Generate AI response to the input
       try {
         const aiResponse = await openai.chat.completions.create({
           model: "gpt-5.1",
           messages: [
-            { role: "system", content: getPRDSystemPrompt(type) },
-            { role: "assistant", content: "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!" },
+            { role: "system", content: getPRDSystemPrompt(type, startMode) },
+            { role: "assistant", content: greetingMessage },
             { role: "user", content: rawIdea },
           ],
           max_completion_tokens: 1500,
         });
 
-        const aiContent = aiResponse.choices[0]?.message?.content || "That's an interesting idea! Let's dive deeper. What specific problem are you trying to solve with this?";
+        const fallbackResponse = startMode === "problem"
+          ? "That's a real pain point! Let's understand it better. Who specifically experiences this problem, and how often do they encounter it?"
+          : "That's an interesting idea! Let's dive deeper. What specific problem are you trying to solve with this?";
+        
+        const aiContent = aiResponse.choices[0]?.message?.content || fallbackResponse;
         
         await storage.createMessage({
           conversationId: conversation.id,
@@ -260,7 +292,7 @@ Return only the JSON array, no other text.`
         // Update conversation step
         await storage.updateConversation(conversation.id, {
           currentStep: 1,
-          currentSection: "Problem Statement",
+          currentSection: startMode === "problem" ? "Problem Deep-Dive" : "Problem Statement",
         });
 
         // Update project progress
@@ -271,10 +303,14 @@ Return only the JSON array, no other text.`
       } catch (aiError) {
         console.error("Error generating AI response:", aiError);
         // Add fallback message if AI fails
+        const fallbackMessage = startMode === "problem"
+          ? "That's a real pain point! Let's understand it better. Who specifically experiences this problem, and how often do they encounter it?"
+          : "That's an interesting idea! Let's explore it further. What specific problem are you trying to solve with this product?";
+        
         await storage.createMessage({
           conversationId: conversation.id,
           role: "ai",
-          content: "That's an interesting idea! Let's explore it further. What specific problem are you trying to solve with this product?",
+          content: fallbackMessage,
         });
       }
 
@@ -344,9 +380,10 @@ Return only the JSON array, no other text.`
         content: m.content,
       }));
 
-      // Get project to determine audience type
+      // Get project to determine audience type and start mode
       const project = await storage.getProject(conversation.projectId);
       const audienceType = project?.type;
+      const projectStartMode = project?.startMode || "idea";
 
       // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
@@ -357,7 +394,7 @@ Return only the JSON array, no other text.`
       const stream = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
-          { role: "system", content: getPRDSystemPrompt(audienceType) },
+          { role: "system", content: getPRDSystemPrompt(audienceType, projectStartMode) },
           ...chatHistory,
         ],
         stream: true,
@@ -381,18 +418,32 @@ Return only the JSON array, no other text.`
         content: fullResponse,
       });
 
-      // Update conversation step
+      // Update conversation step based on start mode
       const newStep = conversation.currentStep + 1;
-      const sections = [
+      
+      // Different section flows for idea vs problem mode
+      const ideaSections = [
         { step: 0, section: "Problem Statement", progress: 10 },
         { step: 1, section: "Target Audience", progress: 25 },
-        { step: 2, section: "Monetization", progress: 40 },
-        { step: 3, section: "Technical Specs", progress: 55 },
-        { step: 4, section: "Core Features", progress: 70 },
-        { step: 5, section: "Success Metrics", progress: 85 },
+        { step: 2, section: "Solution Overview", progress: 40 },
+        { step: 3, section: "Core Features", progress: 55 },
+        { step: 4, section: "Monetization", progress: 70 },
+        { step: 5, section: "Technical Specs", progress: 85 },
         { step: 6, section: "Finalizing", progress: 100 },
       ];
-
+      
+      const problemSections = [
+        { step: 0, section: "Problem Deep-Dive", progress: 10 },
+        { step: 1, section: "Solution Brainstorm", progress: 20 },
+        { step: 2, section: "Target Audience", progress: 35 },
+        { step: 3, section: "Commercial Opportunity", progress: 50 },
+        { step: 4, section: "Competition", progress: 65 },
+        { step: 5, section: "MVP Definition", progress: 80 },
+        { step: 6, section: "Business Model", progress: 90 },
+        { step: 7, section: "Finalizing", progress: 100 },
+      ];
+      
+      const sections = projectStartMode === "problem" ? problemSections : ideaSections;
       const currentPhase = sections.find(s => s.step === newStep) || sections[sections.length - 1];
       
       await storage.updateConversation(conversationId, {

@@ -17,6 +17,7 @@ export const projects = pgTable("projects", {
   status: text("status").notNull().default("draft"), // draft, in_progress, completed
   progress: integer("progress").notNull().default(0),
   rawIdea: text("raw_idea").notNull(),
+  startMode: text("start_mode").notNull().default("idea"), // "idea" or "problem"
   prdContent: text("prd_content"), // Generated PRD markdown
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
