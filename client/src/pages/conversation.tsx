@@ -45,6 +45,31 @@ export default function Conversation() {
     }
   }, [messages]);
 
+  const [step, setStep] = useState(0);
+  
+  const questions = [
+    {
+      text: "That's a great starting point. Who do you see as the primary user for this solution? Is it more for individuals or businesses?",
+      section: "Target Audience",
+      progress: 25
+    },
+    {
+      text: "Understood. How do you plan to monetize this? Subscription, one-time purchase, or something else?",
+      section: "Monetization",
+      progress: 50
+    },
+    {
+      text: "Got it. Do you have any specific technical requirements or stack preferences (e.g., React, Python, Mobile App)?",
+      section: "Technical Specs",
+      progress: 75
+    },
+    {
+      text: "Thanks for sharing. I'm generating your initial PRD draft now based on these details. Click 'View Draft' to see the result!",
+      section: "Finalizing",
+      progress: 100
+    }
+  ];
+
   const handleSend = () => {
     if (!input.trim()) return;
 
@@ -71,14 +96,28 @@ export default function Conversation() {
       setTimeout(() => {
         setMessages(prev => {
           const filtered = prev.filter(m => m.id !== "typing");
+          const nextQuestion = questions[step];
+          
+          if (!nextQuestion) {
+             return [...filtered];
+          }
+
           return [...filtered, {
             id: (Date.now() + 1).toString(),
             role: "ai",
-            content: "That's a great starting point. Who do you see as the primary user for this solution? Is it more for individuals or businesses?",
+            content: nextQuestion.text,
             timestamp: new Date()
           }];
         });
-        setProgress(prev => Math.min(prev + 15, 100));
+        
+        if (step < questions.length) {
+          const nextQ = questions[step];
+          if (nextQ) {
+            setProgress(nextQ.progress);
+            setCurrentSection(nextQ.section);
+          }
+          setStep(prev => prev + 1);
+        }
       }, 1500);
     }, 500);
   };
