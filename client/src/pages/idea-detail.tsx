@@ -86,6 +86,7 @@ export default function IdeaDetail() {
   const [isGeneratingStack, setIsGeneratingStack] = useState(false);
   const [stackRecommendation, setStackRecommendation] = useState<any>(null);
   const [notesExpanded, setNotesExpanded] = useState(true);
+  const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     loadProjectData();
@@ -544,32 +545,68 @@ export default function IdeaDetail() {
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {notesList.map((note) => (
-                        <div 
-                          key={note.id} 
-                          className="group p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                          data-testid={`note-${note.id}`}
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <p className="text-sm whitespace-pre-wrap flex-1">{note.content}</p>
-                            <button
-                              onClick={() => deleteNote(note.id)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
-                              data-testid={`button-delete-note-${note.id}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                      {notesList.map((note) => {
+                        const isExpanded = expandedNotes.has(note.id);
+                        const isLongNote = note.content.length > 100 || note.content.includes('\n');
+                        const toggleNote = () => {
+                          setExpandedNotes(prev => {
+                            const next = new Set(prev);
+                            if (next.has(note.id)) {
+                              next.delete(note.id);
+                            } else {
+                              next.add(note.id);
+                            }
+                            return next;
+                          });
+                        };
+                        return (
+                          <div 
+                            key={note.id} 
+                            className="group p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                            data-testid={`note-${note.id}`}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                {isLongNote ? (
+                                  <button
+                                    onClick={toggleNote}
+                                    className="text-left w-full"
+                                    data-testid={`button-toggle-note-${note.id}`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+                                      )}
+                                      <p className={`text-sm whitespace-pre-wrap ${!isExpanded ? 'line-clamp-1' : ''}`}>
+                                        {note.content}
+                                      </p>
+                                    </div>
+                                  </button>
+                                ) : (
+                                  <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => deleteNote(note.id)}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all shrink-0"
+                                data-testid={`button-delete-note-${note.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {new Date(note.createdAt).toLocaleDateString(undefined, { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            {new Date(note.createdAt).toLocaleDateString(undefined, { 
-                              month: 'short', 
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
