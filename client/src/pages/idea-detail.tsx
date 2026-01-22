@@ -35,7 +35,9 @@ import {
   Server,
   Database,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 
@@ -83,6 +85,7 @@ export default function IdeaDetail() {
   const [isGeneratingPrd, setIsGeneratingPrd] = useState(false);
   const [isGeneratingStack, setIsGeneratingStack] = useState(false);
   const [stackRecommendation, setStackRecommendation] = useState<any>(null);
+  const [notesExpanded, setNotesExpanded] = useState(true);
 
   useEffect(() => {
     loadProjectData();
@@ -482,77 +485,95 @@ export default function IdeaDetail() {
 
             {/* Notes */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  Notes
-                </CardTitle>
-                <CardDescription>Jot down thoughts, questions, or next steps</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2 mb-4">
-                  <Textarea
-                    placeholder="Add a note..."
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    className="min-h-[60px]"
-                    data-testid="input-new-note"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        addNote();
-                      }
-                    }}
-                  />
-                  <Button 
-                    onClick={addNote} 
-                    disabled={isAddingNote || !newNote.trim()}
-                    size="sm"
-                    className="shrink-0"
-                    data-testid="button-add-note"
-                  >
-                    {isAddingNote ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Plus className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-                
-                {notesList.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No notes yet. Add your first note above.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {notesList.map((note) => (
-                      <div 
-                        key={note.id} 
-                        className="group p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                        data-testid={`note-${note.id}`}
-                      >
-                        <div className="flex justify-between items-start gap-2">
-                          <p className="text-sm whitespace-pre-wrap flex-1">{note.content}</p>
-                          <button
-                            onClick={() => deleteNote(note.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
-                            data-testid={`button-delete-note-${note.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {new Date(note.createdAt).toLocaleDateString(undefined, { 
-                            month: 'short', 
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    ))}
+              <CardHeader 
+                className="cursor-pointer select-none" 
+                onClick={() => setNotesExpanded(!notesExpanded)}
+                data-testid="button-toggle-notes"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-primary" />
+                      Notes
+                      {notesList.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">{notesList.length}</Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>Jot down thoughts, questions, or next steps</CardDescription>
                   </div>
-                )}
-              </CardContent>
+                  {notesExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </div>
+              </CardHeader>
+              {notesExpanded && (
+                <CardContent>
+                  <div className="flex gap-2 mb-4">
+                    <Textarea
+                      placeholder="Add a note..."
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      className="min-h-[60px]"
+                      data-testid="input-new-note"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          addNote();
+                        }
+                      }}
+                    />
+                    <Button 
+                      onClick={addNote} 
+                      disabled={isAddingNote || !newNote.trim()}
+                      size="sm"
+                      className="shrink-0"
+                      data-testid="button-add-note"
+                    >
+                      {isAddingNote ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {notesList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No notes yet. Add your first note above.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {notesList.map((note) => (
+                        <div 
+                          key={note.id} 
+                          className="group p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                          data-testid={`note-${note.id}`}
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <p className="text-sm whitespace-pre-wrap flex-1">{note.content}</p>
+                            <button
+                              onClick={() => deleteNote(note.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                              data-testid={`button-delete-note-${note.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {new Date(note.createdAt).toLocaleDateString(undefined, { 
+                              month: 'short', 
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              )}
             </Card>
           </TabsContent>
 
