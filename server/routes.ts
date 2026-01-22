@@ -107,7 +107,7 @@ export async function registerRoutes(
             { role: "assistant", content: "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!" },
             { role: "user", content: rawIdea },
           ],
-          max_completion_tokens: 500,
+          max_completion_tokens: 1500,
         });
 
         const aiContent = aiResponse.choices[0]?.message?.content || "That's an interesting idea! Let's dive deeper. What specific problem are you trying to solve with this?";
@@ -218,7 +218,7 @@ export async function registerRoutes(
           ...chatHistory,
         ],
         stream: true,
-        max_completion_tokens: 500,
+        max_completion_tokens: 1500,
       });
 
       let fullResponse = "";
