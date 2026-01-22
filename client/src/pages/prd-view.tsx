@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Share2, Edit, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle, Clock, AlertTriangle, CheckCircle, Rabbit } from "lucide-react";
+import { Download, FileText, Share2, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle, Clock, AlertTriangle, CheckCircle, Rabbit, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Project, Conversation } from "@shared/schema";
@@ -55,6 +55,7 @@ export default function PrdView() {
   const [isCheckingReality, setIsCheckingReality] = useState(false);
   const [realityCheck, setRealityCheck] = useState<RealityCheckData | null>(null);
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
+  const [isPrdExpanded, setIsPrdExpanded] = useState(false);
   const { toast } = useToast();
 
   const projectId = params?.id ? parseInt(params.id) : null;
@@ -397,114 +398,8 @@ export default function PrdView() {
           </div>
         </div>
 
-        {/* Format Selection */}
-        <div className="flex flex-wrap gap-2 mb-8 pb-6 border-b">
-          {FORMAT_OPTIONS.map((format) => {
-            const Icon = format.icon;
-            const isActive = currentFormat === format.id;
-            return (
-              <button
-                key={format.id}
-                onClick={() => generatePRD(format.id)}
-                disabled={isGenerating}
-                className={`
-                  flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
-                  ${isActive 
-                    ? "border-primary bg-primary/10 text-primary" 
-                    : "border-border hover:border-primary/50 bg-card"}
-                  ${isGenerating ? "opacity-50 cursor-not-allowed" : ""}
-                `}
-                data-testid={`format-${format.id}`}
-              >
-                {isGenerating && currentFormat === format.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Icon className="w-4 h-4" />
-                )}
-                <span className="font-medium">{format.label}</span>
-              </button>
-            );
-          })}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => generatePRD(currentFormat)}
-            disabled={isGenerating}
-            className="ml-auto"
-            data-testid="button-regenerate"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? "animate-spin" : ""}`} />
-            Regenerate
-          </Button>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setViewMode("formatted")}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
-              viewMode === "formatted" 
-                ? "bg-primary text-primary-foreground" 
-                : "bg-muted hover:bg-muted/80"
-            }`}
-            data-testid="button-view-formatted"
-          >
-            Formatted
-          </button>
-          <button
-            onClick={() => setViewMode("raw")}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
-              viewMode === "raw" 
-                ? "bg-primary text-primary-foreground" 
-                : "bg-muted hover:bg-muted/80"
-            }`}
-            data-testid="button-view-raw"
-          >
-            Raw Markdown
-          </button>
-        </div>
-
-        {/* PRD Content */}
-        {viewMode === "formatted" ? (
-          <div className="prose prose-slate dark:prose-invert max-w-none break-words overflow-wrap-anywhere">
-            <ReactMarkdown
-              components={{
-                h1: ({ ...props }) => <h1 className="text-4xl font-display font-bold mt-8 mb-4 text-foreground break-words" {...props} />,
-                h2: ({ ...props }) => <h2 className="text-3xl font-display font-bold mt-6 mb-3 text-foreground break-words" {...props} />,
-                h3: ({ ...props }) => <h3 className="text-2xl font-semibold mt-4 mb-2 text-foreground break-words" {...props} />,
-                p: ({ ...props }) => <p className="mb-4 leading-relaxed text-foreground/90 break-words whitespace-pre-wrap" {...props} />,
-                ul: ({ ...props }) => <ul className="list-disc pl-6 mb-4 space-y-2" {...props} />,
-                ol: ({ ...props }) => <ol className="list-decimal pl-6 mb-4 space-y-2" {...props} />,
-                li: ({ ...props }) => <li className="text-foreground/90 break-words" {...props} />,
-                strong: ({ ...props }) => <strong className="font-semibold text-foreground" {...props} />,
-                code: ({ className, children, ...props }: any) => {
-                  const match = /language-(\w+)/.exec(className || '');
-                  return match ? (
-                    <code className="block bg-muted p-4 rounded-lg overflow-x-auto text-sm whitespace-pre-wrap break-words" {...props}>
-                      {children}
-                    </code>
-                  ) : (
-                    <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono break-words" {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                pre: ({ ...props }) => <pre className="bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap break-words" {...props} />,
-              }}
-            >
-              {project.prdContent?.replace(/^```(?:markdown)?\n?/i, "").replace(/\n?```$/i, "").trim()}
-            </ReactMarkdown>
-          </div>
-        ) : (
-          <div className="bg-muted rounded-lg p-4 overflow-x-auto" data-testid="raw-markdown-view">
-            <pre className="text-sm font-mono whitespace-pre-wrap break-words text-foreground/90">
-              {project.prdContent}
-            </pre>
-          </div>
-        )}
-
-        {/* Validation Tools Section */}
-        <div className="mt-12 pt-8 border-t">
+        {/* Validation Tools Section - Now First */}
+        <div className="mb-8">
           <h2 className="text-2xl font-display font-bold mb-6">Validate Your Idea</h2>
           <p className="text-muted-foreground mb-6">Test market interest before you build. Generate a landing page and find communities to share it.</p>
           
@@ -831,6 +726,138 @@ export default function PrdView() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Collapsible PRD Document Section */}
+        <div className="mt-8 border rounded-xl overflow-hidden">
+          <button
+            onClick={() => setIsPrdExpanded(!isPrdExpanded)}
+            className="w-full flex items-center justify-between p-4 bg-card hover:bg-muted/50 transition-colors"
+            data-testid="button-toggle-prd"
+          >
+            <div className="flex items-center gap-3">
+              <FileText className="w-5 h-5 text-primary" />
+              <div className="text-left">
+                <h3 className="font-semibold">Full Document</h3>
+                <p className="text-xs text-muted-foreground">View and export the complete PRD</p>
+              </div>
+            </div>
+            {isPrdExpanded ? (
+              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+            )}
+          </button>
+          
+          {isPrdExpanded && (
+            <div className="p-4 border-t">
+              {/* Format Selection */}
+              <div className="flex flex-wrap gap-2 mb-6 pb-4 border-b">
+                {FORMAT_OPTIONS.map((format) => {
+                  const Icon = format.icon;
+                  const isActive = currentFormat === format.id;
+                  return (
+                    <button
+                      key={format.id}
+                      onClick={() => generatePRD(format.id)}
+                      disabled={isGenerating}
+                      className={`
+                        flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
+                        ${isActive 
+                          ? "border-primary bg-primary/10 text-primary" 
+                          : "border-border hover:border-primary/50 bg-card"}
+                        ${isGenerating ? "opacity-50 cursor-not-allowed" : ""}
+                      `}
+                      data-testid={`format-${format.id}`}
+                    >
+                      {isGenerating && currentFormat === format.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Icon className="w-4 h-4" />
+                      )}
+                      <span className="font-medium">{format.label}</span>
+                    </button>
+                  );
+                })}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => generatePRD(currentFormat)}
+                  disabled={isGenerating}
+                  className="ml-auto"
+                  data-testid="button-regenerate"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? "animate-spin" : ""}`} />
+                  Regenerate
+                </Button>
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setViewMode("formatted")}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+                    viewMode === "formatted" 
+                      ? "bg-primary text-primary-foreground" 
+                      : "bg-muted hover:bg-muted/80"
+                  }`}
+                  data-testid="button-view-formatted"
+                >
+                  Formatted
+                </button>
+                <button
+                  onClick={() => setViewMode("raw")}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+                    viewMode === "raw" 
+                      ? "bg-primary text-primary-foreground" 
+                      : "bg-muted hover:bg-muted/80"
+                  }`}
+                  data-testid="button-view-raw"
+                >
+                  Raw Markdown
+                </button>
+              </div>
+
+              {/* PRD Content */}
+              {viewMode === "formatted" ? (
+                <div className="prose prose-slate dark:prose-invert max-w-none break-words overflow-wrap-anywhere">
+                  <ReactMarkdown
+                    components={{
+                      h1: ({ ...props }) => <h1 className="text-4xl font-display font-bold mt-8 mb-4 text-foreground break-words" {...props} />,
+                      h2: ({ ...props }) => <h2 className="text-3xl font-display font-bold mt-6 mb-3 text-foreground break-words" {...props} />,
+                      h3: ({ ...props }) => <h3 className="text-2xl font-semibold mt-4 mb-2 text-foreground break-words" {...props} />,
+                      p: ({ ...props }) => <p className="mb-4 leading-relaxed text-foreground/90 break-words whitespace-pre-wrap" {...props} />,
+                      ul: ({ ...props }) => <ul className="list-disc pl-6 mb-4 space-y-2" {...props} />,
+                      ol: ({ ...props }) => <ol className="list-decimal pl-6 mb-4 space-y-2" {...props} />,
+                      li: ({ ...props }) => <li className="text-foreground/90 break-words" {...props} />,
+                      strong: ({ ...props }) => <strong className="font-semibold text-foreground" {...props} />,
+                      code: ({ className, children, ...props }: any) => {
+                        const match = /language-(\w+)/.exec(className || '');
+                        return match ? (
+                          <code className="block bg-muted p-4 rounded-lg overflow-x-auto text-sm whitespace-pre-wrap break-words" {...props}>
+                            {children}
+                          </code>
+                        ) : (
+                          <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono break-words" {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                      pre: ({ ...props }) => <pre className="bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap break-words" {...props} />,
+                    }}
+                  >
+                    {project.prdContent?.replace(/^```(?:markdown)?\n?/i, "").replace(/\n?```$/i, "").trim()}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className="bg-muted rounded-lg p-4 overflow-x-auto" data-testid="raw-markdown-view">
+                  <pre className="text-sm font-mono whitespace-pre-wrap break-words text-foreground/90">
+                    {project.prdContent}
+                  </pre>
                 </div>
               )}
             </div>
