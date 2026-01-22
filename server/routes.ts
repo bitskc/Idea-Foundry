@@ -1,13 +1,19 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import OpenAI from "openai";
-import { speechToText, textToSpeech, ensureCompatibleFormat } from "./replit_integrations/audio/client";
+import { GeminiAdapter } from "./ai/gemini";
+import { AnthropicAdapter } from "./ai/anthropic";
+import { AIService, AIMessage } from "./ai/service";
+import { z } from "zod";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
+// Ideally this would be configurable per-user or feature
+const aiService: AIService = new GeminiAdapter(process.env.GEMINI_API_KEY);
+
+// Optional: Anthropic for complex reasoning tasks if configured
+const anthropicService = process.env.ANTHROPIC_API_KEY
+  ? new AnthropicAdapter(process.env.ANTHROPIC_API_KEY)
+  : null;
 
 // Audience-specific question emphasis
 const AUDIENCE_PROMPTS: Record<string, string> = {
@@ -21,7 +27,7 @@ const AUDIENCE_PROMPTS: Record<string, string> = {
 
 // Challenger mode prompt - devil's advocate that pushes back on ideas
 function getChallengerPrompt(audienceType?: string): string {
-  const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType] 
+  const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType]
     ? `\n\nAUDIENCE-SPECIFIC FOCUS:\n${AUDIENCE_PROMPTS[audienceType]}`
     : "";
 
@@ -61,7 +67,7 @@ function getPRDSystemPrompt(audienceType?: string, startMode: string = "idea", c
     return getChallengerPrompt(audienceType);
   }
 
-  const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType] 
+  const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType]
     ? `\n\nAUDIENCE-SPECIFIC FOCUS:\n${AUDIENCE_PROMPTS[audienceType]}`
     : "";
 
@@ -88,7 +94,7 @@ CONVERSATION FLOW (one topic at a time, in order):
 
 Be genuinely curious. Focus on solving the problem well. One question, then wait.`;
   }
-  
+
   // Path for users starting with an existing audience
   if (discoveryPath === "audience_first") {
     return `You are an expert product strategist helping founders build products for their existing audience.
@@ -145,7 +151,7 @@ CONVERSATION FLOW (one topic at a time, in order):
 
 Be genuinely curious. Focus on commercial viability. One question, then wait.`;
   }
-  
+
   // Default idea-first flow with offer question
   return `You are an expert product strategist helping founders refine their ideas through natural conversation.
 
@@ -174,29 +180,52 @@ CONVERSATION FLOW (one topic at a time, in order):
 Be genuinely curious. One question at a time, then wait for their answer.`;
 }
 
+// Zod schemas for structured output
+const NameSuggestionSchema = z.array(z.object({
+  name: z.string(),
+  tagline: z.string(),
+  style: z.string(),
+}));
+
+const ResearchSchema = z.object({
+  viabilityScore: z.number().min(1).max(10),
+  viabilityBreakdown: z.object({
+    marketSize: z.number().min(1).max(10),
+    competition: z.number().min(1).max(10),
+    effort: z.number().min(1).max(10),
+    profitPotential: z.number().min(1).max(10),
+  }),
+  competitors: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    strengths: z.array(z.string()),
+    weaknesses: z.array(z.string()),
+    url: z.string().optional(),
+  })),
+  keyInsights: z.array(z.string()),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
   // Generate app name suggestions
   app.post("/api/generate-names", async (req, res) => {
     try {
       const { idea, type } = req.body;
-      
+
       if (!idea || idea.length < 10) {
         return res.status(400).json({ error: "Please provide a product idea" });
       }
 
       const typeContext = type ? `Product type: ${type}` : "";
-      
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        messages: [
-          {
-            role: "system",
-            content: `You are a creative brand naming expert. Generate unique, memorable app/product names.
-            
+
+      const prompt = `Generate 6 unique app name suggestions for this idea:
+${idea}
+
+${typeContext}
+
 Rules for good names:
 - Short (1-2 words, max 12 characters preferred)
 - Easy to pronounce and spell
@@ -206,35 +235,17 @@ Rules for good names:
 - Mix of styles: playful, professional, abstract, descriptive
 
 Return ONLY a JSON array of 6 name suggestions with this exact format:
-[{"name": "AppName", "tagline": "Short catchy tagline", "style": "playful|professional|abstract|descriptive"}]`
-          },
-          {
-            role: "user",
-            content: `Generate 6 unique app name suggestions for this idea:
-${idea}
+[{"name": "AppName", "tagline": "Short catchy tagline", "style": "playful|professional|abstract|descriptive"}]`;
 
-${typeContext}
-
-Return only the JSON array, no other text.`
-          }
-        ],
-        max_completion_tokens: 500,
+      const names = await aiService.generateJSON(prompt, [], {
+        schema: NameSuggestionSchema,
+        maxTokens: 500
       });
 
-      const content = response.choices[0]?.message?.content || "[]";
-      
-      // Parse JSON from response
-      let names = [];
-      try {
-        const jsonMatch = content.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          names = JSON.parse(jsonMatch[0]);
-        }
-      } catch (parseError) {
-        console.error("Error parsing names:", parseError);
-      }
-      
-      // Ensure we always have 6 suggestions
+      res.json({ names });
+    } catch (error) {
+      console.error("Error generating names:", error);
+      // Fallback names
       const fallbackNames = [
         { name: "AppFlow", tagline: "Streamline your workflow", style: "professional" },
         { name: "Sparkr", tagline: "Ignite your ideas", style: "playful" },
@@ -243,54 +254,7 @@ Return only the JSON array, no other text.`
         { name: "Vibe", tagline: "Feel the difference", style: "playful" },
         { name: "Forge", tagline: "Craft your vision", style: "professional" },
       ];
-      
-      while (names.length < 6) {
-        names.push(fallbackNames[names.length % fallbackNames.length]);
-      }
-
-      res.json({ names: names.slice(0, 6) });
-    } catch (error) {
-      console.error("Error generating names:", error);
-      res.status(500).json({ error: "Failed to generate names" });
-    }
-  });
-
-  // Speech-to-Text: Transcribe audio to text
-  app.post("/api/speech-to-text", async (req, res) => {
-    try {
-      const { audio } = req.body;
-      
-      if (!audio) {
-        return res.status(400).json({ error: "No audio data provided" });
-      }
-
-      const audioBuffer = Buffer.from(audio, "base64");
-      const { buffer, format } = await ensureCompatibleFormat(audioBuffer);
-      const transcript = await speechToText(buffer, format);
-      
-      res.json({ transcript });
-    } catch (error) {
-      console.error("Error transcribing audio:", error);
-      res.status(500).json({ error: "Failed to transcribe audio" });
-    }
-  });
-
-  // Text-to-Speech: Convert text to audio
-  app.post("/api/text-to-speech", async (req, res) => {
-    try {
-      const { text, voice = "nova" } = req.body;
-      
-      if (!text) {
-        return res.status(400).json({ error: "No text provided" });
-      }
-
-      const audioBuffer = await textToSpeech(text, voice, "mp3");
-      const audioBase64 = audioBuffer.toString("base64");
-      
-      res.json({ audio: audioBase64 });
-    } catch (error) {
-      console.error("Error generating speech:", error);
-      res.status(500).json({ error: "Failed to generate speech" });
+      res.json({ names: fallbackNames });
     }
   });
 
@@ -313,7 +277,7 @@ Return only the JSON array, no other text.`
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
-      
+
       const conversation = await storage.getConversationByProjectId(id);
       res.json({ ...project, conversation });
     } catch (error) {
@@ -327,7 +291,7 @@ Return only the JSON array, no other text.`
   app.post("/api/projects/quick", async (req, res) => {
     try {
       const { rawIdea, type = "Unknown", notes = "", targetAvatar = null } = req.body;
-      
+
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: "Please provide at least 10 characters describing your idea" });
       }
@@ -355,10 +319,11 @@ Return only the JSON array, no other text.`
     }
   });
 
+  // Create new full project
   app.post("/api/projects", async (req, res) => {
     try {
       const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive", targetAvatar = null, discoveryPath = "idea_first", ideaPurpose = "monetize" } = req.body;
-      
+
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
       }
@@ -397,7 +362,7 @@ Return only the JSON array, no other text.`
       } else {
         greetingMessage = "Hi there! I'm here to help you flesh out this idea. Share your thoughts and let's explore it together!";
       }
-      
+
       await storage.createMessage({
         conversationId: conversation.id,
         role: "ai",
@@ -413,26 +378,21 @@ Return only the JSON array, no other text.`
 
       // Generate AI response to the input
       try {
-        const aiResponse = await openai.chat.completions.create({
-          model: "gpt-5.1",
-          messages: [
-            { role: "system", content: getPRDSystemPrompt(type, startMode, conversationMode, discoveryPath, ideaPurpose) },
-            { role: "assistant", content: greetingMessage },
-            { role: "user", content: rawIdea },
-          ],
-          max_completion_tokens: 1500,
+        const systemPrompt = getPRDSystemPrompt(type, startMode, conversationMode, discoveryPath, ideaPurpose);
+        const history: AIMessage[] = [
+          { role: "assistant", content: greetingMessage },
+          { role: "user", content: rawIdea },
+        ];
+
+        const aiResponse = await aiService.generateText(rawIdea, history, {
+          systemPrompt,
+          maxTokens: 1500
         });
 
-        const fallbackResponse = startMode === "problem"
-          ? "That's a real pain point! Let's understand it better. Who specifically experiences this problem, and how often do they encounter it?"
-          : "That's an interesting idea! Let's dive deeper. What specific problem are you trying to solve with this?";
-        
-        const aiContent = aiResponse.choices[0]?.message?.content || fallbackResponse;
-        
         await storage.createMessage({
           conversationId: conversation.id,
           role: "ai",
-          content: aiContent,
+          content: aiResponse,
         });
 
         // Update conversation step
@@ -452,7 +412,7 @@ Return only the JSON array, no other text.`
         const fallbackMessage = startMode === "problem"
           ? "That's a real pain point! Let's understand it better. Who specifically experiences this problem, and how often do they encounter it?"
           : "That's an interesting idea! Let's explore it further. What specific problem are you trying to solve with this product?";
-        
+
         await storage.createMessage({
           conversationId: conversation.id,
           role: "ai",
@@ -517,28 +477,15 @@ Respond with a JSON object containing:
 3. "competitors": array of 3-5 competitor objects, each with "name", "description", "strengths" (array of 2-3 strings), "weaknesses" (array of 2-3 strings), "url" (optional)
 4. "keyInsights": array of 4-6 key insights or recommendations (strings)
 
-Be realistic and honest in your assessment. Consider market size, competition intensity, required effort to build, and profit potential.
+Be realistic and honest in your assessment. Consider market size, competition intensity, required effort to build, and profit potential.`;
 
-IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
+      // Use Anthropic if available for better reasoning, otherwise Gemini
+      const service = anthropicService || aiService;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "You are a business analyst providing competitor research and viability assessments. Always respond with valid JSON only." },
-          { role: "user", content: prompt }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.7,
+      const researchData = await service.generateJSON(prompt, [], {
+        schema: ResearchSchema,
+        systemPrompt: "You are a business analyst providing competitor research and viability assessments."
       });
-
-      const content = response.choices[0]?.message?.content || "{}";
-      let researchData;
-      try {
-        researchData = JSON.parse(content);
-      } catch (parseError) {
-        console.error("Failed to parse research response:", content);
-        throw new Error("Invalid research response format");
-      }
 
       // Update project with research data
       const updatedProject = await storage.updateProject(id, {
@@ -560,7 +507,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
     try {
       const id = parseInt(req.params.id);
       const { conversationMode = "supportive" } = req.body;
-      
+
       const project = await storage.getProject(id);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
@@ -581,7 +528,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
       });
 
       // Add initial AI greeting
-      const greeting = conversationMode === "challenging" 
+      const greeting = conversationMode === "challenging"
         ? `Welcome! I'm here to challenge your idea and help you think critically about it.\n\nYou shared: "${project.rawIdea?.substring(0, 100)}..."\n\nLet me ask you some tough questions. What specific problem are you trying to solve, and why do you think people will pay for this solution?`
         : `Hi! I'm excited to help you explore and develop your idea.\n\nYou shared: "${project.rawIdea?.substring(0, 100)}..."\n\nLet's start by understanding the problem. What specific pain point or need does your idea address?`;
 
@@ -612,7 +559,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
       }
-      
+
       const messagesList = await storage.getMessagesByConversation(id);
       res.json({ ...conversation, messages: messagesList });
     } catch (error) {
@@ -621,7 +568,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
     }
   });
 
-  // Send message and get AI response (streaming)
+  // Send message and get AI response
   app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
@@ -659,42 +606,23 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
       const projectDiscoveryPath = project?.discoveryPath || "idea_first";
       const projectIdeaPurpose = project?.ideaPurpose || "monetize";
 
-      // Set up SSE
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
+      const systemPrompt = getPRDSystemPrompt(audienceType, projectStartMode, projectConversationMode, projectDiscoveryPath, projectIdeaPurpose);
 
-      // Stream AI response
-      const stream = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        messages: [
-          { role: "system", content: getPRDSystemPrompt(audienceType, projectStartMode, projectConversationMode, projectDiscoveryPath, projectIdeaPurpose) },
-          ...chatHistory,
-        ],
-        stream: true,
-        max_completion_tokens: 1500,
+      const aiResponse = await aiService.generateText(content.trim(), chatHistory, {
+        systemPrompt,
+        maxTokens: 1500
       });
-
-      let fullResponse = "";
-
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content || "";
-        if (delta) {
-          fullResponse += delta;
-          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
-        }
-      }
 
       // Save AI message
       await storage.createMessage({
         conversationId,
         role: "ai",
-        content: fullResponse,
+        content: aiResponse,
       });
 
       // Update conversation step based on start mode
       const newStep = conversation.currentStep + 1;
-      
+
       // Different section flows for idea vs problem mode
       const ideaSections = [
         { step: 0, section: "Problem Statement", progress: 10 },
@@ -705,7 +633,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
         { step: 5, section: "Technical Specs", progress: 85 },
         { step: 6, section: "Finalizing", progress: 100 },
       ];
-      
+
       const problemSections = [
         { step: 0, section: "Problem Deep-Dive", progress: 10 },
         { step: 1, section: "Solution Brainstorm", progress: 20 },
@@ -716,10 +644,10 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
         { step: 6, section: "Business Model", progress: 90 },
         { step: 7, section: "Finalizing", progress: 100 },
       ];
-      
+
       const sections = projectStartMode === "problem" ? problemSections : ideaSections;
       const currentPhase = sections.find(s => s.step === newStep) || sections[sections.length - 1];
-      
+
       await storage.updateConversation(conversationId, {
         currentStep: newStep,
         currentSection: currentPhase.section,
@@ -733,16 +661,17 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
         });
       }
 
-      res.write(`data: ${JSON.stringify({ done: true, step: newStep, section: currentPhase.section, progress: currentPhase.progress })}\n\n`);
-      res.end();
+      res.json({
+        content: aiResponse,
+        done: true,
+        step: newStep,
+        section: currentPhase.section,
+        progress: currentPhase.progress
+      });
+
     } catch (error) {
       console.error("Error processing message:", error);
-      if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ error: "Failed to process message" })}\n\n`);
-        res.end();
-      } else {
-        res.status(500).json({ error: "Failed to process message" });
-      }
+      res.status(500).json({ error: "Failed to process message" });
     }
   });
 
@@ -762,7 +691,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
     try {
       const projectId = parseInt(req.params.id);
       const { content } = req.body;
-      
+
       if (!content || content.trim().length === 0) {
         return res.status(400).json({ error: "Note content is required" });
       }
@@ -789,745 +718,93 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
     }
   });
 
-  // Generate PRD from project with tiered depth options
-  app.post("/api/projects/:id/generate-prd", async (req, res) => {
+  // Create Synergy Analysis
+  app.post("/api/projects/:id/synergies", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
-      const project = await storage.getProject(projectId);
-      
+      const id = parseInt(req.params.id);
+      const project = await storage.getProject(id);
+
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // Get track and user requirements from request with validation
-      const validTracks = ["quick", "standard", "production"];
-      const requestedTrack = req.body?.track;
-      const track = validTracks.includes(requestedTrack) ? requestedTrack : "standard";
-      const userRequirements = req.body?.userRequirements || "";
-
-      // Build context from conversation if available
-      let conversationContext = "";
-      const conversation = await storage.getConversationByProjectId(projectId);
-      if (conversation) {
-        const messagesList = await storage.getMessagesByConversation(conversation.id);
-        conversationContext = messagesList
-          .map(m => `${m.role === "user" ? "Founder" : "PM"}: ${m.content}`)
-          .join("\n\n");
+      // Check for cached synergy analysis
+      if (project.synergyAnalysis && typeof project.synergyAnalysis === 'object' && Object.keys(project.synergyAnalysis).length > 0) {
+        return res.json(project.synergyAnalysis);
       }
 
-      // Build base context from project data
-      const projectContext = `
-IDEA TITLE: ${project.title}
-IDEA DESCRIPTION: ${project.description}
-RAW IDEA: ${project.rawIdea}
-TYPE: ${project.type}
-NOTES: ${project.notes || "None"}
-${conversationContext ? `\nCONVERSATION:\n${conversationContext}` : ""}
-${userRequirements ? `\nUSER REQUIREMENTS:\n${userRequirements}` : ""}
-`;
-
-      let prdPrompt = "";
-      let maxTokens = 4000;
-      
-      if (track === "quick") {
-        // Quick PRD - 20-30 min, good for Claude Opus prototypes
-        maxTokens = 3000;
-        prdPrompt = `Create a QUICK PRD for rapid prototyping. This will be used by Claude Opus or similar AI to build a working prototype.
-
-${projectContext}
-
-Generate a concise PRD with these sections:
-
-# [Product Name] - Quick PRD
-
-## Overview
-- One paragraph explaining what this product does and who it's for
-
-## Problem
-- The core problem being solved (2-3 sentences)
-
-## Solution
-- How the product solves it (2-3 sentences)
-
-## Core Features (MVP)
-List 3-5 essential features. For each:
-- **Feature Name**: Brief description
-- User Story: "As a [user], I want [action] so that [benefit]"
-
-## Tech Stack Recommendation
-- Frontend: [recommendation]
-- Backend: [recommendation]  
-- Database: [recommendation]
-- Key dependencies to install
-
-## Pages/Screens
-List the main pages needed with a one-line description each
-
-## Data Model (Simple)
-List the main entities and their key fields (just field names, not full schema)
-
-Keep the entire document under 1500 words. Be specific enough that an AI can start building immediately.`;
-
-      } else if (track === "standard") {
-        // Standard PRD - 1-2 hours, good for mid-tier AI
-        maxTokens = 6000;
-        prdPrompt = `Create a STANDARD PRD with enough detail for mid-tier AI models to implement well.
-
-${projectContext}
-
-Generate a detailed PRD with these sections:
-
-# [Product Name] - Product Requirements Document
-
-## 1. Executive Summary
-- Problem statement (2-3 sentences)
-- Solution overview (2-3 sentences)
-- Target users
-- Key differentiators
-
-## 2. User Personas
-For the primary persona:
-- Name, role, demographics
-- Goals and motivations
-- Pain points and frustrations
-- How they'll use the product
-
-## 3. Core Features (MVP)
-For each of 5-8 features:
-- **Feature Name**
-- Description (what it does)
-- User Story: "As a [user], I want [action] so that [benefit]"
-- Acceptance Criteria (3-5 testable criteria as checkboxes)
-- Priority: Must-have / Should-have / Nice-to-have
-
-## 4. Technical Architecture
-### Tech Stack
-- Frontend: [specific framework/library with version]
-- Backend: [specific framework with version]
-- Database: [type and why]
-- Authentication: [approach]
-- Hosting: [recommendation]
-
-### API Endpoints
-List the main API endpoints:
-| Method | Endpoint | Description | Request Body | Response |
-|--------|----------|-------------|--------------|----------|
-
-### Database Schema
-For each table/collection:
-- Table name
-- Fields with types
-- Relationships
-
-## 5. UI Components
-List the main UI components needed:
-- Component name
-- Purpose
-- Key props/state
-
-## 6. Pages/Routes
-| Route | Page | Components Used | Description |
-|-------|------|-----------------|-------------|
-
-## 7. Monetization
-- Pricing model
-- Revenue streams
-
-## 8. Success Metrics
-- 3-5 KPIs with target values
-
-## 9. MVP Roadmap
-- Week 1-2: [priorities]
-- Week 3-4: [priorities]
-
-## 10. Risks
-- Top 3 technical risks and mitigations
-
-Be specific with technology choices and include enough detail that an AI can implement each feature.`;
-
-      } else {
-        // Production PRD - 3-4 hours, comprehensive for cheap/free AI
-        maxTokens = 10000;
-        prdPrompt = `Create a PRODUCTION-READY PRD with maximum detail. This PRD will be used by free/cheap AI models (like Claude Haiku) to implement a complete application. Include code examples, file structures, and step-by-step guidance.
-
-${projectContext}
-
-Generate an exhaustive PRD with these sections:
-
-# [Product Name] - Production PRD
-
-## 1. Executive Summary
-- Problem statement
-- Solution overview  
-- Target market and size
-- Competitive advantage
-- Revenue potential
-
-## 2. User Research & Personas
-### Primary Persona
-- Detailed demographics and psychographics
-- Day-in-the-life scenario
-- Goals, motivations, and frustrations
-- Current solutions and why they fail
-- Feature priorities
-
-### Secondary Persona (if applicable)
-- Same detail as primary
-
-### User Journey Map
-Step-by-step journey from discovery to regular use
-
-## 3. Feature Specifications
-
-For each feature (6-10 features):
-
-### Feature: [Name]
-**Priority:** Must-have / Should-have / Nice-to-have
-**Complexity:** Low / Medium / High
-
-**Description:**
-[Detailed description of what this feature does]
-
-**User Stories:**
-- As a [user type], I want [action], so that [benefit]
-- As a [user type], I want [action], so that [benefit]
-
-**Acceptance Criteria:**
-- [ ] Criterion 1 (specific and testable)
-- [ ] Criterion 2
-- [ ] Criterion 3
-- [ ] Criterion 4
-
-**UI/UX Requirements:**
-- Component placement
-- Interaction patterns
-- Responsive behavior
-
-**Error Handling:**
-- Error state 1: [what triggers it] → [how to handle]
-- Error state 2: [what triggers it] → [how to handle]
-
-**Edge Cases:**
-- Edge case 1: [scenario] → [expected behavior]
-- Edge case 2: [scenario] → [expected behavior]
-
----
-
-## 4. Technical Architecture
-
-### Tech Stack (with justification)
-| Layer | Technology | Version | Why |
-|-------|------------|---------|-----|
-| Frontend | | | |
-| Backend | | | |
-| Database | | | |
-| Auth | | | |
-| Hosting | | | |
-
-### Project File Structure
-\`\`\`
-project-root/
-├── client/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── ui/           # Reusable UI components
-│   │   │   ├── [feature]/    # Feature-specific components
-│   │   ├── pages/            # Route pages
-│   │   ├── hooks/            # Custom hooks
-│   │   ├── lib/              # Utilities
-│   │   └── App.tsx
-├── server/
-│   ├── routes.ts             # API routes
-│   ├── storage.ts            # Database operations
-│   └── index.ts              # Server entry
-├── shared/
-│   └── schema.ts             # Shared types/schema
-└── package.json
-\`\`\`
-
-### Database Schema (Complete)
-Define all tables needed for this specific application. For each table include:
-- Table name (snake_case)
-- All fields with PostgreSQL types
-- Primary keys, foreign keys, and indexes
-- Relationships between tables
-
-Example format:
-\`\`\`sql
--- Table: [entity_name]
-CREATE TABLE [entity_name] (
-  id SERIAL PRIMARY KEY,
-  [field_name] [TYPE] [CONSTRAINTS],
-  created_at TIMESTAMP DEFAULT NOW()
-);
-\`\`\`
-
-List ALL tables required for the MVP features described above.
-
-### API Specification (Complete)
-
-#### Endpoint: [METHOD] /api/[path]
-**Description:** [What this endpoint does]
-**Authentication:** Required / Optional / None
-**Request:**
-\`\`\`json
-{
-  "field1": "type and description",
-  "field2": "type and description"
-}
-\`\`\`
-**Response (Success - 200):**
-\`\`\`json
-{
-  "data": { ... }
-}
-\`\`\`
-**Response (Error - 400/401/500):**
-\`\`\`json
-{
-  "error": "Error message"
-}
-\`\`\`
-
-[Repeat for all endpoints]
-
-## 5. UI Component Library
-
-### Component: [ComponentName]
-**Purpose:** [What it does]
-**Props:**
-| Prop | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-
-**Usage Example:**
-\`\`\`tsx
-<ComponentName prop1="value" prop2={data} />
-\`\`\`
-
-[Repeat for major components]
-
-## 6. Page Specifications
-
-### Page: [Page Name]
-**Route:** /path
-**Purpose:** [What users do here]
-**Components Used:** [List of components]
-**Data Requirements:** [What API calls are needed]
-**State Management:** [Local state, server state, etc.]
-
-**Wireframe Description:**
-[Text description of layout - header, main content areas, sidebar if any]
-
-**User Interactions:**
-1. User clicks X → Y happens
-2. User submits form → Z happens
-
-[Repeat for all pages]
-
-## 7. Implementation Guide (Step-by-Step)
-
-### Phase 1: Project Setup (Day 1)
-1. Initialize project with [command]
-2. Install dependencies: [list]
-3. Set up database schema
-4. Configure environment variables:
-   - DATABASE_URL
-   - [other env vars]
-
-### Phase 2: Core Backend (Day 1-2)
-1. Implement [feature] API endpoint
-   - Create route handler
-   - Add storage method
-   - Test with curl/Postman
-2. [Next feature]
-
-### Phase 3: Core Frontend (Day 2-3)
-1. Create [component]
-2. Build [page]
-3. Connect to API
-
-### Phase 4: Polish & Testing (Day 4)
-1. Error handling
-2. Loading states
-3. Basic styling
-4. Manual testing
-
-## 8. Environment & Configuration
-
-### Required Environment Variables
-| Variable | Description | Example |
-|----------|-------------|---------|
-| DATABASE_URL | PostgreSQL connection | postgres://... |
-
-### Package Dependencies
-\`\`\`json
-{
-  "dependencies": {
-    "[package]": "[version]"
-  }
-}
-\`\`\`
-
-## 9. Validation & Testing
-
-### Manual Test Cases
-| Test | Steps | Expected Result |
-|------|-------|-----------------|
-| [Feature] works | 1. Do X, 2. Do Y | Z should happen |
-
-## 10. Monetization Strategy
-- Pricing tiers
-- Payment integration approach
-
-## 11. Success Metrics & KPIs
-| Metric | Target | How to Measure |
-|--------|--------|----------------|
-
-## 12. Risks & Mitigation
-| Risk | Impact | Likelihood | Mitigation |
-|------|--------|------------|------------|
-
-## 13. Future Roadmap
-- Phase 2 features (3-6 months)
-- Phase 3 features (6-12 months)
-
----
-
-This PRD should be detailed enough that even a basic AI model can follow the step-by-step implementation guide and build a working application. Include actual code patterns and specific technology recommendations.`;
+      // Get all other projects
+      const allProjects = await storage.getAllProjects();
+      const otherProjects = allProjects.filter(p => p.id !== id);
+
+      if (otherProjects.length === 0) {
+        return res.json({
+          synergies: [],
+          summary: "No other projects found to analyze synergies with."
+        });
       }
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prdPrompt }],
-        max_completion_tokens: maxTokens,
-      });
+      // Prepare data for AI
+      // Simple summary of other projects to keep prompt token count reasonable
+      const projectsSummary = otherProjects.map(p =>
+        `- ${p.title} (${p.type}): ${p.description.substring(0, 100)}...`
+      ).join("\n");
 
-      const prdContent = response.choices[0]?.message?.content || "# PRD Generation Failed";
+      const prompt = `Analyze potential synergies between this project and my other active projects.
 
-      // Save PRD to project
-      await storage.updateProject(projectId, {
-        prdContent,
-        status: "completed",
-        progress: 100,
-      });
+CURRENT PROJECT:
+Title: ${project.title}
+Type: ${project.type}
+Description: ${project.description}
 
-      res.json({ prdContent });
-    } catch (error) {
-      console.error("Error generating PRD:", error);
-      res.status(500).json({ error: "Failed to generate PRD" });
+OTHER PROJECTS:
+${projectsSummary}
+
+Identify cross-promotion opportunities, shared technical components, or strategic integrations.
+Focus on practical, actionable ways these projects could benefit each other.
+
+Return a JSON object with this structure:
+{
+  "summary": "Overall assessment of synergy potential",
+  "opportunities": [
+    {
+      "projectId": number (ID of the related project),
+      "projectTitle": "Title of related project",
+      "synergyType": "Cross-promotion" | "Integration" | "Shared Tech",
+      "description": "Specific actionable suggestion",
+      "potentialValue": "High" | "Medium" | "Low"
     }
-  });
-
-  // Tech stack advisor
-  app.post("/api/projects/:id/recommend-stack", async (req, res) => {
-    try {
-      const projectId = parseInt(req.params.id);
-      const project = await storage.getProject(projectId);
-      
-      if (!project) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-
-      // Get conversation context if available
-      let conversationContext = "";
-      const conversation = await storage.getConversationByProjectId(projectId);
-      if (conversation) {
-        const messages = await storage.getMessagesByConversation(conversation.id);
-        conversationContext = messages.slice(-10)
-          .map((m: { role: string; content: string }) => `${m.role === "user" ? "Founder" : "AI"}: ${m.content}`)
-          .join("\n\n");
-      }
-
-      const stackPrompt = `Based on this product idea, recommend the optimal tech stack for building an MVP.
-
-IDEA: ${project.rawIdea}
-TYPE: ${project.type}
-${project.targetAvatar ? `TARGET CUSTOMER: ${JSON.stringify(project.targetAvatar)}` : ""}
-
-${conversationContext ? `CONVERSATION CONTEXT:\n${conversationContext}` : ""}
-
-Provide a JSON response with this structure:
-{
-  "recommended": {
-    "frontend": {"name": "Framework/Library", "reason": "Why this is best for this idea"},
-    "backend": {"name": "Framework/Language", "reason": "Why this is best"},
-    "database": {"name": "Database type", "reason": "Why this fits"},
-    "hosting": {"name": "Hosting platform", "reason": "Why this works"},
-    "auth": {"name": "Auth solution", "reason": "Why recommended"}
-  },
-  "fullStack": {
-    "name": "Full-stack framework if applicable",
-    "reason": "Why this might be a good all-in-one choice"
-  },
-  "aiAssistants": [
-    {"name": "AI coding tool", "bestFor": "What it excels at", "tip": "How to use it for this project"}
-  ],
-  "mvpTimeline": "Estimated time to MVP with this stack",
-  "costEstimate": "Monthly infrastructure cost estimate for MVP",
-  "warnings": ["Potential gotchas or things to watch out for"],
-  "alternatives": [
-    {"stack": "Alternative stack name", "tradeoff": "Why you might choose this instead"}
   ]
-}
+}`;
 
-Consider:
-- Speed to MVP (favor simpler stacks for faster launch)
-- AI coding compatibility (Replit Agent, Cursor, Bolt work best with React, Node, Python)
-- Scalability needs based on idea type
-- Cost efficiency for bootstrapped founders
-- Developer experience and ecosystem
+      // Use Anthropic for complex relationship analysis if available
+      const service = anthropicService || aiService;
 
-Return ONLY valid JSON, no explanation.`;
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        messages: [
-          { role: "system", content: "You are a senior technical architect helping founders choose the right tech stack. Always respond with valid JSON only." },
-          { role: "user", content: stackPrompt }
-        ],
-        max_completion_tokens: 4000,
+      const SynergySchema = z.object({
+        summary: z.string(),
+        opportunities: z.array(z.object({
+          projectId: z.number().optional(), // AI might not map ID perfectly from text list, handle with care in UI
+          projectTitle: z.string(),
+          synergyType: z.enum(["Cross-promotion", "Integration", "Shared Technology", "Shared Tech"]).transform(val => val === "Shared Technology" ? "Shared Tech" : val),
+          description: z.string(),
+          potentialValue: z.enum(["High", "Medium", "Low"])
+        }))
       });
 
-      const content = response.choices[0]?.message?.content || "{}";
-      let stackData;
-      try {
-        stackData = JSON.parse(content);
-      } catch (parseError) {
-        console.error("Failed to parse stack response:", content);
-        throw new Error("Invalid stack response format");
-      }
-
-      res.json(stackData);
-    } catch (error) {
-      console.error("Error recommending tech stack:", error);
-      res.status(500).json({ error: "Failed to generate tech stack recommendation" });
-    }
-  });
-
-  // Generate landing page for idea validation
-  app.post("/api/projects/:id/generate-landing-page", async (req, res) => {
-    try {
-      const projectId = parseInt(req.params.id);
-      const project = await storage.getProject(projectId);
-      
-      if (!project) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-
-      // Get conversation to provide context
-      const conversation = await storage.getConversationByProjectId(projectId);
-      if (!conversation) {
-        return res.status(404).json({ error: "Conversation not found" });
-      }
-
-      const messages = await storage.getMessagesByConversation(conversation.id);
-      const conversationContext = messages
-        .map((m: { role: string; content: string }) => `${m.role === "user" ? "Founder" : "AI"}: ${m.content}`)
-        .join("\n\n");
-
-      // Generate landing page content
-      const landingPagePrompt = `Based on this conversation about a product idea, create a "Coming Soon" landing page in a single self-contained HTML file.
-
-${conversationContext}
-
-Create an HTML file with:
-1. Modern, attractive design with CSS included (dark theme, gradient accents)
-2. Compelling headline and tagline
-3. Value proposition bullets (3-4 points)
-4. Email capture form with name and email fields
-5. Social proof placeholder section
-6. Call-to-action button
-
-Requirements:
-- Single file with embedded CSS (no external dependencies)
-- Mobile responsive
-- Professional, modern aesthetic
-- Include Font Awesome CDN for icons
-- The email form should use:
-  - name="contact" attribute on the form element
-  - data-netlify="true" attribute for Netlify Forms integration
-  - A hidden input: <input type="hidden" name="form-name" value="contact" />
-  - action="/success" for the form
-  - data-testid="email-form" for testing
-- Include meta tags for SEO and social sharing
-- Add a small footer note: "Host this page free on <a href='https://www.netlify.com/?utm_source=ideafoundry' target='_blank'>Netlify</a> - forms auto-connect to email, Slack, Zapier & more"
-
-Return ONLY the complete HTML code, no explanation.`;
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        messages: [{ role: "user", content: landingPagePrompt }],
-        max_completion_tokens: 8000,
+      const synergyData = await service.generateJSON(prompt, [], {
+        schema: SynergySchema,
+        maxTokens: 1000
       });
 
-      const htmlContent = response.choices[0]?.message?.content || "<!DOCTYPE html><html><body>Failed to generate</body></html>";
-      
-      // Clean up the response - remove markdown code blocks if present
-      const cleanHtml = htmlContent
-        .replace(/^```html?\n?/i, "")
-        .replace(/\n?```$/i, "")
-        .trim();
-
-      res.json({ html: cleanHtml });
-    } catch (error) {
-      console.error("Error generating landing page:", error);
-      res.status(500).json({ error: "Failed to generate landing page" });
-    }
-  });
-
-  // Find communities for idea validation
-  app.post("/api/projects/:id/find-communities", async (req, res) => {
-    try {
-      const projectId = parseInt(req.params.id);
-      const project = await storage.getProject(projectId);
-      
-      if (!project) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-
-      const communityPrompt = `Based on this product idea, suggest communities where the founder can validate interest and find early adopters.
-
-Product Idea: ${project.rawIdea}
-Product Type: ${project.type}
-
-Provide a JSON response with this structure:
-{
-  "reddit": [
-    {"name": "r/subreddit", "subscribers": "estimate", "relevance": "why this is relevant"}
-  ],
-  "discord": [
-    {"name": "Server Name", "description": "what it's about", "invite_hint": "how to find it"}
-  ],
-  "twitter": [
-    {"hashtag": "#hashtag", "usage": "how active", "tip": "how to use it"}
-  ],
-  "other": [
-    {"platform": "Platform Name", "community": "Community Name", "description": "why relevant"}
-  ],
-  "timing_tips": ["Best time/way to post", "How to introduce yourself"]
-}
-
-Include 3-5 suggestions per category. Focus on active communities that would be receptive to new product announcements.
-Return ONLY valid JSON, no explanation.`;
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        messages: [{ role: "user", content: communityPrompt }],
-        max_completion_tokens: 2000,
+      // Cache the result
+      await storage.updateProject(id, {
+        synergyAnalysis: synergyData
       });
 
-      const content = response.choices[0]?.message?.content || "{}";
-      
-      // Parse and validate JSON
-      try {
-        const communities = JSON.parse(content.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim());
-        res.json(communities);
-      } catch {
-        res.json({ 
-          reddit: [], 
-          discord: [], 
-          twitter: [], 
-          other: [],
-          timing_tips: ["Share your idea and ask for feedback", "Be genuine and engage with responses"]
-        });
-      }
+      res.json(synergyData);
     } catch (error) {
-      console.error("Error finding communities:", error);
-      res.status(500).json({ error: "Failed to find communities" });
-    }
-  });
-
-  // Reality Check - estimate time/effort for an idea
-  app.post("/api/projects/:id/reality-check", async (req, res) => {
-    try {
-      const projectId = parseInt(req.params.id);
-      const project = await storage.getProject(projectId);
-      
-      if (!project) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-
-      // Get conversation for context
-      const conversation = await storage.getConversationByProjectId(projectId);
-      let conversationContext = "";
-      if (conversation) {
-        const messages = await storage.getMessagesByConversation(conversation.id);
-        conversationContext = messages
-          .map((m: { role: string; content: string }) => `${m.role === "user" ? "Founder" : "AI"}: ${m.content}`)
-          .join("\n\n");
-      }
-
-      const realityCheckPrompt = `You are a brutally honest startup advisor. Based on this idea and conversation, provide a "Reality Check" to help the founder understand the true commitment required.
-
-Product Idea: ${project.rawIdea}
-Product Type: ${project.type}
-
-${conversationContext ? `Conversation:\n${conversationContext}\n` : ""}
-
-Provide a JSON response with this structure:
-{
-  "time_to_mvp": {
-    "estimate": "X weeks/months",
-    "hours_per_week": "X-Y hours",
-    "total_hours": "X-Y hours total",
-    "reality": "honest assessment of the time commitment"
-  },
-  "skills_required": [
-    {"skill": "Skill Name", "level": "beginner/intermediate/advanced", "learning_time": "X hours/days to learn if needed"}
-  ],
-  "complexity_score": {
-    "score": 1-10,
-    "label": "Simple Side Project / Moderate Challenge / Serious Undertaking / Major Commitment / Life-Consuming Venture",
-    "breakdown": "what makes it this complex"
-  },
-  "hidden_work": [
-    "Thing people forget about #1",
-    "Thing people forget about #2"
-  ],
-  "financial_reality": {
-    "minimum_budget": "$X-Y",
-    "what_it_covers": "hosting, tools, etc.",
-    "hidden_costs": ["cost 1", "cost 2"]
-  },
-  "opportunity_cost": {
-    "what_else_could_you_do": "honest assessment",
-    "is_now_the_right_time": true/false,
-    "reasoning": "why or why not"
-  },
-  "red_flags": [
-    "potential issue #1",
-    "potential issue #2"
-  ],
-  "green_flags": [
-    "positive indicator #1",
-    "positive indicator #2"
-  ],
-  "bottom_line": "1-2 sentence honest verdict on whether to proceed"
-}
-
-Be honest and direct. Don't sugarcoat. Founders with this feature enabled WANT tough love.
-Return ONLY valid JSON, no explanation.`;
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        messages: [{ role: "user", content: realityCheckPrompt }],
-        max_completion_tokens: 3000,
-      });
-
-      const content = response.choices[0]?.message?.content || "{}";
-      
-      try {
-        const realityCheck = JSON.parse(content.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim());
-        res.json(realityCheck);
-      } catch {
-        res.json({ 
-          complexity_score: { score: 5, label: "Unknown", breakdown: "Could not analyze" },
-          bottom_line: "Unable to provide assessment. Please try again."
-        });
-      }
-    } catch (error) {
-      console.error("Error generating reality check:", error);
-      res.status(500).json({ error: "Failed to generate reality check" });
+      console.error("Error generating synergies:", error);
+      res.status(500).json({ error: "Failed to generate synergy analysis" });
     }
   });
 

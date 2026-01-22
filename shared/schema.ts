@@ -29,6 +29,8 @@ export const projects = pgTable("projects", {
   viabilityBreakdown: jsonb("viability_breakdown"), // { marketSize, competition, effort, profitPotential }
   competitors: jsonb("competitors"), // Array of competitor objects
   keyInsights: jsonb("key_insights"), // Array of insight strings
+  githubRepoUrl: text("github_repo_url"), // Optional GitHub repository URL
+  synergyAnalysis: jsonb("synergy_analysis"), // Cached synergy report
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
