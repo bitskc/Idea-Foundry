@@ -26,7 +26,11 @@ import {
   FileText,
   Sparkles,
   ExternalLink,
-  Building
+  Building,
+  Zap,
+  Rocket,
+  Crown,
+  CheckCircle2
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 
@@ -68,6 +72,9 @@ export default function IdeaDetail() {
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [isGeneratingResearch, setIsGeneratingResearch] = useState(false);
   const [isStartingConversation, setIsStartingConversation] = useState(false);
+  const [prdTrack, setPrdTrack] = useState<"quick" | "standard" | "production">("standard");
+  const [userRequirements, setUserRequirements] = useState("");
+  const [isGeneratingPrd, setIsGeneratingPrd] = useState(false);
 
   useEffect(() => {
     loadProjectData();
@@ -166,6 +173,37 @@ export default function IdeaDetail() {
       });
     } finally {
       setIsStartingConversation(false);
+    }
+  };
+
+  const generatePrd = async () => {
+    if (!project) return;
+    setIsGeneratingPrd(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/generate-prd`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          track: prdTrack,
+          userRequirements: userRequirements.trim() || undefined
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to generate PRD");
+      const data = await response.json();
+      setProject(prev => prev ? { ...prev, prdContent: data.prdContent } : null);
+      toast({ 
+        title: "PRD Generated!", 
+        description: `Your ${prdTrack === "quick" ? "Quick" : prdTrack === "standard" ? "Standard" : "Production"} PRD is ready.` 
+      });
+    } catch (error) {
+      console.error("Error generating PRD:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate PRD",
+      });
+    } finally {
+      setIsGeneratingPrd(false);
     }
   };
 
@@ -492,33 +530,159 @@ export default function IdeaDetail() {
                   <FileText className="w-5 h-5 text-primary" />
                   Product Requirements Document
                 </CardTitle>
-                <CardDescription>Turn your validated idea into a dev-ready PRD</CardDescription>
+                <CardDescription>Turn your idea into a dev-ready PRD that AI can implement</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
                 {project.prdContent ? (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-4">Your PRD has been generated.</p>
-                    <Button 
-                      onClick={() => setLocation(`/prd/${project.id}`)}
-                      data-testid="button-view-prd"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      View PRD
-                    </Button>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Continue your conversation to generate a comprehensive PRD.
-                    </p>
-                    {conversation && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <p className="font-medium">Your PRD has been generated!</p>
+                    </div>
+                    <div className="flex gap-3">
                       <Button 
-                        onClick={() => setLocation(`/conversation/${conversation.id}`)}
-                        data-testid="button-generate-prd"
+                        onClick={() => setLocation(`/prd/${project.id}`)}
+                        data-testid="button-view-prd"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        View PRD
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={async () => {
+                          await fetch(`/api/projects/${project.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ prdContent: null }),
+                          });
+                          setProject(prev => prev ? { ...prev, prdContent: null } : null);
+                        }}
+                        data-testid="button-regenerate-prd"
                       >
                         <Sparkles className="w-4 h-4 mr-2" />
-                        Continue to Generate PRD
+                        Generate New PRD
                       </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Track Selection */}
+                    <div>
+                      <h4 className="font-medium mb-3">Choose your PRD depth</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPrdTrack("quick")}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                            prdTrack === "quick" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          }`}
+                          data-testid="track-quick"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Zap className="w-5 h-5 text-yellow-500" />
+                            <span className="font-semibold">Quick</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">20-30 minutes</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>High-level features</li>
+                            <li>Basic user stories</li>
+                            <li>Tech stack suggestion</li>
+                          </ul>
+                          <p className="text-xs mt-2 text-primary">Good for: Claude Opus prototypes</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPrdTrack("standard")}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                            prdTrack === "standard" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          }`}
+                          data-testid="track-standard"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Rocket className="w-5 h-5 text-blue-500" />
+                            <span className="font-semibold">Standard</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">1-2 hours</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>Detailed features + acceptance</li>
+                            <li>API endpoint specs</li>
+                            <li>Database schema</li>
+                            <li>UI component breakdown</li>
+                          </ul>
+                          <p className="text-xs mt-2 text-primary">Good for: Mid-tier AI models</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPrdTrack("production")}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                            prdTrack === "production" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          }`}
+                          data-testid="track-production"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Crown className="w-5 h-5 text-amber-500" />
+                            <span className="font-semibold">Production</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">3-4 hours</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>Everything in Standard +</li>
+                            <li>Complete file structure</li>
+                            <li>Code patterns & examples</li>
+                            <li>Step-by-step guide</li>
+                          </ul>
+                          <p className="text-xs mt-2 text-primary">Good for: Free/cheap AI models</p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* User Requirements */}
+                    <div>
+                      <h4 className="font-medium mb-2">Your requirements (optional)</h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Add any preferences for tech stack, design style, constraints, or specific features you want emphasized.
+                      </p>
+                      <Textarea
+                        placeholder="e.g., Use React + Node.js, mobile-first design, integrate with Stripe for payments, keep it simple for MVP..."
+                        value={userRequirements}
+                        onChange={(e) => setUserRequirements(e.target.value)}
+                        className="min-h-[100px]"
+                        data-testid="input-user-requirements"
+                      />
+                    </div>
+
+                    {/* Generate Button */}
+                    <Button 
+                      onClick={generatePrd}
+                      disabled={isGeneratingPrd}
+                      className="w-full"
+                      size="lg"
+                      data-testid="button-generate-prd"
+                    >
+                      {isGeneratingPrd ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating {prdTrack === "quick" ? "Quick" : prdTrack === "standard" ? "Standard" : "Production"} PRD...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Generate {prdTrack === "quick" ? "Quick" : prdTrack === "standard" ? "Standard" : "Production"} PRD
+                        </>
+                      )}
+                    </Button>
+
+                    {!conversation && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Tip: Start a conversation in the Think tab first to provide more context for a better PRD.
+                      </p>
                     )}
                   </div>
                 )}

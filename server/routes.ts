@@ -678,7 +678,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
     }
   });
 
-  // Generate PRD from conversation
+  // Generate PRD from project with tiered depth options
   app.post("/api/projects/:id/generate-prd", async (req, res) => {
     try {
       const projectId = parseInt(req.params.id);
@@ -688,130 +688,407 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
         return res.status(404).json({ error: "Project not found" });
       }
 
+      // Get track and user requirements from request with validation
+      const validTracks = ["quick", "standard", "production"];
+      const requestedTrack = req.body?.track;
+      const track = validTracks.includes(requestedTrack) ? requestedTrack : "standard";
+      const userRequirements = req.body?.userRequirements || "";
+
+      // Build context from conversation if available
+      let conversationContext = "";
       const conversation = await storage.getConversationByProjectId(projectId);
-      if (!conversation) {
-        return res.status(404).json({ error: "Conversation not found" });
+      if (conversation) {
+        const messagesList = await storage.getMessagesByConversation(conversation.id);
+        conversationContext = messagesList
+          .map(m => `${m.role === "user" ? "Founder" : "PM"}: ${m.content}`)
+          .join("\n\n");
       }
 
-      const messagesList = await storage.getMessagesByConversation(conversation.id);
-      
-      // Build context from conversation
-      const conversationContext = messagesList
-        .map(m => `${m.role === "user" ? "Founder" : "PM"}: ${m.content}`)
-        .join("\n\n");
+      // Build base context from project data
+      const projectContext = `
+IDEA TITLE: ${project.title}
+IDEA DESCRIPTION: ${project.description}
+RAW IDEA: ${project.rawIdea}
+TYPE: ${project.type}
+NOTES: ${project.notes || "None"}
+${conversationContext ? `\nCONVERSATION:\n${conversationContext}` : ""}
+${userRequirements ? `\nUSER REQUIREMENTS:\n${userRequirements}` : ""}
+`;
 
-      // Determine export format (default to full PRD)
-      const format = req.body?.format || "full";
-      
       let prdPrompt = "";
+      let maxTokens = 4000;
       
-      if (format === "pitch") {
-        // One-page pitch deck summary
-        prdPrompt = `Based on this conversation with a founder, create a ONE-PAGE PITCH SUMMARY in markdown format.
+      if (track === "quick") {
+        // Quick PRD - 20-30 min, good for Claude Opus prototypes
+        maxTokens = 3000;
+        prdPrompt = `Create a QUICK PRD for rapid prototyping. This will be used by Claude Opus or similar AI to build a working prototype.
 
-${conversationContext}
+${projectContext}
 
-Create a concise pitch summary with:
-1. **Problem** (2-3 sentences)
-2. **Solution** (2-3 sentences)  
-3. **Target Market** (size and who)
-4. **Unique Value Proposition** (why you'll win)
-5. **Business Model** (how you make money)
-6. **Traction/Validation** (any early signals)
-7. **Ask** (what you need next)
+Generate a concise PRD with these sections:
 
-Keep it under 500 words. Use punchy, investor-friendly language.`;
-      } else if (format === "business") {
-        // Business plan format
-        prdPrompt = `Based on this conversation with a founder, create a BUSINESS PLAN SUMMARY in markdown format.
+# [Product Name] - Quick PRD
 
-${conversationContext}
+## Overview
+- One paragraph explaining what this product does and who it's for
 
-Create a business-focused document with:
-1. **Executive Summary** - The opportunity in 3 paragraphs
-2. **Market Analysis** - TAM/SAM/SOM, competitive landscape, market timing
-3. **Business Model** - Revenue streams, pricing strategy, unit economics
-4. **Go-to-Market Strategy** - Customer acquisition, channels, partnerships
-5. **Financial Projections** - Key assumptions, revenue potential, timeline to profitability
-6. **Team & Resources** - What's needed to execute
-7. **Risks & Mitigation** - Market, technical, and execution risks
+## Problem
+- The core problem being solved (2-3 sentences)
 
-Focus on business viability and profitability. Suitable for investors and stakeholders.`;
-      } else {
-        // Full dev-ready PRD
-        prdPrompt = `Based on this conversation with a founder, create a comprehensive DEV-READY Product Requirements Document (PRD) in markdown format.
+## Solution
+- How the product solves it (2-3 sentences)
 
-${conversationContext}
+## Core Features (MVP)
+List 3-5 essential features. For each:
+- **Feature Name**: Brief description
+- User Story: "As a [user], I want [action] so that [benefit]"
 
-Create a professional PRD with these sections:
+## Tech Stack Recommendation
+- Frontend: [recommendation]
+- Backend: [recommendation]  
+- Database: [recommendation]
+- Key dependencies to install
+
+## Pages/Screens
+List the main pages needed with a one-line description each
+
+## Data Model (Simple)
+List the main entities and their key fields (just field names, not full schema)
+
+Keep the entire document under 1500 words. Be specific enough that an AI can start building immediately.`;
+
+      } else if (track === "standard") {
+        // Standard PRD - 1-2 hours, good for mid-tier AI
+        maxTokens = 6000;
+        prdPrompt = `Create a STANDARD PRD with enough detail for mid-tier AI models to implement well.
+
+${projectContext}
+
+Generate a detailed PRD with these sections:
 
 # [Product Name] - Product Requirements Document
 
 ## 1. Executive Summary
-- Problem statement (concise)
-- Solution overview
-- Target market size
-- Expected revenue potential
-
-## 2. Problem Statement
-- The challenge in detail
-- Current alternatives and why they fail
-- Impact of the problem
-
-## 3. Target Audience & User Personas
-- Primary persona with name, role, pain points
-- Secondary persona if applicable
-- User journey overview
-
-## 4. Solution Overview
-- How the product works
+- Problem statement (2-3 sentences)
+- Solution overview (2-3 sentences)
+- Target users
 - Key differentiators
-- Core value propositions
 
-## 5. Core Features (MVP)
-For each feature include:
-- Feature name and description
-- User story format: "As a [user], I want [action], so that [benefit]"
-- Acceptance criteria (checkboxes)
+## 2. User Personas
+For the primary persona:
+- Name, role, demographics
+- Goals and motivations
+- Pain points and frustrations
+- How they'll use the product
 
-## 6. Technical Architecture
-- Recommended tech stack with justification
-- High-level system components
-- Key integrations needed
-- Database considerations
+## 3. Core Features (MVP)
+For each of 5-8 features:
+- **Feature Name**
+- Description (what it does)
+- User Story: "As a [user], I want [action] so that [benefit]"
+- Acceptance Criteria (3-5 testable criteria as checkboxes)
+- Priority: Must-have / Should-have / Nice-to-have
 
-## 7. Monetization Strategy
+## 4. Technical Architecture
+### Tech Stack
+- Frontend: [specific framework/library with version]
+- Backend: [specific framework with version]
+- Database: [type and why]
+- Authentication: [approach]
+- Hosting: [recommendation]
+
+### API Endpoints
+List the main API endpoints:
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+
+### Database Schema
+For each table/collection:
+- Table name
+- Fields with types
+- Relationships
+
+## 5. UI Components
+List the main UI components needed:
+- Component name
+- Purpose
+- Key props/state
+
+## 6. Pages/Routes
+| Route | Page | Components Used | Description |
+|-------|------|-----------------|-------------|
+
+## 7. Monetization
 - Pricing model
 - Revenue streams
-- Unit economics (if discussed)
 
-## 8. Success Metrics & KPIs
-- Primary success metrics
-- Secondary metrics
-- Targets for MVP launch
+## 8. Success Metrics
+- 3-5 KPIs with target values
 
-## 9. Go-to-Market Strategy
-- Launch plan
-- Customer acquisition channels
-- Partnerships to explore
+## 9. MVP Roadmap
+- Week 1-2: [priorities]
+- Week 3-4: [priorities]
 
-## 10. Roadmap
-- Phase 1 (MVP): Core features
-- Phase 2 (3-6 months): Growth features
-- Phase 3 (6-12 months): Scale features
+## 10. Risks
+- Top 3 technical risks and mitigations
 
-## 11. Risks & Mitigation
-- Technical risks
-- Market risks  
-- Execution risks
+Be specific with technology choices and include enough detail that an AI can implement each feature.`;
 
-Format in clean markdown with proper headers, bullet points, and structure. Be specific and actionable.`;
+      } else {
+        // Production PRD - 3-4 hours, comprehensive for cheap/free AI
+        maxTokens = 10000;
+        prdPrompt = `Create a PRODUCTION-READY PRD with maximum detail. This PRD will be used by free/cheap AI models (like Claude Haiku) to implement a complete application. Include code examples, file structures, and step-by-step guidance.
+
+${projectContext}
+
+Generate an exhaustive PRD with these sections:
+
+# [Product Name] - Production PRD
+
+## 1. Executive Summary
+- Problem statement
+- Solution overview  
+- Target market and size
+- Competitive advantage
+- Revenue potential
+
+## 2. User Research & Personas
+### Primary Persona
+- Detailed demographics and psychographics
+- Day-in-the-life scenario
+- Goals, motivations, and frustrations
+- Current solutions and why they fail
+- Feature priorities
+
+### Secondary Persona (if applicable)
+- Same detail as primary
+
+### User Journey Map
+Step-by-step journey from discovery to regular use
+
+## 3. Feature Specifications
+
+For each feature (6-10 features):
+
+### Feature: [Name]
+**Priority:** Must-have / Should-have / Nice-to-have
+**Complexity:** Low / Medium / High
+
+**Description:**
+[Detailed description of what this feature does]
+
+**User Stories:**
+- As a [user type], I want [action], so that [benefit]
+- As a [user type], I want [action], so that [benefit]
+
+**Acceptance Criteria:**
+- [ ] Criterion 1 (specific and testable)
+- [ ] Criterion 2
+- [ ] Criterion 3
+- [ ] Criterion 4
+
+**UI/UX Requirements:**
+- Component placement
+- Interaction patterns
+- Responsive behavior
+
+**Error Handling:**
+- Error state 1: [what triggers it] → [how to handle]
+- Error state 2: [what triggers it] → [how to handle]
+
+**Edge Cases:**
+- Edge case 1: [scenario] → [expected behavior]
+- Edge case 2: [scenario] → [expected behavior]
+
+---
+
+## 4. Technical Architecture
+
+### Tech Stack (with justification)
+| Layer | Technology | Version | Why |
+|-------|------------|---------|-----|
+| Frontend | | | |
+| Backend | | | |
+| Database | | | |
+| Auth | | | |
+| Hosting | | | |
+
+### Project File Structure
+\`\`\`
+project-root/
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ui/           # Reusable UI components
+│   │   │   ├── [feature]/    # Feature-specific components
+│   │   ├── pages/            # Route pages
+│   │   ├── hooks/            # Custom hooks
+│   │   ├── lib/              # Utilities
+│   │   └── App.tsx
+├── server/
+│   ├── routes.ts             # API routes
+│   ├── storage.ts            # Database operations
+│   └── index.ts              # Server entry
+├── shared/
+│   └── schema.ts             # Shared types/schema
+└── package.json
+\`\`\`
+
+### Database Schema (Complete)
+Define all tables needed for this specific application. For each table include:
+- Table name (snake_case)
+- All fields with PostgreSQL types
+- Primary keys, foreign keys, and indexes
+- Relationships between tables
+
+Example format:
+\`\`\`sql
+-- Table: [entity_name]
+CREATE TABLE [entity_name] (
+  id SERIAL PRIMARY KEY,
+  [field_name] [TYPE] [CONSTRAINTS],
+  created_at TIMESTAMP DEFAULT NOW()
+);
+\`\`\`
+
+List ALL tables required for the MVP features described above.
+
+### API Specification (Complete)
+
+#### Endpoint: [METHOD] /api/[path]
+**Description:** [What this endpoint does]
+**Authentication:** Required / Optional / None
+**Request:**
+\`\`\`json
+{
+  "field1": "type and description",
+  "field2": "type and description"
+}
+\`\`\`
+**Response (Success - 200):**
+\`\`\`json
+{
+  "data": { ... }
+}
+\`\`\`
+**Response (Error - 400/401/500):**
+\`\`\`json
+{
+  "error": "Error message"
+}
+\`\`\`
+
+[Repeat for all endpoints]
+
+## 5. UI Component Library
+
+### Component: [ComponentName]
+**Purpose:** [What it does]
+**Props:**
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+
+**Usage Example:**
+\`\`\`tsx
+<ComponentName prop1="value" prop2={data} />
+\`\`\`
+
+[Repeat for major components]
+
+## 6. Page Specifications
+
+### Page: [Page Name]
+**Route:** /path
+**Purpose:** [What users do here]
+**Components Used:** [List of components]
+**Data Requirements:** [What API calls are needed]
+**State Management:** [Local state, server state, etc.]
+
+**Wireframe Description:**
+[Text description of layout - header, main content areas, sidebar if any]
+
+**User Interactions:**
+1. User clicks X → Y happens
+2. User submits form → Z happens
+
+[Repeat for all pages]
+
+## 7. Implementation Guide (Step-by-Step)
+
+### Phase 1: Project Setup (Day 1)
+1. Initialize project with [command]
+2. Install dependencies: [list]
+3. Set up database schema
+4. Configure environment variables:
+   - DATABASE_URL
+   - [other env vars]
+
+### Phase 2: Core Backend (Day 1-2)
+1. Implement [feature] API endpoint
+   - Create route handler
+   - Add storage method
+   - Test with curl/Postman
+2. [Next feature]
+
+### Phase 3: Core Frontend (Day 2-3)
+1. Create [component]
+2. Build [page]
+3. Connect to API
+
+### Phase 4: Polish & Testing (Day 4)
+1. Error handling
+2. Loading states
+3. Basic styling
+4. Manual testing
+
+## 8. Environment & Configuration
+
+### Required Environment Variables
+| Variable | Description | Example |
+|----------|-------------|---------|
+| DATABASE_URL | PostgreSQL connection | postgres://... |
+
+### Package Dependencies
+\`\`\`json
+{
+  "dependencies": {
+    "[package]": "[version]"
+  }
+}
+\`\`\`
+
+## 9. Validation & Testing
+
+### Manual Test Cases
+| Test | Steps | Expected Result |
+|------|-------|-----------------|
+| [Feature] works | 1. Do X, 2. Do Y | Z should happen |
+
+## 10. Monetization Strategy
+- Pricing tiers
+- Payment integration approach
+
+## 11. Success Metrics & KPIs
+| Metric | Target | How to Measure |
+|--------|--------|----------------|
+
+## 12. Risks & Mitigation
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+
+## 13. Future Roadmap
+- Phase 2 features (3-6 months)
+- Phase 3 features (6-12 months)
+
+---
+
+This PRD should be detailed enough that even a basic AI model can follow the step-by-step implementation guide and build a working application. Include actual code patterns and specific technology recommendations.`;
       }
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: "gpt-4o",
         messages: [{ role: "user", content: prdPrompt }],
-        max_completion_tokens: 6000,
+        max_completion_tokens: maxTokens,
       });
 
       const prdContent = response.choices[0]?.message?.content || "# PRD Generation Failed";
