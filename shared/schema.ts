@@ -22,6 +22,7 @@ export const projects = pgTable("projects", {
   conversationMode: text("conversation_mode").notNull().default("supportive"), // "supportive" or "challenger"
   prdContent: text("prd_content"), // Generated PRD markdown
   notes: text("notes"), // User's quick notes about the idea
+  targetAvatar: jsonb("target_avatar"), // Customer avatar: { role, industry, painPoints, goals, demographics, behaviors }
   viabilityScore: integer("viability_score"), // 1-10 score
   viabilityBreakdown: jsonb("viability_breakdown"), // { marketSize, competition, effort, profitPotential }
   competitors: jsonb("competitors"), // Array of competitor objects

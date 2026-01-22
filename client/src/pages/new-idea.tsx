@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -12,10 +13,21 @@ import {
   MessageSquare,
   Loader2,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Users,
+  Target
 } from "lucide-react";
 
 type StartMode = "idea" | "quick" | "problem";
+
+interface TargetAvatar {
+  role: string;
+  industry: string;
+  companySize: string;
+  painPoints: string;
+  goals: string;
+  currentSolution: string;
+}
 
 const AUDIENCE_TYPES = [
   { id: "B2B SaaS", label: "B2B SaaS", icon: "💼", description: "Software for businesses" },
@@ -26,15 +38,33 @@ const AUDIENCE_TYPES = [
   { id: "Other", label: "Other", icon: "✨", description: "Something else" },
 ];
 
+const COMPANY_SIZES = [
+  { id: "solo", label: "Solo / Freelancer" },
+  { id: "small", label: "Small (2-10)" },
+  { id: "medium", label: "Medium (11-50)" },
+  { id: "large", label: "Large (51-200)" },
+  { id: "enterprise", label: "Enterprise (200+)" },
+  { id: "consumer", label: "Individual Consumer" },
+];
+
 export default function NewIdea() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
-  const [step, setStep] = useState<"mode" | "input" | "type">("mode");
+  const [step, setStep] = useState<"mode" | "input" | "type" | "avatar">("mode");
   const [startMode, setStartMode] = useState<StartMode>("idea");
   const [idea, setIdea] = useState("");
   const [selectedType, setSelectedType] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
+  
+  const [avatar, setAvatar] = useState<TargetAvatar>({
+    role: "",
+    industry: "",
+    companySize: "",
+    painPoints: "",
+    goals: "",
+    currentSolution: "",
+  });
 
   const handleSelectMode = (mode: StartMode) => {
     setStartMode(mode);
@@ -53,7 +83,7 @@ export default function NewIdea() {
     setStep("type");
   };
 
-  const handleQuickStart = async () => {
+  const handleTypeSelected = () => {
     if (!selectedType) {
       toast({
         variant: "destructive",
@@ -62,13 +92,26 @@ export default function NewIdea() {
       });
       return;
     }
+    
+    if (startMode === "quick") {
+      handleQuickStart();
+    } else {
+      setStep("avatar");
+    }
+  };
 
+  const handleQuickStart = async () => {
     setIsCreating(true);
     try {
       const response = await fetch("/api/projects/quick", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawIdea: idea, type: selectedType, notes: idea }),
+        body: JSON.stringify({ 
+          rawIdea: idea, 
+          type: selectedType, 
+          notes: idea,
+          targetAvatar: avatar.role ? avatar : null,
+        }),
       });
 
       if (!response.ok) throw new Error("Failed to save idea");
@@ -88,11 +131,11 @@ export default function NewIdea() {
   };
 
   const handleStart = async () => {
-    if (!selectedType) {
+    if (!avatar.role || !avatar.painPoints) {
       toast({
         variant: "destructive",
-        title: "Select a type",
-        description: "Please select what type of product you're building.",
+        title: "Missing information",
+        description: "Please describe who you're building for and their main pain point.",
       });
       return;
     }
@@ -106,7 +149,8 @@ export default function NewIdea() {
           rawIdea: idea, 
           type: selectedType, 
           startMode,
-          conversationMode: "supportive"
+          conversationMode: "supportive",
+          targetAvatar: avatar,
         }),
       });
 
@@ -124,6 +168,8 @@ export default function NewIdea() {
       setIsCreating(false);
     }
   };
+
+  const isB2B = selectedType === "B2B SaaS" || selectedType === "Marketplace";
 
   return (
     <AppLayout showBackButton backTo="/app">
@@ -312,20 +358,166 @@ export default function NewIdea() {
               </div>
 
               <Button
-                onClick={startMode === "quick" ? handleQuickStart : handleStart}
+                onClick={handleTypeSelected}
                 disabled={!selectedType || isCreating}
                 className="w-full"
+                size="lg"
+              >
+                {startMode === "quick" ? (
+                  isCreating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <StickyNote className="w-4 h-4 mr-2" />
+                      Capture Idea
+                    </>
+                  )
+                ) : (
+                  <>
+                    Continue <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          )}
+
+          {step === "avatar" && (
+            <motion.div
+              key="avatar-step"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Button variant="ghost" onClick={() => setStep("type")} className="mb-4 -ml-2">
+                Back
+              </Button>
+
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-600 text-xs font-medium mb-4">
+                <Target className="w-3 h-3" />
+                Define Your Customer
+              </div>
+              <h2 className="text-2xl font-display font-bold mb-2">Who are you building for?</h2>
+              <p className="text-muted-foreground mb-6">
+                The more specific your target customer, the better your MVP and marketing will be.
+              </p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <Users className="w-4 h-4 inline mr-2" />
+                    Who is your ideal customer? <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    placeholder={isB2B 
+                      ? "e.g., Marketing managers at mid-sized e-commerce companies" 
+                      : "e.g., Busy parents who meal prep on weekends"
+                    }
+                    value={avatar.role}
+                    onChange={(e) => setAvatar({ ...avatar, role: e.target.value })}
+                    data-testid="input-avatar-role"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Be specific: job title, life situation, or defining characteristic
+                  </p>
+                </div>
+
+                {isB2B && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        What industry are they in?
+                      </label>
+                      <Input
+                        placeholder="e.g., E-commerce, Healthcare, Construction"
+                        value={avatar.industry}
+                        onChange={(e) => setAvatar({ ...avatar, industry: e.target.value })}
+                        data-testid="input-avatar-industry"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Company size
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {COMPANY_SIZES.filter(s => s.id !== "consumer").map((size) => (
+                          <button
+                            key={size.id}
+                            onClick={() => setAvatar({ ...avatar, companySize: size.id })}
+                            className={`p-2 text-sm rounded-lg border transition-all ${
+                              avatar.companySize === size.id
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/50"
+                            }`}
+                            data-testid={`size-${size.id}`}
+                          >
+                            {size.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    What's their biggest pain point? <span className="text-destructive">*</span>
+                  </label>
+                  <Textarea
+                    placeholder={isB2B 
+                      ? "e.g., They spend 10+ hours/week manually updating spreadsheets and can't get real-time data"
+                      : "e.g., They don't have time to plan healthy meals and end up ordering takeout"
+                    }
+                    value={avatar.painPoints}
+                    onChange={(e) => setAvatar({ ...avatar, painPoints: e.target.value })}
+                    className="min-h-[80px]"
+                    data-testid="input-avatar-pain"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    What does success look like for them?
+                  </label>
+                  <Textarea
+                    placeholder={isB2B 
+                      ? "e.g., Save 5+ hours/week, reduce errors by 90%, impress their boss with real-time dashboards"
+                      : "e.g., Eat healthier, save money on food, spend more time with family"
+                    }
+                    value={avatar.goals}
+                    onChange={(e) => setAvatar({ ...avatar, goals: e.target.value })}
+                    className="min-h-[80px]"
+                    data-testid="input-avatar-goals"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    How do they solve this problem today?
+                  </label>
+                  <Input
+                    placeholder="e.g., Excel spreadsheets, a competitor product, or doing it manually"
+                    value={avatar.currentSolution}
+                    onChange={(e) => setAvatar({ ...avatar, currentSolution: e.target.value })}
+                    data-testid="input-avatar-current"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleStart}
+                disabled={!avatar.role || !avatar.painPoints || isCreating}
+                className="w-full mt-8"
                 size="lg"
               >
                 {isCreating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {startMode === "quick" ? "Saving..." : "Creating..."}
-                  </>
-                ) : startMode === "quick" ? (
-                  <>
-                    <StickyNote className="w-4 h-4 mr-2" />
-                    Capture Idea
+                    Creating...
                   </>
                 ) : (
                   <>

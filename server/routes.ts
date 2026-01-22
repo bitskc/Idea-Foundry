@@ -84,7 +84,10 @@ CONVERSATION FLOW (one topic at a time, in order):
 5. Competition - What exists today? What are their weak spots?
 6. MVP Definition - Minimum to validate? Core features only.
 7. Business Model - How to make money? Path to profitability?
-8. Go-to-Market - First customers? Launch strategy?
+8. Deployment Architecture - URL structure preferences? (www for marketing, app. subdomain for product, or unified domain?)
+9. Payment Provider - Which payment service to integrate? (Stripe, or merchant-of-record like Paddle/Lemon Squeezy?)
+10. Sales Tax Compliance - How will they handle sales tax nexus as they scale across states/countries?
+11. Go-to-Market - First customers? Launch strategy?
 
 Be genuinely curious. Focus on commercial viability. One question, then wait.`;
   }
@@ -104,10 +107,13 @@ CONVERSATION FLOW (one topic at a time, in order):
 2. Target Audience - Who specifically? How many exist?
 3. Solution Overview - How does it work? What's unique?
 4. Core Features - MVP features? What's Phase 2?
-5. Monetization - How will it make money? Pricing?
+5. Monetization - How will it make money? Pricing strategy?
 6. Technical Stack - Web, mobile, or both? Key integrations?
-7. Success Metrics - How to measure success? Key KPIs?
-8. Go-to-Market - First customers? Launch strategy?
+7. Deployment Architecture - URL structure preference? (www for landing with app. subdomain, or single domain?)
+8. Payment Provider - Which payment service? (Stripe direct, or merchant-of-record like Paddle/Lemon Squeezy?)
+9. Sales Tax Strategy - How will they handle sales tax compliance as they grow across states/countries?
+10. Success Metrics - How to measure success? Key KPIs?
+11. Go-to-Market - First customers? Launch strategy?
 
 Be genuinely curious. One question at a time, then wait for their answer.`;
 }
@@ -264,7 +270,7 @@ Return only the JSON array, no other text.`
   // Quick capture - create project without conversation (for marinating ideas)
   app.post("/api/projects/quick", async (req, res) => {
     try {
-      const { rawIdea, type = "Unknown", notes = "" } = req.body;
+      const { rawIdea, type = "Unknown", notes = "", targetAvatar = null } = req.body;
       
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: "Please provide at least 10 characters describing your idea" });
@@ -283,6 +289,7 @@ Return only the JSON array, no other text.`
         conversationMode: "supportive",
         prdContent: null,
         notes: notes || rawIdea,
+        targetAvatar,
       });
 
       res.status(201).json(project);
@@ -294,7 +301,7 @@ Return only the JSON array, no other text.`
 
   app.post("/api/projects", async (req, res) => {
     try {
-      const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive" } = req.body;
+      const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive", targetAvatar = null } = req.body;
       
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
@@ -312,6 +319,7 @@ Return only the JSON array, no other text.`
         startMode,
         conversationMode,
         prdContent: null,
+        targetAvatar,
       });
 
       // Create associated conversation with appropriate starting section
