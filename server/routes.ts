@@ -8,26 +8,43 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+// Audience-specific question emphasis
+const AUDIENCE_PROMPTS: Record<string, string> = {
+  b2b_saas: "Focus on: Enterprise GTM strategy, ARR potential, integration requirements, sales cycles, customer success",
+  b2c_mobile: "Focus on: Unit economics, DAU/MAU metrics, viral loops, retention strategies, app store optimization",
+  marketplace: "Focus on: Two-sided growth, supply/demand balance, network effects, take rates, liquidity",
+  ai_agent: "Focus on: Model selection, data pipelines, accuracy metrics, prompt engineering, API costs",
+  consumer_web: "Focus on: Content strategy, engagement metrics, ad revenue potential, SEO, viral growth",
+  hardware: "Focus on: Supply chain, hardware costs, software-hardware synergy, manufacturing, certifications",
+};
+
 // PRD Generation system prompt
-const PRD_SYSTEM_PROMPT = `You are an expert product manager helping founders create PRDs through conversation.
+function getPRDSystemPrompt(audienceType?: string): string {
+  const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType] 
+    ? `\n\nAUDIENCE-SPECIFIC FOCUS:\n${AUDIENCE_PROMPTS[audienceType]}`
+    : "";
+  
+  return `You are an expert product manager helping founders create PRDs through conversation.
 
 IMPORTANT RESPONSE GUIDELINES:
 - Keep each response SHORT and FOCUSED (2-4 paragraphs max)
 - Ask only ONE question at a time
 - Be conversational, not formal
 - If you have a lot to say, give a brief summary and offer to elaborate
+${audienceEmphasis}
 
 Progress through these topics (one at a time):
-1. Problem Statement - What problem? Who has it?
-2. Target Audience - Who are the users? B2B/B2C?
-3. Solution Overview - How does it work?
-4. Core Features - What are the MVP features?
-5. Monetization - How will it make money?
-6. Technical Stack - Web, mobile, or both?
-7. Success Metrics - How to measure success?
-8. Go-to-Market - How to acquire users?
+1. Problem Statement - What problem? Who has it? How painful is it?
+2. Target Audience - Who are the users? How many exist?
+3. Solution Overview - How does it work? What's unique?
+4. Core Features - What are the MVP features? What's Phase 2?
+5. Monetization - How will it make money? What's the pricing?
+6. Technical Stack - Web, mobile, or both? Key integrations?
+7. Success Metrics - How to measure success? Key KPIs?
+8. Go-to-Market - How to acquire first users? Launch strategy?
 
 Build on previous answers. Be encouraging and constructive. Keep it brief!`;
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -109,7 +126,7 @@ export async function registerRoutes(
         const aiResponse = await openai.chat.completions.create({
           model: "gpt-5.1",
           messages: [
-            { role: "system", content: PRD_SYSTEM_PROMPT },
+            { role: "system", content: getPRDSystemPrompt(type) },
             { role: "assistant", content: "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!" },
             { role: "user", content: rawIdea },
           ],
@@ -211,6 +228,10 @@ export async function registerRoutes(
         content: m.content,
       }));
 
+      // Get project to determine audience type
+      const project = await storage.getProject(conversation.projectId);
+      const audienceType = project?.type;
+
       // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -220,7 +241,7 @@ export async function registerRoutes(
       const stream = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
-          { role: "system", content: PRD_SYSTEM_PROMPT },
+          { role: "system", content: getPRDSystemPrompt(audienceType) },
           ...chatHistory,
         ],
         stream: true,
@@ -264,7 +285,6 @@ export async function registerRoutes(
       });
 
       // Update project progress
-      const project = await storage.getProject(conversation.projectId);
       if (project) {
         await storage.updateProject(conversation.projectId, {
           progress: currentPhase.progress,
@@ -307,30 +327,118 @@ export async function registerRoutes(
         .map(m => `${m.role === "user" ? "Founder" : "PM"}: ${m.content}`)
         .join("\n\n");
 
-      // Generate comprehensive PRD
-      const prdPrompt = `Based on this conversation with a founder, create a comprehensive Product Requirements Document (PRD) in markdown format.
+      // Determine export format (default to full PRD)
+      const format = req.body?.format || "full";
+      
+      let prdPrompt = "";
+      
+      if (format === "pitch") {
+        // One-page pitch deck summary
+        prdPrompt = `Based on this conversation with a founder, create a ONE-PAGE PITCH SUMMARY in markdown format.
+
+${conversationContext}
+
+Create a concise pitch summary with:
+1. **Problem** (2-3 sentences)
+2. **Solution** (2-3 sentences)  
+3. **Target Market** (size and who)
+4. **Unique Value Proposition** (why you'll win)
+5. **Business Model** (how you make money)
+6. **Traction/Validation** (any early signals)
+7. **Ask** (what you need next)
+
+Keep it under 500 words. Use punchy, investor-friendly language.`;
+      } else if (format === "business") {
+        // Business plan format
+        prdPrompt = `Based on this conversation with a founder, create a BUSINESS PLAN SUMMARY in markdown format.
+
+${conversationContext}
+
+Create a business-focused document with:
+1. **Executive Summary** - The opportunity in 3 paragraphs
+2. **Market Analysis** - TAM/SAM/SOM, competitive landscape, market timing
+3. **Business Model** - Revenue streams, pricing strategy, unit economics
+4. **Go-to-Market Strategy** - Customer acquisition, channels, partnerships
+5. **Financial Projections** - Key assumptions, revenue potential, timeline to profitability
+6. **Team & Resources** - What's needed to execute
+7. **Risks & Mitigation** - Market, technical, and execution risks
+
+Focus on business viability and profitability. Suitable for investors and stakeholders.`;
+      } else {
+        // Full dev-ready PRD
+        prdPrompt = `Based on this conversation with a founder, create a comprehensive DEV-READY Product Requirements Document (PRD) in markdown format.
 
 ${conversationContext}
 
 Create a professional PRD with these sections:
-1. Executive Summary
-2. Problem Statement
-3. Target Audience & User Personas
-4. Solution Overview
-5. Core Features (MVP)
-6. User Stories & Acceptance Criteria
-7. Technical Architecture
-8. Monetization Strategy
-9. Success Metrics & KPIs
-10. Go-to-Market Strategy
-11. Risks & Mitigation
 
-Format in clean markdown with proper headers, lists, and structure.`;
+# [Product Name] - Product Requirements Document
+
+## 1. Executive Summary
+- Problem statement (concise)
+- Solution overview
+- Target market size
+- Expected revenue potential
+
+## 2. Problem Statement
+- The challenge in detail
+- Current alternatives and why they fail
+- Impact of the problem
+
+## 3. Target Audience & User Personas
+- Primary persona with name, role, pain points
+- Secondary persona if applicable
+- User journey overview
+
+## 4. Solution Overview
+- How the product works
+- Key differentiators
+- Core value propositions
+
+## 5. Core Features (MVP)
+For each feature include:
+- Feature name and description
+- User story format: "As a [user], I want [action], so that [benefit]"
+- Acceptance criteria (checkboxes)
+
+## 6. Technical Architecture
+- Recommended tech stack with justification
+- High-level system components
+- Key integrations needed
+- Database considerations
+
+## 7. Monetization Strategy
+- Pricing model
+- Revenue streams
+- Unit economics (if discussed)
+
+## 8. Success Metrics & KPIs
+- Primary success metrics
+- Secondary metrics
+- Targets for MVP launch
+
+## 9. Go-to-Market Strategy
+- Launch plan
+- Customer acquisition channels
+- Partnerships to explore
+
+## 10. Roadmap
+- Phase 1 (MVP): Core features
+- Phase 2 (3-6 months): Growth features
+- Phase 3 (6-12 months): Scale features
+
+## 11. Risks & Mitigation
+- Technical risks
+- Market risks  
+- Execution risks
+
+Format in clean markdown with proper headers, bullet points, and structure. Be specific and actionable.`;
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [{ role: "user", content: prdPrompt }],
-        max_completion_tokens: 4000,
+        max_completion_tokens: 6000,
       });
 
       const prdContent = response.choices[0]?.message?.content || "# PRD Generation Failed";

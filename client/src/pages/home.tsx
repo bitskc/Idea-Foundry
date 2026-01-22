@@ -2,22 +2,45 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Sparkles, CheckCircle2, Loader2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+
+const AUDIENCE_TYPES = [
+  { id: "b2b_saas", label: "B2B SaaS", icon: Building2, description: "Enterprise software, tools for businesses" },
+  { id: "b2c_mobile", label: "B2C Mobile App", icon: Smartphone, description: "Consumer apps, fitness, productivity" },
+  { id: "marketplace", label: "Marketplace", icon: Store, description: "Two-sided platforms, gig economy" },
+  { id: "ai_agent", label: "AI Agent / Automation", icon: Bot, description: "Custom GPTs, workflow automation" },
+  { id: "consumer_web", label: "Consumer Web App", icon: Globe, description: "Social, news, entertainment" },
+  { id: "hardware", label: "Hardware + Software", icon: Cpu, description: "IoT, connected devices" },
+];
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const [idea, setIdea] = useState("");
+  const [step, setStep] = useState<"idea" | "type">("idea");
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
 
-  const handleStart = async () => {
+  const handleContinue = () => {
     if (idea.length < 10) {
       toast({
         variant: "destructive",
         title: "Idea too short",
         description: "Please describe your idea in at least 10 characters.",
+      });
+      return;
+    }
+    setStep("type");
+  };
+
+  const handleStart = async () => {
+    if (!selectedType) {
+      toast({
+        variant: "destructive",
+        title: "Select a type",
+        description: "Please select what type of product you're building.",
       });
       return;
     }
@@ -27,7 +50,7 @@ export default function Home() {
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawIdea: idea }),
+        body: JSON.stringify({ rawIdea: idea, type: selectedType }),
       });
 
       if (!response.ok) throw new Error("Failed to create project");
@@ -67,76 +90,142 @@ export default function Home() {
       {/* Hero */}
       <main className="flex-1 container mx-auto px-6 flex flex-col md:flex-row items-center gap-12 relative z-10">
         <div className="flex-1 max-w-2xl pt-10 md:pt-0">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6">
-              <Sparkles className="w-3 h-3" />
-              AI-Powered Product Manager
-            </div>
-            <h1 className="text-5xl md:text-7xl font-display font-bold leading-[1.1] mb-6">
-              Turn your <span className="text-gradient">Idea</span> into a <span className="text-primary">Plan</span>.
-            </h1>
-            <p className="text-lg text-muted-foreground mb-8 max-w-lg leading-relaxed">
-              Don't let your ideas die in the notes app. VibePlan interviews you to create a comprehensive, dev-ready PRD in minutes.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-card border border-border/50 shadow-xl rounded-2xl p-2 relative overflow-hidden group focus-within:ring-2 focus-within:ring-primary/50 transition-all"
-          >
-            <Textarea 
-              placeholder="Describe your idea... (e.g., 'A mobile app that helps contractors manage schedules and get paid faster')" 
-              className="resize-none border-none shadow-none focus-visible:ring-0 text-lg min-h-[120px] bg-transparent p-4"
-              value={idea}
-              onChange={(e) => setIdea(e.target.value)}
-              disabled={isCreating}
-              data-testid="input-idea"
-            />
-            <div className="flex justify-between items-center px-2 pb-2 mt-2">
-              <span className="text-xs text-muted-foreground px-2">
-                {idea.length}/10 min chars
-              </span>
-              <Button 
-                size="lg" 
-                className="gap-2 rounded-xl transition-all"
-                disabled={idea.length < 10 || isCreating}
-                onClick={handleStart}
-                data-testid="button-start"
+          <AnimatePresence mode="wait">
+            {step === "idea" ? (
+              <motion.div
+                key="idea-step"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    Start Building <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </Button>
-            </div>
-          </motion.div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6">
+                  <Sparkles className="w-3 h-3" />
+                  AI-Powered Product Manager
+                </div>
+                <h1 className="text-5xl md:text-7xl font-display font-bold leading-[1.1] mb-6">
+                  Turn your <span className="text-gradient">Idea</span> into a <span className="text-primary">Plan</span>.
+                </h1>
+                <p className="text-lg text-muted-foreground mb-8 max-w-lg leading-relaxed">
+                  Don't let your ideas die in the notes app. VibePlan interviews you to create a comprehensive, dev-ready PRD in minutes.
+                </p>
 
-          <div className="mt-12 flex items-center gap-8 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-primary" />
-              <span>Dev-Ready Specs</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-primary" />
-              <span>Market Analysis</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-primary" />
-              <span>Free to Start</span>
-            </div>
-          </div>
+                <div className="bg-card border border-border/50 shadow-xl rounded-2xl p-2 relative overflow-hidden group focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                  <Textarea 
+                    placeholder="Describe your idea... (e.g., 'A mobile app that helps contractors manage schedules and get paid faster')" 
+                    className="resize-none border-none shadow-none focus-visible:ring-0 text-lg min-h-[120px] bg-transparent p-4"
+                    value={idea}
+                    onChange={(e) => setIdea(e.target.value)}
+                    disabled={isCreating}
+                    data-testid="input-idea"
+                  />
+                  <div className="flex justify-between items-center px-2 pb-2 mt-2">
+                    <span className="text-xs text-muted-foreground px-2">
+                      {idea.length}/10 min chars
+                    </span>
+                    <Button 
+                      size="lg" 
+                      className="gap-2 rounded-xl transition-all"
+                      disabled={idea.length < 10}
+                      onClick={handleContinue}
+                      data-testid="button-continue"
+                    >
+                      Continue <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-12 flex items-center gap-8 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span>Dev-Ready Specs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span>Market Analysis</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span>Free to Start</span>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="type-step"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setStep("idea")} 
+                  className="mb-4 -ml-2"
+                  data-testid="button-back"
+                >
+                  Back
+                </Button>
+                
+                <h2 className="text-3xl md:text-4xl font-display font-bold mb-3">
+                  What are you building?
+                </h2>
+                <p className="text-muted-foreground mb-8">
+                  This helps VibePlan ask the right questions for your product type.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                  {AUDIENCE_TYPES.map((type) => {
+                    const Icon = type.icon;
+                    const isSelected = selectedType === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={() => setSelectedType(type.id)}
+                        className={`
+                          flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all
+                          ${isSelected 
+                            ? "border-primary bg-primary/5 ring-2 ring-primary/20" 
+                            : "border-border hover:border-primary/50 bg-card"}
+                        `}
+                        data-testid={`type-${type.id}`}
+                      >
+                        <div className={`
+                          w-10 h-10 rounded-lg flex items-center justify-center shrink-0
+                          ${isSelected ? "bg-primary text-white" : "bg-muted text-muted-foreground"}
+                        `}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-semibold">{type.label}</div>
+                          <div className="text-sm text-muted-foreground">{type.description}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Button 
+                  size="lg" 
+                  className="gap-2 rounded-xl w-full sm:w-auto"
+                  disabled={!selectedType || isCreating}
+                  onClick={handleStart}
+                  data-testid="button-start"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      Start Building <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Hero Image/Graphic */}

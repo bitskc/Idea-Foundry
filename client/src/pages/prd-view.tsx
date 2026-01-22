@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Share2, Edit, Loader2, ArrowLeft } from "lucide-react";
+import { Download, FileText, Share2, Edit, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Project, Conversation } from "@shared/schema";
@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type ProjectWithConversation = Project & { conversation?: Conversation };
+type PRDFormat = "full" | "business" | "pitch";
+
+const FORMAT_OPTIONS = [
+  { id: "full" as PRDFormat, label: "Dev-Ready PRD", icon: Code, description: "Technical specs for developers" },
+  { id: "business" as PRDFormat, label: "Business Plan", icon: Briefcase, description: "For investors & stakeholders" },
+  { id: "pitch" as PRDFormat, label: "Pitch Summary", icon: Presentation, description: "One-page pitch deck" },
+];
 
 export default function PrdView() {
   const [, params] = useRoute("/prd/:id");
@@ -21,6 +28,7 @@ export default function PrdView() {
   const [project, setProject] = useState<ProjectWithConversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentFormat, setCurrentFormat] = useState<PRDFormat>("full");
   const { toast } = useToast();
 
   const projectId = params?.id ? parseInt(params.id) : null;
@@ -57,13 +65,16 @@ export default function PrdView() {
     }
   };
 
-  const generatePRD = async () => {
+  const generatePRD = async (format: PRDFormat = "full") => {
     if (!projectId) return;
     
     setIsGenerating(true);
+    setCurrentFormat(format);
     try {
       const response = await fetch(`/api/projects/${projectId}/generate-prd`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format }),
       });
       
       if (!response.ok) throw new Error("Failed to generate PRD");
@@ -71,9 +82,10 @@ export default function PrdView() {
       const data = await response.json();
       setProject(prev => prev ? { ...prev, prdContent: data.prdContent } : null);
       
+      const formatLabel = FORMAT_OPTIONS.find(f => f.id === format)?.label || "PRD";
       toast({
-        title: "PRD Generated",
-        description: "Your PRD has been created successfully!",
+        title: `${formatLabel} Generated`,
+        description: "Your document has been created successfully!",
       });
     } catch (error) {
       console.error("Error generating PRD:", error);
@@ -259,6 +271,47 @@ export default function PrdView() {
               </Button>
             )}
           </div>
+        </div>
+
+        {/* Format Selection */}
+        <div className="flex flex-wrap gap-2 mb-8 pb-6 border-b">
+          {FORMAT_OPTIONS.map((format) => {
+            const Icon = format.icon;
+            const isActive = currentFormat === format.id;
+            return (
+              <button
+                key={format.id}
+                onClick={() => generatePRD(format.id)}
+                disabled={isGenerating}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
+                  ${isActive 
+                    ? "border-primary bg-primary/10 text-primary" 
+                    : "border-border hover:border-primary/50 bg-card"}
+                  ${isGenerating ? "opacity-50 cursor-not-allowed" : ""}
+                `}
+                data-testid={`format-${format.id}`}
+              >
+                {isGenerating && currentFormat === format.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Icon className="w-4 h-4" />
+                )}
+                <span className="font-medium">{format.label}</span>
+              </button>
+            );
+          })}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => generatePRD(currentFormat)}
+            disabled={isGenerating}
+            className="ml-auto"
+            data-testid="button-regenerate"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? "animate-spin" : ""}`} />
+            Regenerate
+          </Button>
         </div>
 
         {/* PRD Content */}
