@@ -3,7 +3,8 @@ import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreVertical, Calendar, ArrowRight, Loader2, Trash2, Flame, Lightbulb, Archive, Clock } from "lucide-react";
+import { Plus, MoreVertical, Calendar, ArrowRight, Loader2, Trash2, Flame, Lightbulb, Archive, Clock, Pencil, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -29,6 +30,8 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<IdeaStatus | "all">("all");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingDescription, setEditingDescription] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -95,6 +98,44 @@ export default function Dashboard() {
         variant: "destructive",
         title: "Error",
         description: "Failed to update status",
+      });
+    }
+  };
+
+  const startEditing = (project: Project) => {
+    setEditingId(project.id);
+    setEditingDescription(project.description || "");
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditingDescription("");
+  };
+
+  const saveDescription = async (id: number) => {
+    try {
+      const response = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: editingDescription }),
+      });
+      if (!response.ok) throw new Error("Failed to update description");
+      
+      setProjects(prev => prev.map(p => 
+        p.id === id ? { ...p, description: editingDescription } : p
+      ));
+      setEditingId(null);
+      setEditingDescription("");
+      toast({
+        title: "Summary updated",
+        description: "Your idea summary has been saved.",
+      });
+    } catch (error) {
+      console.error("Error updating description:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update summary",
       });
     }
   };
@@ -250,9 +291,55 @@ export default function Dashboard() {
                   >
                     {project.title}
                   </CardTitle>
-                  <CardDescription className="line-clamp-2 mt-1">
-                    {project.description}
-                  </CardDescription>
+                  {editingId === project.id ? (
+                    <div className="mt-1 flex gap-2 items-start">
+                      <Input
+                        value={editingDescription}
+                        onChange={(e) => setEditingDescription(e.target.value)}
+                        className="text-sm"
+                        autoFocus
+                        data-testid={`input-edit-description-${project.id}`}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveDescription(project.id);
+                          if (e.key === 'Escape') cancelEditing();
+                        }}
+                      />
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => saveDescription(project.id)}
+                        data-testid={`button-save-description-${project.id}`}
+                      >
+                        <Check className="w-4 h-4 text-green-600" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-8 w-8 shrink-0"
+                        onClick={cancelEditing}
+                        data-testid={`button-cancel-edit-${project.id}`}
+                      >
+                        <X className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="group/desc flex items-start gap-1 mt-1">
+                      <CardDescription className="line-clamp-2 flex-1">
+                        {project.description || "No summary yet"}
+                      </CardDescription>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditing(project);
+                        }}
+                        className="opacity-0 group-hover/desc:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all shrink-0"
+                        data-testid={`button-edit-description-${project.id}`}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="pb-3">
                   {project.viabilityScore && (
