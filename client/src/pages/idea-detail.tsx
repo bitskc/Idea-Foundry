@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import FloatingNotes from "@/components/floating-notes";
 import { 
   ArrowLeft, 
   Lightbulb, 
@@ -22,7 +21,6 @@ import {
   Target,
   DollarSign,
   Loader2,
-  Save,
   FileText,
   Sparkles,
   ExternalLink,
@@ -30,7 +28,9 @@ import {
   Zap,
   Rocket,
   Crown,
-  CheckCircle2
+  CheckCircle2,
+  Plus,
+  Trash2
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 
@@ -68,8 +68,9 @@ export default function IdeaDetail() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
-  const [notes, setNotes] = useState("");
-  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [notesList, setNotesList] = useState<Array<{ id: number; content: string; createdAt: string }>>([]);
+  const [newNote, setNewNote] = useState("");
+  const [isAddingNote, setIsAddingNote] = useState(false);
   const [isGeneratingResearch, setIsGeneratingResearch] = useState(false);
   const [isStartingConversation, setIsStartingConversation] = useState(false);
   const [prdTrack, setPrdTrack] = useState<"quick" | "standard" | "production">("standard");
@@ -86,7 +87,11 @@ export default function IdeaDetail() {
       if (!response.ok) throw new Error("Failed to load idea");
       const data = await response.json();
       setProject(data);
-      setNotes(data.notes || "");
+      // Fetch notes for this project
+      const notesRes = await fetch(`/api/projects/${params.id}/notes`);
+      if (notesRes.ok) {
+        setNotesList(await notesRes.json());
+      }
       if (data.conversation) {
         setConversation(data.conversation);
         const messagesRes = await fetch(`/api/conversations/${data.conversation.id}/messages`);
@@ -106,26 +111,45 @@ export default function IdeaDetail() {
     }
   };
 
-  const saveNotes = async () => {
-    if (!project) return;
-    setIsSavingNotes(true);
+  const addNote = async () => {
+    if (!project || !newNote.trim()) return;
+    setIsAddingNote(true);
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
+      const response = await fetch(`/api/projects/${project.id}/notes`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ content: newNote }),
       });
-      if (!response.ok) throw new Error("Failed to save notes");
-      toast({ title: "Notes saved" });
+      if (!response.ok) throw new Error("Failed to add note");
+      const note = await response.json();
+      setNotesList([note, ...notesList]);
+      setNewNote("");
+      toast({ title: "Note added" });
     } catch (error) {
-      console.error("Error saving notes:", error);
+      console.error("Error adding note:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save notes",
+        description: "Failed to add note",
       });
     } finally {
-      setIsSavingNotes(false);
+      setIsAddingNote(false);
+    }
+  };
+
+  const deleteNote = async (noteId: number) => {
+    try {
+      const response = await fetch(`/api/notes/${noteId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Failed to delete note");
+      setNotesList(notesList.filter(n => n.id !== noteId));
+      toast({ title: "Note deleted" });
+    } catch (error) {
+      console.error("Error deleting note:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete note",
+      });
     }
   };
 
@@ -430,31 +454,73 @@ export default function IdeaDetail() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
-                  Quick Notes
+                  Notes
                 </CardTitle>
                 <CardDescription>Jot down thoughts, questions, or next steps</CardDescription>
               </CardHeader>
               <CardContent>
-                <Textarea
-                  placeholder="Write your notes here..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-[120px] mb-3"
-                  data-testid="input-notes"
-                />
-                <Button 
-                  onClick={saveNotes} 
-                  disabled={isSavingNotes}
-                  size="sm"
-                  data-testid="button-save-notes"
-                >
-                  {isSavingNotes ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
-                  )}
-                  Save Notes
-                </Button>
+                <div className="flex gap-2 mb-4">
+                  <Textarea
+                    placeholder="Add a note..."
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    className="min-h-[60px]"
+                    data-testid="input-new-note"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        addNote();
+                      }
+                    }}
+                  />
+                  <Button 
+                    onClick={addNote} 
+                    disabled={isAddingNote || !newNote.trim()}
+                    size="sm"
+                    className="shrink-0"
+                    data-testid="button-add-note"
+                  >
+                    {isAddingNote ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+                
+                {notesList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No notes yet. Add your first note above.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {notesList.map((note) => (
+                      <div 
+                        key={note.id} 
+                        className="group p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                        data-testid={`note-${note.id}`}
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <p className="text-sm whitespace-pre-wrap flex-1">{note.content}</p>
+                          <button
+                            onClick={() => deleteNote(note.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                            data-testid={`button-delete-note-${note.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {new Date(note.createdAt).toLocaleDateString(undefined, { 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -714,11 +780,6 @@ export default function IdeaDetail() {
         </Tabs>
       </div>
 
-      <FloatingNotes 
-        projectId={project.id} 
-        initialNotes={notes}
-        onNotesUpdate={(newNotes) => setNotes(newNotes)}
-      />
     </AppLayout>
   );
 }

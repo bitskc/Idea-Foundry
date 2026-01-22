@@ -746,6 +746,49 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
     }
   });
 
+  // Notes API
+  app.get("/api/projects/:id/notes", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const notesList = await storage.getNotesByProject(projectId);
+      res.json(notesList);
+    } catch (error) {
+      console.error("Error fetching notes:", error);
+      res.status(500).json({ error: "Failed to fetch notes" });
+    }
+  });
+
+  app.post("/api/projects/:id/notes", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const { content } = req.body;
+      
+      if (!content || content.trim().length === 0) {
+        return res.status(400).json({ error: "Note content is required" });
+      }
+
+      const note = await storage.createNote({
+        projectId,
+        content: content.trim(),
+      });
+      res.json(note);
+    } catch (error) {
+      console.error("Error creating note:", error);
+      res.status(500).json({ error: "Failed to create note" });
+    }
+  });
+
+  app.delete("/api/notes/:id", async (req, res) => {
+    try {
+      const noteId = parseInt(req.params.id);
+      await storage.deleteNote(noteId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting note:", error);
+      res.status(500).json({ error: "Failed to delete note" });
+    }
+  });
+
   // Generate PRD from project with tiered depth options
   app.post("/api/projects/:id/generate-prd", async (req, res) => {
     try {

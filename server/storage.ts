@@ -7,10 +7,13 @@ import {
   type InsertConversation,
   type Message,
   type InsertMessage,
+  type Note,
+  type InsertNote,
   users,
   projects,
   conversations,
-  messages
+  messages,
+  notes
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -37,6 +40,11 @@ export interface IStorage {
   // Message methods
   getMessagesByConversation(conversationId: number): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+
+  // Note methods
+  getNotesByProject(projectId: number): Promise<Note[]>;
+  createNote(note: InsertNote): Promise<Note>;
+  deleteNote(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -117,6 +125,20 @@ export class DatabaseStorage implements IStorage {
   async createMessage(message: InsertMessage): Promise<Message> {
     const [newMessage] = await db.insert(messages).values(message).returning();
     return newMessage;
+  }
+
+  // Note methods
+  async getNotesByProject(projectId: number): Promise<Note[]> {
+    return db.select().from(notes).where(eq(notes.projectId, projectId)).orderBy(desc(notes.createdAt));
+  }
+
+  async createNote(note: InsertNote): Promise<Note> {
+    const [newNote] = await db.insert(notes).values(note).returning();
+    return newNote;
+  }
+
+  async deleteNote(id: number): Promise<void> {
+    await db.delete(notes).where(eq(notes.id, id));
   }
 }
 
