@@ -7,6 +7,7 @@ import {
   TrendingUp, 
   Zap,
   CheckCircle2,
+  X,
   ArrowRight,
   Sparkles,
   Brain,
@@ -221,6 +222,18 @@ export default function Landing() {
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
                   <span>Basic PRD generation</span>
                 </li>
+                <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <X className="w-4 h-4 text-muted-foreground/50 shrink-0" aria-hidden="true" />
+                  <span>Competitor market analysis</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <X className="w-4 h-4 text-muted-foreground/50 shrink-0" aria-hidden="true" />
+                  <span>Viability scoring</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <X className="w-4 h-4 text-muted-foreground/50 shrink-0" aria-hidden="true" />
+                  <span>Production-level PRDs</span>
+                </li>
               </ul>
               <Button variant="outline" className="w-full" onClick={() => setLocation("/app")} data-testid="button-pricing-free">
                 Get Started Free
@@ -249,15 +262,15 @@ export default function Landing() {
                 </li>
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                  <span>Full competitor research</span>
-                </li>
-                <li className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                  <span>Production-level PRDs</span>
+                  <span>Competitor market analysis (CMA)</span>
                 </li>
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
                   <span>Viability scoring</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                  <span>Production-level PRDs</span>
                 </li>
               </ul>
               <Button className="w-full" onClick={() => setLocation("/app")} data-testid="button-pricing-pro">
