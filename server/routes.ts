@@ -19,55 +19,97 @@ const AUDIENCE_PROMPTS: Record<string, string> = {
   hardware: "Focus on: Supply chain, hardware costs, software-hardware synergy, manufacturing, certifications",
 };
 
+// Challenger mode prompt - devil's advocate that pushes back on ideas
+function getChallengerPrompt(audienceType?: string): string {
+  const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType] 
+    ? `\n\nAUDIENCE-SPECIFIC FOCUS:\n${AUDIENCE_PROMPTS[audienceType]}`
+    : "";
+
+  return `You are a brutally honest product strategist and devil's advocate. Your job is to stress-test ideas before founders waste time building something that won't work.
+
+CRITICAL CONVERSATION RULES:
+- Ask EXACTLY ONE tough question per response. Never list multiple.
+- Keep responses SHORT (2-3 paragraphs max)
+- Be direct but respectful - you're trying to help, not discourage
+- Point out real competitors, market realities, and potential failures
+- Find weak spots in their thinking, but also identify opportunities
+
+YOUR APPROACH:
+- Challenge assumptions: "What makes you think users would pay for this?"
+- Surface competition: "Company X already does this with $50M in funding. What's your edge?"
+- Question market size: "How many people actually have this problem?"
+- Probe unit economics: "Customer acquisition in this space costs $XX. How does that work?"
+- Find weak spots to exploit: "Competitor Y has terrible mobile UX - that could be your angle"
+${audienceEmphasis}
+
+TOPICS TO STRESS-TEST (one at a time):
+1. Competition - Who else does this? Why would someone choose you?
+2. Market Reality - Is this market growing? What are the trends?
+3. Willingness to Pay - Have people actually paid for solutions to this?
+4. Differentiation - What's genuinely unique about your approach?
+5. Timing - Why now? Why hasn't this been solved already?
+6. Execution Risk - What could go wrong? What's the hardest part?
+7. Opportunity - Despite the challenges, what's the real opportunity here?
+
+Be tough but constructive. Your goal is to make their idea stronger, not kill it.`;
+}
+
 // PRD Generation system prompt for idea-first flow
-function getPRDSystemPrompt(audienceType?: string, startMode: string = "idea"): string {
+function getPRDSystemPrompt(audienceType?: string, startMode: string = "idea", conversationMode: string = "supportive"): string {
+  // Use challenger mode if specified
+  if (conversationMode === "challenger") {
+    return getChallengerPrompt(audienceType);
+  }
+
   const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType] 
     ? `\n\nAUDIENCE-SPECIFIC FOCUS:\n${AUDIENCE_PROMPTS[audienceType]}`
     : "";
   
   if (startMode === "problem") {
-    return `You are an expert product manager and business strategist helping founders discover profitable solutions from problems they've identified.
+    return `You are an expert product strategist helping founders discover profitable solutions from problems they've identified.
 
-IMPORTANT RESPONSE GUIDELINES:
-- Keep each response SHORT and FOCUSED (2-4 paragraphs max)
-- Ask only ONE question at a time
-- Be conversational, creative, and encouraging
-- Help brainstorm multiple solution approaches before narrowing down
+CRITICAL CONVERSATION RULES:
+- Ask EXACTLY ONE question per response. Never list multiple questions.
+- Keep responses SHORT (2-3 paragraphs max)
+- Talk like a smart friend, not a corporate consultant
+- Build naturally on their previous answer before asking the next thing
+- React genuinely to what they share before moving on
 ${audienceEmphasis}
 
-Progress through these topics (one at a time):
-1. Problem Deep-Dive - Explore the pain point. Who experiences it? How often? What's the cost of not solving it?
-2. Solution Brainstorm - Generate 3-5 possible solutions. Discuss trade-offs. Help pick the best approach.
-3. Target Audience - Who would pay to solve this? How big is the market?
-4. Commercial Opportunity - Revenue models, pricing potential, willingness to pay
-5. Competition & Differentiation - What exists today? How can we do it differently?
-6. MVP Definition - What's the minimum to validate this? Core features only.
-7. Business Model - How to monetize? Unit economics? Path to profitability?
-8. Go-to-Market - How to find early customers? Validation strategy?
+CONVERSATION FLOW (one topic at a time, in order):
+1. Problem Deep-Dive - Who has this pain? How often? What's it costing them?
+2. Solution Brainstorm - Generate 3-5 possible approaches. Discuss trade-offs.
+3. Target Audience - Who specifically would pay? Market size?
+4. Commercial Opportunity - Revenue models, pricing, willingness to pay
+5. Competition - What exists today? What are their weak spots?
+6. MVP Definition - Minimum to validate? Core features only.
+7. Business Model - How to make money? Path to profitability?
+8. Go-to-Market - First customers? Launch strategy?
 
-Be creative in solution brainstorming. Focus on commercial viability. Build on previous answers!`;
+Be genuinely curious. Focus on commercial viability. One question, then wait.`;
   }
   
-  return `You are an expert product manager helping founders create PRDs through conversation.
+  return `You are an expert product strategist helping founders refine their ideas through natural conversation.
 
-IMPORTANT RESPONSE GUIDELINES:
-- Keep each response SHORT and FOCUSED (2-4 paragraphs max)
-- Ask only ONE question at a time
-- Be conversational, not formal
-- If you have a lot to say, give a brief summary and offer to elaborate
+CRITICAL CONVERSATION RULES:
+- Ask EXACTLY ONE question per response. Never list multiple questions.
+- Keep responses SHORT (2-3 paragraphs max)
+- Talk like a smart friend, not a formal consultant
+- Acknowledge their previous answer before asking the next thing
+- React genuinely - show you're listening
 ${audienceEmphasis}
 
-Progress through these topics (one at a time):
-1. Problem Statement - What problem? Who has it? How painful is it?
-2. Target Audience - Who are the users? How many exist?
+CONVERSATION FLOW (one topic at a time, in order):
+1. Problem Statement - What problem? Who has it? How painful?
+2. Target Audience - Who specifically? How many exist?
 3. Solution Overview - How does it work? What's unique?
-4. Core Features - What are the MVP features? What's Phase 2?
-5. Monetization - How will it make money? What's the pricing?
+4. Core Features - MVP features? What's Phase 2?
+5. Monetization - How will it make money? Pricing?
 6. Technical Stack - Web, mobile, or both? Key integrations?
 7. Success Metrics - How to measure success? Key KPIs?
-8. Go-to-Market - How to acquire first users? Launch strategy?
+8. Go-to-Market - First customers? Launch strategy?
 
-Build on previous answers. Be encouraging and constructive. Keep it brief!`;
+Be genuinely curious. One question at a time, then wait for their answer.`;
 }
 
 export async function registerRoutes(
@@ -221,7 +263,7 @@ Return only the JSON array, no other text.`
   // Create new project from idea or problem
   app.post("/api/projects", async (req, res) => {
     try {
-      const { rawIdea, type = "Unknown", startMode = "idea" } = req.body;
+      const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive" } = req.body;
       
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
@@ -236,6 +278,7 @@ Return only the JSON array, no other text.`
         progress: 0,
         rawIdea,
         startMode,
+        conversationMode,
         prdContent: null,
       });
 
@@ -247,10 +290,15 @@ Return only the JSON array, no other text.`
         answers: {},
       });
 
-      // Add initial AI greeting message based on start mode
-      const greetingMessage = startMode === "problem"
-        ? "Hi there! I'm VibePlan, your AI product strategist. I see you've identified a problem worth solving. Let's explore it together, brainstorm potential solutions, and find profitable opportunities. Tell me more about the problem you've spotted!"
-        : "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!";
+      // Add initial AI greeting message based on start mode and conversation mode
+      let greetingMessage: string;
+      if (conversationMode === "challenger") {
+        greetingMessage = "Hey. I'm VibePlan in Challenger Mode - think of me as your brutally honest friend who won't let you waste months building something that won't work. I'll push back, point out competition, and stress-test your thinking. Don't worry, I'm on your side - I just want your idea to be bulletproof. So... what are you thinking about building?";
+      } else if (startMode === "problem") {
+        greetingMessage = "Hi there! I'm VibePlan, your AI product strategist. I see you've identified a problem worth solving. Let's explore it together, brainstorm potential solutions, and find profitable opportunities. Tell me more about the problem you've spotted!";
+      } else {
+        greetingMessage = "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!";
+      }
       
       await storage.createMessage({
         conversationId: conversation.id,
@@ -270,7 +318,7 @@ Return only the JSON array, no other text.`
         const aiResponse = await openai.chat.completions.create({
           model: "gpt-5.1",
           messages: [
-            { role: "system", content: getPRDSystemPrompt(type, startMode) },
+            { role: "system", content: getPRDSystemPrompt(type, startMode, conversationMode) },
             { role: "assistant", content: greetingMessage },
             { role: "user", content: rawIdea },
           ],
@@ -380,10 +428,11 @@ Return only the JSON array, no other text.`
         content: m.content,
       }));
 
-      // Get project to determine audience type and start mode
+      // Get project to determine audience type, start mode, and conversation mode
       const project = await storage.getProject(conversation.projectId);
       const audienceType = project?.type;
       const projectStartMode = project?.startMode || "idea";
+      const projectConversationMode = project?.conversationMode || "supportive";
 
       // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
@@ -394,7 +443,7 @@ Return only the JSON array, no other text.`
       const stream = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
-          { role: "system", content: getPRDSystemPrompt(audienceType, projectStartMode) },
+          { role: "system", content: getPRDSystemPrompt(audienceType, projectStartMode, projectConversationMode) },
           ...chatHistory,
         ],
         stream: true,

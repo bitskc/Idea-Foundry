@@ -18,6 +18,7 @@ export const projects = pgTable("projects", {
   progress: integer("progress").notNull().default(0),
   rawIdea: text("raw_idea").notNull(),
   startMode: text("start_mode").notNull().default("idea"), // "idea" or "problem"
+  conversationMode: text("conversation_mode").notNull().default("supportive"), // "supportive" or "challenger"
   prdContent: text("prd_content"), // Generated PRD markdown
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

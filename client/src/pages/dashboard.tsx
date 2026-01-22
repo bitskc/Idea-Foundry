@@ -27,15 +27,15 @@ export default function Dashboard() {
   const loadProjects = async () => {
     try {
       const response = await fetch("/api/projects");
-      if (!response.ok) throw new Error("Failed to load projects");
+      if (!response.ok) throw new Error("Failed to load ideas");
       const data = await response.json();
       setProjects(data);
     } catch (error) {
-      console.error("Error loading projects:", error);
+      console.error("Error loading ideas:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to load projects",
+        description: "Failed to load your ideas",
       });
     } finally {
       setIsLoading(false);
@@ -45,19 +45,19 @@ export default function Dashboard() {
   const deleteProject = async (id: number) => {
     try {
       const response = await fetch(`/api/projects/${id}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete project");
+      if (!response.ok) throw new Error("Failed to delete idea");
       
       setProjects(prev => prev.filter(p => p.id !== id));
       toast({
-        title: "Project deleted",
-        description: "The project has been removed.",
+        title: "Idea deleted",
+        description: "The idea has been removed.",
       });
     } catch (error) {
-      console.error("Error deleting project:", error);
+      console.error("Error deleting idea:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to delete project",
+        description: "Failed to delete idea",
       });
     }
   };
@@ -95,31 +95,31 @@ export default function Dashboard() {
       <div className="container mx-auto p-6 md:p-10 max-w-6xl">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-display font-bold mb-2">My Projects</h1>
-            <p className="text-muted-foreground">Manage your ideas and PRDs.</p>
+            <h1 className="text-3xl font-display font-bold mb-2">My Ideas</h1>
+            <p className="text-muted-foreground">Your ideas, refined and ready to build.</p>
           </div>
-          <Button onClick={() => setLocation("/")} className="gap-2" data-testid="button-new-project">
-            <Plus className="w-4 h-4" /> New Project
+          <Button onClick={() => setLocation("/")} className="gap-2" data-testid="button-new-idea">
+            <Plus className="w-4 h-4" /> New Idea
           </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* New Project Card (Quick Action) */}
+          {/* New Idea Card (Quick Action) */}
           <div 
             onClick={() => setLocation("/")}
             className="group border-2 border-dashed border-muted hover:border-primary/50 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-card/50 hover:bg-card"
-            data-testid="card-new-project"
+            data-testid="card-new-idea"
           >
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
               <Plus className="w-6 h-6" />
             </div>
-            <h3 className="font-semibold text-lg mb-1">Create New PRD</h3>
-            <p className="text-sm text-muted-foreground">Start a fresh conversation with VibePlan AI</p>
+            <h3 className="font-semibold text-lg mb-1">Explore New Idea</h3>
+            <p className="text-sm text-muted-foreground">Start brainstorming with your AI sparring partner</p>
           </div>
 
-          {/* Project Cards */}
+          {/* Idea Cards */}
           {projects.map((project) => (
-            <Card key={project.id} className="group hover:shadow-lg transition-all border-border/60" data-testid={`card-project-${project.id}`}>
+            <Card key={project.id} className="group hover:shadow-lg transition-all border-border/60" data-testid={`card-idea-${project.id}`}>
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <Badge variant="secondary" className="mb-2">{project.type}</Badge>
@@ -193,9 +193,9 @@ export default function Dashboard() {
 
         {projects.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No projects yet. Start building your first PRD!</p>
+            <p className="text-muted-foreground mb-4">No ideas yet. Let's start exploring!</p>
             <Button onClick={() => setLocation("/")} className="gap-2">
-              <Plus className="w-4 h-4" /> Create Your First Project
+              <Plus className="w-4 h-4" /> Start Your First Idea
             </Button>
           </div>
         )}

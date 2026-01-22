@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X, Lightbulb, AlertCircle } from "lucide-react";
+import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X, Lightbulb, AlertCircle, Shield, Swords } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +13,7 @@ type NameSuggestion = {
 };
 
 type StartMode = "idea" | "problem";
+type ConversationMode = "supportive" | "challenger";
 
 const AUDIENCE_TYPES = [
   { id: "b2b_saas", label: "B2B SaaS", icon: Building2, description: "Enterprise software, tools for businesses" },
@@ -27,6 +28,7 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const [idea, setIdea] = useState("");
   const [startMode, setStartMode] = useState<StartMode>("idea");
+  const [conversationMode, setConversationMode] = useState<ConversationMode>("supportive");
   const [step, setStep] = useState<"mode" | "input" | "type">("mode");
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -102,19 +104,19 @@ export default function Home() {
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawIdea: idea, type: selectedType, startMode }),
+        body: JSON.stringify({ rawIdea: idea, type: selectedType, startMode, conversationMode }),
       });
 
-      if (!response.ok) throw new Error("Failed to create project");
+      if (!response.ok) throw new Error("Failed to start idea session");
 
       const project = await response.json();
       setLocation(`/conversation/${project.conversation.id}`);
     } catch (error) {
-      console.error("Error creating project:", error);
+      console.error("Error starting idea:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create project. Please try again.",
+        description: "Failed to start your idea session. Please try again.",
       });
       setIsCreating(false);
     }
@@ -135,7 +137,7 @@ export default function Home() {
           VibePlan
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setLocation("/dashboard")}>Dashboard</Button>
+          <Button variant="ghost" onClick={() => setLocation("/dashboard")}>My Ideas</Button>
         </div>
       </nav>
 
@@ -404,7 +406,7 @@ export default function Home() {
                   This helps VibePlan ask the right questions for your product type.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                   {AUDIENCE_TYPES.map((type) => {
                     const Icon = type.icon;
                     const isSelected = selectedType === type.id;
@@ -433,6 +435,54 @@ export default function Home() {
                       </button>
                     );
                   })}
+                </div>
+
+                {/* Conversation Mode Toggle */}
+                <div className="mb-8 p-4 rounded-xl bg-card border border-border">
+                  <div className="text-sm font-medium mb-3">Choose your AI personality:</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setConversationMode("supportive")}
+                      className={`
+                        flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all
+                        ${conversationMode === "supportive" 
+                          ? "border-primary bg-primary/10" 
+                          : "border-border hover:border-primary/30"}
+                      `}
+                      data-testid="mode-supportive"
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${conversationMode === "supportive" ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
+                        <Shield className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-sm">Supportive</div>
+                        <div className="text-xs text-muted-foreground">Build & refine together</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setConversationMode("challenger")}
+                      className={`
+                        flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all
+                        ${conversationMode === "challenger" 
+                          ? "border-orange-500 bg-orange-500/10" 
+                          : "border-border hover:border-orange-500/30"}
+                      `}
+                      data-testid="mode-challenger"
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${conversationMode === "challenger" ? "bg-orange-500 text-white" : "bg-muted text-muted-foreground"}`}>
+                        <Swords className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-sm">Challenger</div>
+                        <div className="text-xs text-muted-foreground">Devil's advocate mode</div>
+                      </div>
+                    </button>
+                  </div>
+                  {conversationMode === "challenger" && (
+                    <p className="text-xs text-orange-500/80 mt-3">
+                      Challenger mode will push back on your ideas, surface competition, and stress-test your thinking.
+                    </p>
+                  )}
                 </div>
 
                 <Button 
