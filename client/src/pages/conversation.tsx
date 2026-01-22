@@ -1,39 +1,37 @@
 import { useState, useRef, useEffect } from "react";
+import { useRoute, useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Send, Mic, Pause, Play, Loader2, Sparkles, ChevronRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useLocation } from "wouter";
+import { Send, Mic, Sparkles, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+import type { Message, Conversation } from "@shared/schema";
 
-type Message = {
-  id: string;
-  role: "user" | "ai";
-  content: string;
-  timestamp: Date;
-  isTyping?: boolean;
-};
-
-export default function Conversation() {
+export default function ConversationPage() {
+  const [, params] = useRoute("/conversation/:id");
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
   
-  // Mock Conversation State
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "ai",
-      content: "Hi there! I'm VibePlan. I'm here to help you flesh out your product idea into a full specification. To get started, what's the core problem you're trying to solve?",
-      timestamp: new Date()
-    }
-  ]);
-  
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const [progress, setProgress] = useState(10);
   const [currentSection, setCurrentSection] = useState("Problem Statement");
+
+  const conversationId = params?.id ? parseInt(params.id) : null;
+
+  useEffect(() => {
+    if (conversationId) {
+      loadConversation();
+    }
+  }, [conversationId]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -45,81 +43,139 @@ export default function Conversation() {
     }
   }, [messages]);
 
-  const [step, setStep] = useState(0);
-  
-  const questions = [
-    {
-      text: "That's a great starting point. Who do you see as the primary user for this solution? Is it more for individuals or businesses?",
-      section: "Target Audience",
-      progress: 25
-    },
-    {
-      text: "Understood. How do you plan to monetize this? Subscription, one-time purchase, or something else?",
-      section: "Monetization",
-      progress: 50
-    },
-    {
-      text: "Got it. Do you have any specific technical requirements or stack preferences (e.g., React, Python, Mobile App)?",
-      section: "Technical Specs",
-      progress: 75
-    },
-    {
-      text: "Thanks for sharing. I'm generating your initial PRD draft now based on these details. Click 'View Draft' to see the result!",
-      section: "Finalizing",
-      progress: 100
-    }
-  ];
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    const newMsg: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, newMsg]);
-    setInput("");
+  const loadConversation = async () => {
+    if (!conversationId) return;
     
-    // Simulate AI thinking and response
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: "typing",
-        role: "ai",
-        content: "...",
-        timestamp: new Date(),
-        isTyping: true
-      }]);
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`);
+      if (!response.ok) throw new Error("Failed to load conversation");
+      
+      const data = await response.json();
+      setConversation(data);
+      setMessages(data.messages || []);
+      setCurrentSection(data.currentSection || "Problem Statement");
+      
+      // Get project to sync progress
+      const projectResponse = await fetch(`/api/projects/${data.projectId}`);
+      if (projectResponse.ok) {
+        const projectData = await projectResponse.json();
+        setProgress(projectData.progress || 10);
+      }
+    } catch (error) {
+      console.error("Error loading conversation:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load conversation",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      setTimeout(() => {
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.id !== "typing");
-          const nextQuestion = questions[step];
-          
-          if (!nextQuestion) {
-             return [...filtered];
-          }
+  const handleSend = async () => {
+    if (!input.trim() || !conversationId || isSending) return;
 
-          return [...filtered, {
-            id: (Date.now() + 1).toString(),
-            role: "ai",
-            content: nextQuestion.text,
-            timestamp: new Date()
-          }];
-        });
-        
-        if (step < questions.length) {
-          const nextQ = questions[step];
-          if (nextQ) {
-            setProgress(nextQ.progress);
-            setCurrentSection(nextQ.section);
+    const userMessage = input.trim();
+    setInput("");
+    setIsSending(true);
+
+    // Optimistically add user message
+    const tempUserMsg: Message = {
+      id: Date.now(),
+      conversationId,
+      role: "user",
+      content: userMessage,
+      createdAt: new Date(),
+    };
+    setMessages(prev => [...prev, tempUserMsg]);
+
+    // Add typing indicator
+    const typingMsg: Message = {
+      id: Date.now() + 1,
+      conversationId,
+      role: "ai",
+      content: "",
+      createdAt: new Date(),
+    };
+    setMessages(prev => [...prev, typingMsg]);
+
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: userMessage }),
+      });
+
+      if (!response.ok) throw new Error("Failed to send message");
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) throw new Error("No response stream");
+
+      let aiResponse = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+
+          try {
+            const data = JSON.parse(line.slice(6));
+            
+            if (data.content) {
+              aiResponse += data.content;
+              // Update AI message in real-time
+              setMessages(prev => {
+                const updated = [...prev];
+                const lastMsg = updated[updated.length - 1];
+                if (lastMsg && lastMsg.role === "ai") {
+                  lastMsg.content = aiResponse;
+                }
+                return updated;
+              });
+            }
+
+            if (data.done) {
+              // Update progress and section if provided
+              if (data.progress !== undefined) {
+                setProgress(data.progress);
+              }
+              if (data.section) {
+                setCurrentSection(data.section);
+              }
+            }
+
+            if (data.error) {
+              throw new Error(data.error);
+            }
+          } catch (e) {
+            if (!(e instanceof SyntaxError)) {
+              console.error("Stream error:", e);
+            }
           }
-          setStep(prev => prev + 1);
         }
-      }, 1500);
-    }, 500);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to send message",
+      });
+      // Remove typing indicator on error
+      setMessages(prev => prev.filter(m => m.content !== ""));
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -128,6 +184,27 @@ export default function Conversation() {
       handleSend();
     }
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center h-screen">
+          <p className="text-muted-foreground mb-4">Conversation not found</p>
+          <Button onClick={() => setLocation("/dashboard")}>Go to Dashboard</Button>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -142,7 +219,24 @@ export default function Conversation() {
             <Progress value={progress} className="h-2" />
           </div>
           <div className="flex gap-2 ml-4">
-             <Button variant="outline" size="sm" onClick={() => setLocation("/prd/1")}>
+             <Button 
+               variant="outline" 
+               size="sm" 
+               onClick={async () => {
+                 // Generate PRD and navigate to view
+                 try {
+                   const response = await fetch(`/api/projects/${conversation.projectId}/generate-prd`, {
+                     method: "POST",
+                   });
+                   if (response.ok) {
+                     setLocation(`/prd/${conversation.projectId}`);
+                   }
+                 } catch (error) {
+                   console.error("Error generating PRD:", error);
+                 }
+               }}
+               data-testid="button-view-draft"
+             >
                 View Draft
              </Button>
           </div>
@@ -157,6 +251,7 @@ export default function Conversation() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                data-testid={`message-${msg.id}`}
               >
                 <Avatar className={`w-8 h-8 md:w-10 md:h-10 border ${msg.role === "ai" ? "bg-primary/10 border-primary/20" : "bg-muted"}`}>
                   {msg.role === "ai" ? (
@@ -173,18 +268,16 @@ export default function Conversation() {
                       ? "bg-primary text-primary-foreground rounded-tr-sm" 
                       : "bg-card border border-border rounded-tl-sm"}
                   `}>
-                    {msg.isTyping ? (
+                    {msg.content || (
                       <div className="flex gap-1 items-center h-6">
                         <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                         <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                         <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                       </div>
-                    ) : (
-                      msg.content
                     )}
                   </div>
                   <span className="text-[10px] text-muted-foreground px-1">
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
               </motion.div>
@@ -201,6 +294,7 @@ export default function Conversation() {
                 size="icon" 
                 className={`rounded-lg h-10 w-10 shrink-0 ${isRecording ? "text-red-500 bg-red-500/10 animate-pulse" : "text-muted-foreground"}`}
                 onClick={() => setIsRecording(!isRecording)}
+                disabled={isSending}
               >
                 <Mic className="w-5 h-5" />
               </Button>
@@ -210,17 +304,24 @@ export default function Conversation() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type your answer..."
-                className="flex-1 bg-transparent border-none resize-none focus:ring-0 max-h-32 min-h-[44px] py-2.5 text-sm md:text-base"
+                className="flex-1 bg-transparent border-none resize-none focus:ring-0 max-h-32 min-h-[44px] py-2.5 text-sm md:text-base outline-none"
                 rows={1}
+                disabled={isSending}
+                data-testid="input-message"
               />
               
               <Button 
                 size="icon" 
                 className="rounded-lg h-10 w-10 shrink-0"
                 onClick={handleSend}
-                disabled={!input.trim()}
+                disabled={!input.trim() || isSending}
+                data-testid="button-send"
               >
-                <Send className="w-4 h-4" />
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
               </Button>
             </div>
             <p className="text-[10px] text-center text-muted-foreground mt-2">

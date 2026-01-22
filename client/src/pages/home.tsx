@@ -2,17 +2,46 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Sparkles, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Sparkles, CheckCircle2, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const [idea, setIdea] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const { toast } = useToast();
 
-  const handleStart = () => {
-    if (idea.length > 10) {
-      // In a real app, we'd save this to state/context
-      setLocation("/conversation/new");
+  const handleStart = async () => {
+    if (idea.length < 10) {
+      toast({
+        variant: "destructive",
+        title: "Idea too short",
+        description: "Please describe your idea in at least 10 characters.",
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawIdea: idea }),
+      });
+
+      if (!response.ok) throw new Error("Failed to create project");
+
+      const project = await response.json();
+      setLocation(`/conversation/${project.conversation.id}`);
+    } catch (error) {
+      console.error("Error creating project:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create project. Please try again.",
+      });
+      setIsCreating(false);
     }
   };
 
@@ -31,8 +60,7 @@ export default function Home() {
           VibePlan
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setLocation("/dashboard")}>Log In</Button>
-          <Button onClick={() => setLocation("/dashboard")}>Dashboard</Button>
+          <Button variant="ghost" onClick={() => setLocation("/dashboard")}>Dashboard</Button>
         </div>
       </nav>
 
@@ -63,22 +91,34 @@ export default function Home() {
             className="bg-card border border-border/50 shadow-xl rounded-2xl p-2 relative overflow-hidden group focus-within:ring-2 focus-within:ring-primary/50 transition-all"
           >
             <Textarea 
-              placeholder="Describe your idea... (e.g., 'A Tinder for finding co-founders')" 
+              placeholder="Describe your idea... (e.g., 'A mobile app that helps contractors manage schedules and get paid faster')" 
               className="resize-none border-none shadow-none focus-visible:ring-0 text-lg min-h-[120px] bg-transparent p-4"
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
+              disabled={isCreating}
+              data-testid="input-idea"
             />
             <div className="flex justify-between items-center px-2 pb-2 mt-2">
               <span className="text-xs text-muted-foreground px-2">
-                {idea.length}/50 min chars
+                {idea.length}/10 min chars
               </span>
               <Button 
                 size="lg" 
                 className="gap-2 rounded-xl transition-all"
-                disabled={idea.length < 10}
+                disabled={idea.length < 10 || isCreating}
                 onClick={handleStart}
+                data-testid="button-start"
               >
-                Start Building <ArrowRight className="w-4 h-4" />
+                {isCreating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    Start Building <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             </div>
           </motion.div>
