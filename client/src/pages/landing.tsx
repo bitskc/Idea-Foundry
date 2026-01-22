@@ -202,12 +202,16 @@ export default function Landing() {
           <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
             <article className="p-8 rounded-2xl border border-border bg-card">
               <h3 className="text-xl font-semibold mb-2">Free</h3>
-              <p className="text-muted-foreground mb-4">Perfect for exploring ideas</p>
+              <p className="text-muted-foreground mb-4">Bring your own AI key</p>
               <div className="text-4xl font-bold mb-6">$0<span className="text-lg font-normal text-muted-foreground">/mo</span></div>
               <ul className="space-y-3 mb-8" role="list">
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                  <span>Up to 3 ideas</span>
+                  <span>2 ideas per month</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                  <span>Use your own Claude API key</span>
                 </li>
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
@@ -215,11 +219,7 @@ export default function Landing() {
                 </li>
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                  <span>Quick PRD generation</span>
-                </li>
-                <li className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                  <span>Basic competitor insights</span>
+                  <span>Basic PRD generation</span>
                 </li>
               </ul>
               <Button variant="outline" className="w-full" onClick={() => setLocation("/app")} data-testid="button-pricing-free">
@@ -241,7 +241,11 @@ export default function Landing() {
                 </li>
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                  <span>Advanced AI exploration</span>
+                  <span>Included AI credits each month</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                  <span>BYOK option for extra usage</span>
                 </li>
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
@@ -254,10 +258,6 @@ export default function Landing() {
                 <li className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
                   <span>Viability scoring</span>
-                </li>
-                <li className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                  <span>Priority support</span>
                 </li>
               </ul>
               <Button className="w-full" onClick={() => setLocation("/app")} data-testid="button-pricing-pro">

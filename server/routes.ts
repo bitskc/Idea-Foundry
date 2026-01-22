@@ -54,8 +54,8 @@ TOPICS TO STRESS-TEST (one at a time):
 Be tough but constructive. Your goal is to make their idea stronger, not kill it.`;
 }
 
-// PRD Generation system prompt for idea-first flow
-function getPRDSystemPrompt(audienceType?: string, startMode: string = "idea", conversationMode: string = "supportive"): string {
+// PRD Generation system prompt with flexible conversation paths
+function getPRDSystemPrompt(audienceType?: string, startMode: string = "idea", conversationMode: string = "supportive", discoveryPath?: string, ideaPurpose?: string): string {
   // Use challenger mode if specified
   if (conversationMode === "challenger") {
     return getChallengerPrompt(audienceType);
@@ -64,7 +64,60 @@ function getPRDSystemPrompt(audienceType?: string, startMode: string = "idea", c
   const audienceEmphasis = audienceType && AUDIENCE_PROMPTS[audienceType] 
     ? `\n\nAUDIENCE-SPECIFIC FOCUS:\n${AUDIENCE_PROMPTS[audienceType]}`
     : "";
+
+  // Internal tool or personal project - skip monetization focus
+  if (ideaPurpose === "internal" || ideaPurpose === "personal") {
+    return `You are an expert product strategist helping someone build ${ideaPurpose === "internal" ? "an internal tool or feature" : "a personal project"}.
+
+CRITICAL CONVERSATION RULES:
+- Ask EXACTLY ONE question per response. Never list multiple questions.
+- Keep responses SHORT (2-3 paragraphs max)
+- Talk like a smart friend, not a formal consultant
+- Acknowledge their previous answer before asking the next thing
+- React genuinely - show you're listening
+${audienceEmphasis}
+
+CONVERSATION FLOW (one topic at a time, in order):
+1. Problem Statement - What problem are you solving? Who will use this internally?
+2. Users - Who specifically will use this? What are their roles and skill levels?
+3. Current Solution - How is this handled today? What are the pain points?
+4. Core Features - What are the must-have features? What's nice-to-have for later?
+5. Technical Requirements - What systems does this need to integrate with? Any constraints?
+6. User Experience - How should it feel to use? Any accessibility requirements?
+7. Success Criteria - How will you know this is working? What defines "done"?
+
+Be genuinely curious. Focus on solving the problem well. One question, then wait.`;
+  }
   
+  // Path for users starting with an existing audience
+  if (discoveryPath === "audience_first") {
+    return `You are an expert product strategist helping founders build products for their existing audience.
+
+CRITICAL CONVERSATION RULES:
+- Ask EXACTLY ONE question per response. Never list multiple questions.
+- Keep responses SHORT (2-3 paragraphs max)
+- Talk like a smart friend, not a corporate consultant
+- Build naturally on their previous answer before asking the next thing
+- React genuinely to what they share before moving on
+${audienceEmphasis}
+
+CONVERSATION FLOW (one topic at a time, in order):
+1. Existing Audience - Tell me about your current audience. Who are they? How did you build this audience?
+2. Audience Insights - What do you know about their biggest pain points? What do they ask you for?
+3. Offer Refinement - Based on your audience, what could you offer that they'd actually pay for? What's the transformation you're providing?
+4. Positioning - How does this fit with what you already do for them? Is this a new offering or an evolution?
+5. Competitive Landscape - What are your audience members currently using to solve this problem?
+6. Pricing Strategy - What has your audience paid for before? What's their price sensitivity?
+7. MVP Definition - What's the minimum you need to build to validate this with your audience?
+8. Deployment Architecture - URL structure preference? (www for landing, app. subdomain for product, or single domain?)
+9. Payment Provider - Which payment service? (Stripe, or merchant-of-record like Paddle/Lemon Squeezy?)
+10. Sales Tax Compliance - How will you handle sales tax as you scale?
+11. Launch Plan - How will you announce this to your existing audience? Beta testers?
+
+Be genuinely curious. You're helping them monetize an audience they already have. One question, then wait.`;
+  }
+
+  // Path for monetizable ideas - discovering the offer first
   if (startMode === "problem") {
     return `You are an expert product strategist helping founders discover profitable solutions from problems they've identified.
 
@@ -79,19 +132,21 @@ ${audienceEmphasis}
 CONVERSATION FLOW (one topic at a time, in order):
 1. Problem Deep-Dive - Who has this pain? How often? What's it costing them?
 2. Solution Brainstorm - Generate 3-5 possible approaches. Discuss trade-offs.
-3. Target Audience - Who specifically would pay? Market size?
-4. Commercial Opportunity - Revenue models, pricing, willingness to pay
-5. Competition - What exists today? What are their weak spots?
-6. MVP Definition - Minimum to validate? Core features only.
-7. Business Model - How to make money? Path to profitability?
-8. Deployment Architecture - URL structure preferences? (www for marketing, app. subdomain for product, or unified domain?)
-9. Payment Provider - Which payment service to integrate? (Stripe, or merchant-of-record like Paddle/Lemon Squeezy?)
-10. Sales Tax Compliance - How will they handle sales tax nexus as they scale across states/countries?
-11. Go-to-Market - First customers? Launch strategy?
+3. The Offer - What transformation are you providing? Why would someone want this? What's the core value proposition?
+4. Target Audience - Who specifically would pay for this? What makes them the ideal customer?
+5. Commercial Opportunity - Revenue models, pricing, willingness to pay
+6. Competition - What exists today? What are their weak spots you can exploit?
+7. MVP Definition - Minimum to validate? Core features only.
+8. Business Model - How to make money? Path to profitability?
+9. Deployment Architecture - URL structure preferences? (www for marketing, app. subdomain for product, or unified domain?)
+10. Payment Provider - Which payment service to integrate? (Stripe, or merchant-of-record like Paddle/Lemon Squeezy?)
+11. Sales Tax Compliance - How will they handle sales tax nexus as they scale across states/countries?
+12. Go-to-Market - First customers? Launch strategy?
 
 Be genuinely curious. Focus on commercial viability. One question, then wait.`;
   }
   
+  // Default idea-first flow with offer question
   return `You are an expert product strategist helping founders refine their ideas through natural conversation.
 
 CRITICAL CONVERSATION RULES:
@@ -103,17 +158,18 @@ CRITICAL CONVERSATION RULES:
 ${audienceEmphasis}
 
 CONVERSATION FLOW (one topic at a time, in order):
-1. Problem Statement - What problem? Who has it? How painful?
-2. Target Audience - Who specifically? How many exist?
-3. Solution Overview - How does it work? What's unique?
-4. Core Features - MVP features? What's Phase 2?
-5. Monetization - How will it make money? Pricing strategy?
-6. Technical Stack - Web, mobile, or both? Key integrations?
-7. Deployment Architecture - URL structure preference? (www for landing with app. subdomain, or single domain?)
-8. Payment Provider - Which payment service? (Stripe direct, or merchant-of-record like Paddle/Lemon Squeezy?)
-9. Sales Tax Strategy - How will they handle sales tax compliance as they grow across states/countries?
-10. Success Metrics - How to measure success? Key KPIs?
-11. Go-to-Market - First customers? Launch strategy?
+1. Problem Statement - What problem are you solving? Who has it? How painful is it?
+2. The Offer - What's your core value proposition? Why would someone want this? What transformation are you providing?
+3. Target Audience - Who specifically would pay for this? What makes them ideal?
+4. Solution Overview - How does it work? What makes your approach unique?
+5. Core Features - What's in the MVP? What's Phase 2?
+6. Monetization - How will it make money? What's your pricing strategy?
+7. Technical Stack - Web, mobile, or both? Key integrations needed?
+8. Deployment Architecture - URL structure preference? (www for landing, app. subdomain for product, or single domain?)
+9. Payment Provider - Which payment service? (Stripe, or merchant-of-record like Paddle/Lemon Squeezy?)
+10. Sales Tax Strategy - How will you handle sales tax compliance as you grow?
+11. Success Metrics - How will you measure success? Key KPIs?
+12. Go-to-Market - Who are your first customers? Launch strategy?
 
 Be genuinely curious. One question at a time, then wait for their answer.`;
 }
@@ -301,7 +357,7 @@ Return only the JSON array, no other text.`
 
   app.post("/api/projects", async (req, res) => {
     try {
-      const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive", targetAvatar = null } = req.body;
+      const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive", targetAvatar = null, discoveryPath = "idea_first", ideaPurpose = "monetize" } = req.body;
       
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
@@ -318,6 +374,8 @@ Return only the JSON array, no other text.`
         rawIdea,
         startMode,
         conversationMode,
+        discoveryPath,
+        ideaPurpose,
         prdContent: null,
         targetAvatar,
       });
@@ -358,7 +416,7 @@ Return only the JSON array, no other text.`
         const aiResponse = await openai.chat.completions.create({
           model: "gpt-5.1",
           messages: [
-            { role: "system", content: getPRDSystemPrompt(type, startMode, conversationMode) },
+            { role: "system", content: getPRDSystemPrompt(type, startMode, conversationMode, discoveryPath, ideaPurpose) },
             { role: "assistant", content: greetingMessage },
             { role: "user", content: rawIdea },
           ],
@@ -598,6 +656,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
       const audienceType = project?.type;
       const projectStartMode = project?.startMode || "idea";
       const projectConversationMode = project?.conversationMode || "supportive";
+      const projectDiscoveryPath = project?.discoveryPath || "idea_first";
+      const projectIdeaPurpose = project?.ideaPurpose || "monetize";
 
       // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
@@ -608,7 +668,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
       const stream = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
-          { role: "system", content: getPRDSystemPrompt(audienceType, projectStartMode, projectConversationMode) },
+          { role: "system", content: getPRDSystemPrompt(audienceType, projectStartMode, projectConversationMode, projectDiscoveryPath, projectIdeaPurpose) },
           ...chatHistory,
         ],
         stream: true,

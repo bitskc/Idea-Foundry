@@ -20,6 +20,8 @@ export const projects = pgTable("projects", {
   rawIdea: text("raw_idea").notNull(),
   startMode: text("start_mode").notNull().default("idea"), // "idea" or "problem"
   conversationMode: text("conversation_mode").notNull().default("supportive"), // "supportive" or "challenger"
+  discoveryPath: text("discovery_path").default("idea_first"), // "idea_first" or "audience_first"
+  ideaPurpose: text("idea_purpose").default("monetize"), // "monetize", "internal", or "personal"
   prdContent: text("prd_content"), // Generated PRD markdown
   notes: text("notes"), // User's quick notes about the idea
   targetAvatar: jsonb("target_avatar"), // Customer avatar: { role, industry, painPoints, goals, demographics, behaviors }

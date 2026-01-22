@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 
 type StartMode = "idea" | "quick" | "problem";
+type DiscoveryPath = "idea_first" | "audience_first";
+type IdeaPurpose = "monetize" | "internal" | "personal";
 
 interface TargetAvatar {
   role: string;
@@ -51,11 +53,13 @@ export default function NewIdea() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
-  const [step, setStep] = useState<"mode" | "input" | "type" | "avatar">("mode");
+  const [step, setStep] = useState<"mode" | "input" | "type" | "purpose" | "discovery" | "avatar">("mode");
   const [startMode, setStartMode] = useState<StartMode>("idea");
   const [idea, setIdea] = useState("");
   const [selectedType, setSelectedType] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
+  const [ideaPurpose, setIdeaPurpose] = useState<IdeaPurpose>("monetize");
+  const [discoveryPath, setDiscoveryPath] = useState<DiscoveryPath>("idea_first");
   
   const [avatar, setAvatar] = useState<TargetAvatar>({
     role: "",
@@ -96,8 +100,22 @@ export default function NewIdea() {
     if (startMode === "quick") {
       handleQuickStart();
     } else {
+      setStep("purpose");
+    }
+  };
+
+  const handlePurposeSelected = (purpose: IdeaPurpose) => {
+    setIdeaPurpose(purpose);
+    if (purpose === "monetize") {
+      setStep("discovery");
+    } else {
       setStep("avatar");
     }
+  };
+
+  const handleDiscoverySelected = (path: DiscoveryPath) => {
+    setDiscoveryPath(path);
+    setStep("avatar");
   };
 
   const handleQuickStart = async () => {
@@ -151,6 +169,8 @@ export default function NewIdea() {
           startMode,
           conversationMode: "supportive",
           targetAvatar: avatar,
+          ideaPurpose,
+          discoveryPath,
         }),
       });
 
@@ -384,6 +404,134 @@ export default function NewIdea() {
             </motion.div>
           )}
 
+          {step === "purpose" && (
+            <motion.div
+              key="purpose-step"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Button variant="ghost" onClick={() => setStep("type")} className="mb-4 -ml-2">
+                Back
+              </Button>
+
+              <h2 className="text-2xl font-display font-bold mb-2">What's the purpose?</h2>
+              <p className="text-muted-foreground mb-6">This helps us focus on what matters most for your situation.</p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => handlePurposeSelected("monetize")}
+                  className="group w-full p-5 rounded-xl border-2 border-border bg-card hover:border-green-500/50 hover:bg-green-500/5 transition-all text-left"
+                  data-testid="purpose-monetize"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="text-2xl">💰</div>
+                    <div>
+                      <h3 className="font-semibold mb-1">Build a business</h3>
+                      <p className="text-sm text-muted-foreground">
+                        I want to make money from this - sell it to customers
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handlePurposeSelected("internal")}
+                  className="group w-full p-5 rounded-xl border-2 border-border bg-card hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left"
+                  data-testid="purpose-internal"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="text-2xl">🏢</div>
+                    <div>
+                      <h3 className="font-semibold mb-1">Internal tool or feature</h3>
+                      <p className="text-sm text-muted-foreground">
+                        For my team, company, or an existing product
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handlePurposeSelected("personal")}
+                  className="group w-full p-5 rounded-xl border-2 border-border bg-card hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-left"
+                  data-testid="purpose-personal"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="text-2xl">🧪</div>
+                    <div>
+                      <h3 className="font-semibold mb-1">Personal project</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Just for me, learning, or experimenting
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === "discovery" && (
+            <motion.div
+              key="discovery-step"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Button variant="ghost" onClick={() => setStep("purpose")} className="mb-4 -ml-2">
+                Back
+              </Button>
+
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-600 text-xs font-medium mb-4">
+                <Sparkles className="w-3 h-3" />
+                Building a Business
+              </div>
+              <h2 className="text-2xl font-display font-bold mb-2">Where do you want to start?</h2>
+              <p className="text-muted-foreground mb-6">
+                Choose your approach to finding product-market fit.
+              </p>
+
+              <div className="space-y-4">
+                <button
+                  onClick={() => handleDiscoverySelected("audience_first")}
+                  className="group w-full p-6 rounded-xl border-2 border-border bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+                  data-testid="discovery-audience"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      <Users className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold mb-1">I have an existing audience</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Email list, social following, community, or existing customers. Let's build something they'll buy.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleDiscoverySelected("idea_first")}
+                  className="group w-full p-6 rounded-xl border-2 border-border bg-card hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left"
+                  data-testid="discovery-idea"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
+                      <Lightbulb className="w-6 h-6 text-cyan-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold mb-1">I'm starting with the idea</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Let's figure out who would pay for this and how to position it for maximum impact.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {step === "avatar" && (
             <motion.div
               key="avatar-step"
@@ -392,7 +540,7 @@ export default function NewIdea() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <Button variant="ghost" onClick={() => setStep("type")} className="mb-4 -ml-2">
+              <Button variant="ghost" onClick={() => setStep(ideaPurpose === "monetize" ? "discovery" : "purpose")} className="mb-4 -ml-2">
                 Back
               </Button>
 
