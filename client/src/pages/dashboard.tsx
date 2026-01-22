@@ -243,7 +243,11 @@ export default function Dashboard() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  <CardTitle className="leading-tight group-hover:text-primary transition-colors">
+                  <CardTitle 
+                    className="leading-tight group-hover:text-primary transition-colors cursor-pointer hover:underline"
+                    onClick={() => setLocation(`/idea/${project.id}`)}
+                    data-testid={`title-idea-${project.id}`}
+                  >
                     {project.title}
                   </CardTitle>
                   <CardDescription className="line-clamp-2 mt-1">
