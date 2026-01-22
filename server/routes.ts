@@ -1218,6 +1218,92 @@ This PRD should be detailed enough that even a basic AI model can follow the ste
     }
   });
 
+  // Tech stack advisor
+  app.post("/api/projects/:id/recommend-stack", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get conversation context if available
+      let conversationContext = "";
+      const conversation = await storage.getConversationByProjectId(projectId);
+      if (conversation) {
+        const messages = await storage.getMessagesByConversation(conversation.id);
+        conversationContext = messages.slice(-10)
+          .map((m: { role: string; content: string }) => `${m.role === "user" ? "Founder" : "AI"}: ${m.content}`)
+          .join("\n\n");
+      }
+
+      const stackPrompt = `Based on this product idea, recommend the optimal tech stack for building an MVP.
+
+IDEA: ${project.rawIdea}
+TYPE: ${project.type}
+${project.targetAvatar ? `TARGET CUSTOMER: ${JSON.stringify(project.targetAvatar)}` : ""}
+
+${conversationContext ? `CONVERSATION CONTEXT:\n${conversationContext}` : ""}
+
+Provide a JSON response with this structure:
+{
+  "recommended": {
+    "frontend": {"name": "Framework/Library", "reason": "Why this is best for this idea"},
+    "backend": {"name": "Framework/Language", "reason": "Why this is best"},
+    "database": {"name": "Database type", "reason": "Why this fits"},
+    "hosting": {"name": "Hosting platform", "reason": "Why this works"},
+    "auth": {"name": "Auth solution", "reason": "Why recommended"}
+  },
+  "fullStack": {
+    "name": "Full-stack framework if applicable",
+    "reason": "Why this might be a good all-in-one choice"
+  },
+  "aiAssistants": [
+    {"name": "AI coding tool", "bestFor": "What it excels at", "tip": "How to use it for this project"}
+  ],
+  "mvpTimeline": "Estimated time to MVP with this stack",
+  "costEstimate": "Monthly infrastructure cost estimate for MVP",
+  "warnings": ["Potential gotchas or things to watch out for"],
+  "alternatives": [
+    {"stack": "Alternative stack name", "tradeoff": "Why you might choose this instead"}
+  ]
+}
+
+Consider:
+- Speed to MVP (favor simpler stacks for faster launch)
+- AI coding compatibility (Replit Agent, Cursor, Bolt work best with React, Node, Python)
+- Scalability needs based on idea type
+- Cost efficiency for bootstrapped founders
+- Developer experience and ecosystem
+
+Return ONLY valid JSON, no explanation.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.1",
+        messages: [
+          { role: "system", content: "You are a senior technical architect helping founders choose the right tech stack. Always respond with valid JSON only." },
+          { role: "user", content: stackPrompt }
+        ],
+        max_completion_tokens: 4000,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      let stackData;
+      try {
+        stackData = JSON.parse(content);
+      } catch (parseError) {
+        console.error("Failed to parse stack response:", content);
+        throw new Error("Invalid stack response format");
+      }
+
+      res.json(stackData);
+    } catch (error) {
+      console.error("Error recommending tech stack:", error);
+      res.status(500).json({ error: "Failed to generate tech stack recommendation" });
+    }
+  });
+
   // Generate landing page for idea validation
   app.post("/api/projects/:id/generate-landing-page", async (req, res) => {
     try {
@@ -1248,7 +1334,7 @@ Create an HTML file with:
 1. Modern, attractive design with CSS included (dark theme, gradient accents)
 2. Compelling headline and tagline
 3. Value proposition bullets (3-4 points)
-4. Email capture form (just the form, no backend needed)
+4. Email capture form with name and email fields
 5. Social proof placeholder section
 6. Call-to-action button
 
@@ -1257,8 +1343,14 @@ Requirements:
 - Mobile responsive
 - Professional, modern aesthetic
 - Include Font Awesome CDN for icons
-- Email form should POST to "#" with a data-testid="email-form"
+- The email form should use:
+  - name="contact" attribute on the form element
+  - data-netlify="true" attribute for Netlify Forms integration
+  - A hidden input: <input type="hidden" name="form-name" value="contact" />
+  - action="/success" for the form
+  - data-testid="email-form" for testing
 - Include meta tags for SEO and social sharing
+- Add a small footer note: "Host this page free on <a href='https://www.netlify.com/?utm_source=ideafoundry' target='_blank'>Netlify</a> - forms auto-connect to email, Slack, Zapier & more"
 
 Return ONLY the complete HTML code, no explanation.`;
 

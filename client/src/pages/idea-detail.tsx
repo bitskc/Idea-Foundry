@@ -30,7 +30,12 @@ import {
   Crown,
   CheckCircle2,
   Plus,
-  Trash2
+  Trash2,
+  Layers,
+  Server,
+  Database,
+  Shield,
+  AlertTriangle
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 
@@ -76,6 +81,8 @@ export default function IdeaDetail() {
   const [prdTrack, setPrdTrack] = useState<"quick" | "standard" | "production">("standard");
   const [userRequirements, setUserRequirements] = useState("");
   const [isGeneratingPrd, setIsGeneratingPrd] = useState(false);
+  const [isGeneratingStack, setIsGeneratingStack] = useState(false);
+  const [stackRecommendation, setStackRecommendation] = useState<any>(null);
 
   useEffect(() => {
     loadProjectData();
@@ -228,6 +235,30 @@ export default function IdeaDetail() {
       });
     } finally {
       setIsGeneratingPrd(false);
+    }
+  };
+
+  const generateStackRecommendation = async () => {
+    if (!project) return;
+    setIsGeneratingStack(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/recommend-stack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error("Failed to get stack recommendation");
+      const data = await response.json();
+      setStackRecommendation(data);
+      toast({ title: "Tech Stack Ready!", description: "We've analyzed your idea and recommended a tech stack." });
+    } catch (error) {
+      console.error("Error getting stack recommendation:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate tech stack recommendation",
+      });
+    } finally {
+      setIsGeneratingStack(false);
     }
   };
 
@@ -750,6 +781,186 @@ export default function IdeaDetail() {
                         Tip: Start a conversation in the Think tab first to provide more context for a better PRD.
                       </p>
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Tech Stack Advisor */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-primary" />
+                  Tech Stack Advisor
+                </CardTitle>
+                <CardDescription>Get AI-recommended technology stack optimized for your idea</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!stackRecommendation ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Our AI will analyze your idea and recommend the best tech stack for speed to MVP, 
+                      AI coding assistant compatibility, and cost efficiency.
+                    </p>
+                    <Button 
+                      onClick={generateStackRecommendation}
+                      disabled={isGeneratingStack}
+                      className="w-full"
+                      data-testid="button-get-stack-recommendation"
+                    >
+                      {isGeneratingStack ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Analyzing your idea...
+                        </>
+                      ) : (
+                        <>
+                          <Layers className="w-4 h-4 mr-2" />
+                          Get Stack Recommendation
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6" data-testid="stack-recommendation-results">
+                    {/* Recommended Stack */}
+                    {stackRecommendation.recommended && (
+                      <div data-testid="section-recommended-stack">
+                        <h4 className="font-medium mb-3 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          Recommended Stack
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {stackRecommendation.recommended.frontend && (
+                            <div className="p-3 border rounded-lg" data-testid="card-stack-frontend">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Building className="w-4 h-4 text-blue-500" />
+                                <span className="font-medium text-sm">Frontend</span>
+                              </div>
+                              <p className="text-sm font-semibold" data-testid="text-stack-frontend-name">{stackRecommendation.recommended.frontend.name}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.frontend.reason}</p>
+                            </div>
+                          )}
+                          {stackRecommendation.recommended.backend && (
+                            <div className="p-3 border rounded-lg" data-testid="card-stack-backend">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Server className="w-4 h-4 text-green-500" />
+                                <span className="font-medium text-sm">Backend</span>
+                              </div>
+                              <p className="text-sm font-semibold" data-testid="text-stack-backend-name">{stackRecommendation.recommended.backend.name}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.backend.reason}</p>
+                            </div>
+                          )}
+                          {stackRecommendation.recommended.database && (
+                            <div className="p-3 border rounded-lg" data-testid="card-stack-database">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Database className="w-4 h-4 text-purple-500" />
+                                <span className="font-medium text-sm">Database</span>
+                              </div>
+                              <p className="text-sm font-semibold" data-testid="text-stack-database-name">{stackRecommendation.recommended.database.name}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.database.reason}</p>
+                            </div>
+                          )}
+                          {stackRecommendation.recommended.hosting && (
+                            <div className="p-3 border rounded-lg" data-testid="card-stack-hosting">
+                              <div className="flex items-center gap-2 mb-1">
+                                <ExternalLink className="w-4 h-4 text-orange-500" />
+                                <span className="font-medium text-sm">Hosting</span>
+                              </div>
+                              <p className="text-sm font-semibold" data-testid="text-stack-hosting-name">{stackRecommendation.recommended.hosting.name}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.hosting.reason}</p>
+                            </div>
+                          )}
+                          {stackRecommendation.recommended.auth && (
+                            <div className="p-3 border rounded-lg" data-testid="card-stack-auth">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Shield className="w-4 h-4 text-cyan-500" />
+                                <span className="font-medium text-sm">Auth</span>
+                              </div>
+                              <p className="text-sm font-semibold" data-testid="text-stack-auth-name">{stackRecommendation.recommended.auth.name}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.auth.reason}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Full-Stack Option */}
+                    {stackRecommendation.fullStack?.name && (
+                      <div data-testid="section-fullstack-alternative">
+                        <h4 className="font-medium mb-2 flex items-center gap-2">
+                          <Rocket className="w-4 h-4 text-primary" />
+                          Full-Stack Alternative
+                        </h4>
+                        <div className="p-3 border rounded-lg bg-primary/5" data-testid="card-fullstack">
+                          <p className="font-semibold" data-testid="text-fullstack-name">{stackRecommendation.fullStack.name}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{stackRecommendation.fullStack.reason}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI Assistants */}
+                    {stackRecommendation.aiAssistants?.length > 0 && (
+                      <div data-testid="section-ai-assistants">
+                        <h4 className="font-medium mb-2 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-yellow-500" />
+                          AI Coding Assistants
+                        </h4>
+                        <div className="space-y-2">
+                          {stackRecommendation.aiAssistants.map((ai: any, idx: number) => (
+                            <div key={idx} className="p-2 border rounded-lg text-sm" data-testid={`card-ai-assistant-${idx}`}>
+                              <span className="font-medium">{ai.name}</span>
+                              <span className="text-muted-foreground"> - {ai.bestFor}</span>
+                              {ai.tip && <p className="text-xs text-muted-foreground mt-1">{ai.tip}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Timeline & Cost */}
+                    <div className="grid grid-cols-2 gap-4" data-testid="section-timeline-cost">
+                      {stackRecommendation.mvpTimeline && (
+                        <div className="p-3 border rounded-lg text-center" data-testid="card-mvp-timeline">
+                          <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />
+                          <p className="text-xs text-muted-foreground">MVP Timeline</p>
+                          <p className="font-medium text-sm" data-testid="text-mvp-timeline">{stackRecommendation.mvpTimeline}</p>
+                        </div>
+                      )}
+                      {stackRecommendation.costEstimate && (
+                        <div className="p-3 border rounded-lg text-center" data-testid="card-cost-estimate">
+                          <DollarSign className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                          <p className="text-xs text-muted-foreground">Infrastructure Cost</p>
+                          <p className="font-medium text-sm" data-testid="text-cost-estimate">{stackRecommendation.costEstimate}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Warnings */}
+                    {stackRecommendation.warnings?.length > 0 && (
+                      <div className="p-3 border border-yellow-200 rounded-lg bg-yellow-50" data-testid="section-warnings">
+                        <h4 className="font-medium mb-2 flex items-center gap-2 text-yellow-800">
+                          <AlertTriangle className="w-4 h-4" />
+                          Things to Watch Out For
+                        </h4>
+                        <ul className="text-sm text-yellow-700 space-y-1">
+                          {stackRecommendation.warnings.map((warning: string, idx: number) => (
+                            <li key={idx} data-testid={`text-warning-${idx}`}>• {warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Regenerate Button */}
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setStackRecommendation(null)}
+                      className="w-full"
+                      data-testid="button-reset-stack"
+                    >
+                      <Layers className="w-4 h-4 mr-2" />
+                      Get New Recommendation
+                    </Button>
                   </div>
                 )}
               </CardContent>
