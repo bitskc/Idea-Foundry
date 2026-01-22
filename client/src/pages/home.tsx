@@ -2,9 +2,15 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu } from "lucide-react";
+import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+
+type NameSuggestion = {
+  name: string;
+  tagline: string;
+  style: string;
+};
 
 const AUDIENCE_TYPES = [
   { id: "b2b_saas", label: "B2B SaaS", icon: Building2, description: "Enterprise software, tools for businesses" },
@@ -21,7 +27,45 @@ export default function Home() {
   const [step, setStep] = useState<"idea" | "type">("idea");
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [nameSuggestions, setNameSuggestions] = useState<NameSuggestion[]>([]);
+  const [isGeneratingNames, setIsGeneratingNames] = useState(false);
+  const [showNamePanel, setShowNamePanel] = useState(false);
   const { toast } = useToast();
+
+  const generateNames = async () => {
+    if (idea.length < 10) {
+      toast({
+        variant: "destructive",
+        title: "Need more details",
+        description: "Please describe your idea first (at least 10 characters).",
+      });
+      return;
+    }
+
+    setIsGeneratingNames(true);
+    setShowNamePanel(true);
+    try {
+      const response = await fetch("/api/generate-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea, type: selectedType }),
+      });
+
+      if (!response.ok) throw new Error("Failed to generate names");
+
+      const data = await response.json();
+      setNameSuggestions(data.names || []);
+    } catch (error) {
+      console.error("Error generating names:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate name suggestions.",
+      });
+    } finally {
+      setIsGeneratingNames(false);
+    }
+  };
 
   const handleContinue = () => {
     if (idea.length < 10) {
@@ -120,9 +164,26 @@ export default function Home() {
                     data-testid="input-idea"
                   />
                   <div className="flex justify-between items-center px-2 pb-2 mt-2">
-                    <span className="text-xs text-muted-foreground px-2">
-                      {idea.length}/10 min chars
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground px-2">
+                        {idea.length}/10 min chars
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={generateNames}
+                        disabled={idea.length < 10 || isGeneratingNames}
+                        className="text-xs gap-1 h-7"
+                        data-testid="button-generate-names"
+                      >
+                        {isGeneratingNames ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Wand2 className="w-3 h-3" />
+                        )}
+                        Suggest Names
+                      </Button>
+                    </div>
                     <Button 
                       size="lg" 
                       className="gap-2 rounded-xl transition-all"
@@ -134,6 +195,72 @@ export default function Home() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Name Suggestions Panel */}
+                <AnimatePresence>
+                  {showNamePanel && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-4 bg-card border border-border/50 rounded-xl p-4 overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold flex items-center gap-2">
+                          <Wand2 className="w-4 h-4 text-primary" />
+                          Name Suggestions
+                        </h3>
+                        <button 
+                          onClick={() => setShowNamePanel(false)}
+                          className="text-muted-foreground hover:text-foreground"
+                          data-testid="button-close-names"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      {isGeneratingNames ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                          <span className="ml-2 text-muted-foreground">Generating creative names...</span>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {nameSuggestions.map((suggestion, index) => (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                navigator.clipboard.writeText(suggestion.name);
+                                toast({
+                                  title: "Copied!",
+                                  description: `"${suggestion.name}" copied to clipboard`,
+                                });
+                              }}
+                              className="text-left p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all group"
+                              data-testid={`name-suggestion-${index}`}
+                            >
+                              <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                {suggestion.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                                {suggestion.tagline}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground/60 mt-1 capitalize">
+                                {suggestion.style}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {!isGeneratingNames && nameSuggestions.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-3 text-center">
+                          Click a name to copy it
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <div className="mt-12 flex items-center gap-8 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">

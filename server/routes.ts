@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import OpenAI from "openai";
+import { speechToText, textToSpeech, ensureCompatibleFormat } from "./replit_integrations/audio/client";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -51,6 +52,121 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Generate app name suggestions
+  app.post("/api/generate-names", async (req, res) => {
+    try {
+      const { idea, type } = req.body;
+      
+      if (!idea || idea.length < 10) {
+        return res.status(400).json({ error: "Please provide a product idea" });
+      }
+
+      const typeContext = type ? `Product type: ${type}` : "";
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.1",
+        messages: [
+          {
+            role: "system",
+            content: `You are a creative brand naming expert. Generate unique, memorable app/product names.
+            
+Rules for good names:
+- Short (1-2 words, max 12 characters preferred)
+- Easy to pronounce and spell
+- Memorable and catchy
+- Available as a domain name (avoid common words)
+- Evokes the product's purpose or feeling
+- Mix of styles: playful, professional, abstract, descriptive
+
+Return ONLY a JSON array of 6 name suggestions with this exact format:
+[{"name": "AppName", "tagline": "Short catchy tagline", "style": "playful|professional|abstract|descriptive"}]`
+          },
+          {
+            role: "user",
+            content: `Generate 6 unique app name suggestions for this idea:
+${idea}
+
+${typeContext}
+
+Return only the JSON array, no other text.`
+          }
+        ],
+        max_completion_tokens: 500,
+      });
+
+      const content = response.choices[0]?.message?.content || "[]";
+      
+      // Parse JSON from response
+      let names = [];
+      try {
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          names = JSON.parse(jsonMatch[0]);
+        }
+      } catch (parseError) {
+        console.error("Error parsing names:", parseError);
+      }
+      
+      // Ensure we always have 6 suggestions
+      const fallbackNames = [
+        { name: "AppFlow", tagline: "Streamline your workflow", style: "professional" },
+        { name: "Sparkr", tagline: "Ignite your ideas", style: "playful" },
+        { name: "Nexus", tagline: "Connect everything", style: "abstract" },
+        { name: "Buildly", tagline: "Build it better", style: "descriptive" },
+        { name: "Vibe", tagline: "Feel the difference", style: "playful" },
+        { name: "Forge", tagline: "Craft your vision", style: "professional" },
+      ];
+      
+      while (names.length < 6) {
+        names.push(fallbackNames[names.length % fallbackNames.length]);
+      }
+
+      res.json({ names: names.slice(0, 6) });
+    } catch (error) {
+      console.error("Error generating names:", error);
+      res.status(500).json({ error: "Failed to generate names" });
+    }
+  });
+
+  // Speech-to-Text: Transcribe audio to text
+  app.post("/api/speech-to-text", async (req, res) => {
+    try {
+      const { audio } = req.body;
+      
+      if (!audio) {
+        return res.status(400).json({ error: "No audio data provided" });
+      }
+
+      const audioBuffer = Buffer.from(audio, "base64");
+      const { buffer, format } = await ensureCompatibleFormat(audioBuffer);
+      const transcript = await speechToText(buffer, format);
+      
+      res.json({ transcript });
+    } catch (error) {
+      console.error("Error transcribing audio:", error);
+      res.status(500).json({ error: "Failed to transcribe audio" });
+    }
+  });
+
+  // Text-to-Speech: Convert text to audio
+  app.post("/api/text-to-speech", async (req, res) => {
+    try {
+      const { text, voice = "nova" } = req.body;
+      
+      if (!text) {
+        return res.status(400).json({ error: "No text provided" });
+      }
+
+      const audioBuffer = await textToSpeech(text, voice, "mp3");
+      const audioBase64 = audioBuffer.toString("base64");
+      
+      res.json({ audio: audioBase64 });
+    } catch (error) {
+      console.error("Error generating speech:", error);
+      res.status(500).json({ error: "Failed to generate speech" });
+    }
+  });
+
   // Get all projects
   app.get("/api/projects", async (req, res) => {
     try {
