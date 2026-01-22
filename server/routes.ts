@@ -88,8 +88,56 @@ export async function registerRoutes(
       await storage.createMessage({
         conversationId: conversation.id,
         role: "ai",
-        content: "Hi there! I'm VibePlan. I'm here to help you flesh out your product idea into a full specification. To get started, what's the core problem you're trying to solve?",
+        content: "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!",
       });
+
+      // Add user's idea as their first message
+      await storage.createMessage({
+        conversationId: conversation.id,
+        role: "user",
+        content: rawIdea,
+      });
+
+      // Generate AI response to the idea
+      try {
+        const aiResponse = await openai.chat.completions.create({
+          model: "gpt-5.1",
+          messages: [
+            { role: "system", content: PRD_SYSTEM_PROMPT },
+            { role: "assistant", content: "Hi there! I'm VibePlan, your AI product strategist. I'm here to help you transform your idea into a comprehensive PRD. Share your idea with me!" },
+            { role: "user", content: rawIdea },
+          ],
+          max_completion_tokens: 500,
+        });
+
+        const aiContent = aiResponse.choices[0]?.message?.content || "That's an interesting idea! Let's dive deeper. What specific problem are you trying to solve with this?";
+        
+        await storage.createMessage({
+          conversationId: conversation.id,
+          role: "ai",
+          content: aiContent,
+        });
+
+        // Update conversation step
+        await storage.updateConversation(conversation.id, {
+          currentStep: 1,
+          currentSection: "Problem Statement",
+        });
+
+        // Update project progress
+        await storage.updateProject(project.id, {
+          progress: 10,
+          status: "in_progress",
+        });
+      } catch (aiError) {
+        console.error("Error generating AI response:", aiError);
+        // Add fallback message if AI fails
+        await storage.createMessage({
+          conversationId: conversation.id,
+          role: "ai",
+          content: "That's an interesting idea! Let's explore it further. What specific problem are you trying to solve with this product?",
+        });
+      }
 
       res.status(201).json({ ...project, conversation });
     } catch (error) {
