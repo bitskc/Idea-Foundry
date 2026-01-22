@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import Layout from "@/components/layout";
+import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -163,7 +163,7 @@ export default function IdeaDetail() {
       });
       if (!response.ok) throw new Error("Failed to start conversation");
       const data = await response.json();
-      setLocation(`/conversation/${data.id}`);
+      setLocation(`/app/conversation/${data.id}`);
     } catch (error) {
       console.error("Error starting conversation:", error);
       toast({
@@ -209,24 +209,24 @@ export default function IdeaDetail() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex items-center justify-center h-screen">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   if (!project) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="container mx-auto p-6 text-center">
           <p className="text-muted-foreground">Idea not found</p>
-          <Button onClick={() => setLocation("/dashboard")} className="mt-4">
+          <Button onClick={() => setLocation("/app")} className="mt-4">
             Back to Dashboard
           </Button>
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
@@ -237,14 +237,14 @@ export default function IdeaDetail() {
   const insights = project.keyInsights as string[] | null;
 
   return (
-    <Layout>
+    <AppLayout>
       <div className="container mx-auto p-6 md:p-8 max-w-5xl">
         {/* Header */}
         <div className="mb-6">
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => setLocation("/dashboard")}
+            onClick={() => setLocation("/app")}
             className="mb-4 -ml-2"
             data-testid="button-back"
           >
@@ -482,7 +482,7 @@ export default function IdeaDetail() {
                     ))}
                   </div>
                   <Button 
-                    onClick={() => setLocation(`/conversation/${conversation.id}`)}
+                    onClick={() => setLocation(`/app/conversation/${conversation.id}`)}
                     className="w-full"
                     data-testid="button-continue-conversation"
                   >
@@ -541,7 +541,7 @@ export default function IdeaDetail() {
                     </div>
                     <div className="flex gap-3">
                       <Button 
-                        onClick={() => setLocation(`/prd/${project.id}`)}
+                        onClick={() => setLocation(`/app/prd/${project.id}`)}
                         data-testid="button-view-prd"
                       >
                         <FileText className="w-4 h-4 mr-2" />
@@ -719,6 +719,6 @@ export default function IdeaDetail() {
         initialNotes={notes}
         onNotesUpdate={(newNotes) => setNotes(newNotes)}
       />
-    </Layout>
+    </AppLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import Layout from "@/components/layout";
+import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Share2, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle, Clock, AlertTriangle, CheckCircle, Rabbit, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -43,7 +43,9 @@ const FORMAT_OPTIONS = [
 ];
 
 export default function PrdView() {
-  const [, params] = useRoute("/prd/:id");
+  const [matchApp, paramsApp] = useRoute("/app/prd/:id");
+  const [matchLegacy, paramsLegacy] = useRoute("/prd/:id");
+  const params = paramsApp || paramsLegacy;
   const [, setLocation] = useLocation();
   const [project, setProject] = useState<ProjectWithConversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -288,28 +290,28 @@ export default function PrdView() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex items-center justify-center h-screen">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   if (!project) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex flex-col items-center justify-center h-screen">
           <p className="text-muted-foreground mb-4">Project not found</p>
-          <Button onClick={() => setLocation("/dashboard")}>Go to Dashboard</Button>
+          <Button onClick={() => setLocation("/app")}>Go to Dashboard</Button>
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   if (isGenerating) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex flex-col items-center justify-center h-screen gap-4">
           <Loader2 className="w-12 h-12 animate-spin text-primary" />
           <div className="text-center">
@@ -317,27 +319,27 @@ export default function PrdView() {
             <p className="text-muted-foreground">AI is crafting a comprehensive document from your conversation.</p>
           </div>
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   if (!project.prdContent) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex flex-col items-center justify-center h-screen gap-4">
           <FileText className="w-16 h-16 text-muted-foreground" />
           <div className="text-center">
             <h2 className="text-xl font-bold mb-2">No PRD Generated Yet</h2>
             <p className="text-muted-foreground mb-4">Complete your conversation to generate a PRD</p>
-            <Button onClick={() => setLocation("/dashboard")}>Back to Dashboard</Button>
+            <Button onClick={() => setLocation("/app")}>Back to Dashboard</Button>
           </div>
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   return (
-    <Layout>
+    <AppLayout>
       <div className="container mx-auto px-6 py-8 max-w-5xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-8 pb-6 border-b">
@@ -345,7 +347,7 @@ export default function PrdView() {
             <Button 
               variant="ghost" 
               size="icon"
-              onClick={() => setLocation("/dashboard")}
+              onClick={() => setLocation("/app")}
               data-testid="button-back"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -387,7 +389,7 @@ export default function PrdView() {
 
             {project.conversation && (
               <Button 
-                onClick={() => project.conversation && setLocation(`/conversation/${project.conversation.id}`)}
+                onClick={() => project.conversation && setLocation(`/app/conversation/${project.conversation.id}`)}
                 data-testid="button-continue-chat"
                 className="bg-cyan-600 hover:bg-cyan-700"
               >
@@ -864,6 +866,6 @@ export default function PrdView() {
           )}
         </div>
       </div>
-    </Layout>
+    </AppLayout>
   );
 }

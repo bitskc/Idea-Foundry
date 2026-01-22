@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Layout from "@/components/layout";
+import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -121,23 +121,23 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex items-center justify-center h-screen">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   return (
-    <Layout>
+    <AppLayout>
       <div className="container mx-auto p-6 md:p-10 max-w-6xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-display font-bold mb-2">My Ideas</h1>
             <p className="text-muted-foreground">Your ideas, refined and ready to build.</p>
           </div>
-          <Button onClick={() => setLocation("/")} className="gap-2" data-testid="button-new-idea">
+          <Button onClick={() => setLocation("/app/new")} className="gap-2" data-testid="button-new-idea">
             <Plus className="w-4 h-4" /> New Idea
           </Button>
         </div>
@@ -183,7 +183,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* New Idea Card (Quick Action) */}
           <div 
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/app/new")}
             className="group border-2 border-dashed border-muted hover:border-primary/50 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-card/50 hover:bg-card"
             data-testid="card-new-idea"
           >
@@ -245,7 +245,7 @@ export default function Dashboard() {
                   </div>
                   <CardTitle 
                     className="leading-tight group-hover:text-primary transition-colors cursor-pointer hover:underline"
-                    onClick={() => setLocation(`/idea/${project.id}`)}
+                    onClick={() => setLocation(`/app/ideas/${project.id}`)}
                     data-testid={`title-idea-${project.id}`}
                   >
                     {project.title}
@@ -291,8 +291,7 @@ export default function Dashboard() {
                     size="sm" 
                     className="h-7 gap-1 hover:text-primary p-0 hover:bg-transparent"
                     onClick={() => {
-                      // Navigate to the new idea detail page (Overview tab)
-                      setLocation(`/idea/${project.id}`);
+                      setLocation(`/app/ideas/${project.id}`);
                     }}
                     data-testid={`button-view-${project.id}`}
                   >
@@ -313,12 +312,12 @@ export default function Dashboard() {
         {projects.length === 0 && (
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">No ideas yet. Let's start exploring!</p>
-            <Button onClick={() => setLocation("/")} className="gap-2">
+            <Button onClick={() => setLocation("/app/new")} className="gap-2">
               <Plus className="w-4 h-4" /> Start Your First Idea
             </Button>
           </div>
         )}
       </div>
-    </Layout>
+    </AppLayout>
   );
 }

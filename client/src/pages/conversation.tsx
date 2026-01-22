@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
-import Layout from "@/components/layout";
+import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,7 +12,9 @@ import ReactMarkdown from "react-markdown";
 import type { Message, Conversation } from "@shared/schema";
 
 export default function ConversationPage() {
-  const [, params] = useRoute("/conversation/:id");
+  const [matchApp, paramsApp] = useRoute("/app/conversation/:id");
+  const [matchLegacy, paramsLegacy] = useRoute("/conversation/:id");
+  const params = paramsApp || paramsLegacy;
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -316,27 +318,27 @@ export default function ConversationPage() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex items-center justify-center h-screen">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   if (!conversation) {
     return (
-      <Layout>
+      <AppLayout>
         <div className="flex flex-col items-center justify-center h-screen">
           <p className="text-muted-foreground mb-4">Conversation not found</p>
-          <Button onClick={() => setLocation("/dashboard")}>Go to Dashboard</Button>
+          <Button onClick={() => setLocation("/app")}>Go to Dashboard</Button>
         </div>
-      </Layout>
+      </AppLayout>
     );
   }
 
   return (
-    <Layout>
+    <AppLayout>
       <div className="flex flex-col h-screen md:h-[calc(100vh-theme(spacing.0))] bg-background">
         {/* Header / Progress */}
         <div className="border-b bg-card/50 backdrop-blur p-4 flex items-center justify-between sticky top-0 z-10">
@@ -358,7 +360,7 @@ export default function ConversationPage() {
                      method: "POST",
                    });
                    if (response.ok) {
-                     setLocation(`/prd/${conversation.projectId}`);
+                     setLocation(`/app/prd/${conversation.projectId}`);
                    }
                  } catch (error) {
                    console.error("Error generating PRD:", error);
@@ -496,6 +498,6 @@ export default function ConversationPage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </AppLayout>
   );
 }
