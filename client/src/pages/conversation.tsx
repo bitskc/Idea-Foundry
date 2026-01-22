@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Send, Mic, Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import ReactMarkdown from "react-markdown";
 import type { Message, Conversation } from "@shared/schema";
 
 export default function ConversationPage() {
@@ -268,7 +269,25 @@ export default function ConversationPage() {
                       ? "bg-primary text-primary-foreground rounded-tr-sm" 
                       : "bg-card border border-border rounded-tl-sm"}
                   `}>
-                    {msg.content || (
+                    {msg.content ? (
+                      msg.role === "ai" ? (
+                        <ReactMarkdown
+                          components={{
+                            p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                            ul: ({ ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
+                            ol: ({ ...props }) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
+                            li: ({ ...props }) => <li {...props} />,
+                            strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
+                            em: ({ ...props }) => <em className="italic" {...props} />,
+                            code: ({ ...props }) => <code className="bg-muted px-1 py-0.5 rounded text-sm" {...props} />,
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      ) : (
+                        msg.content
+                      )
+                    ) : (
                       <div className="flex gap-1 items-center h-6">
                         <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                         <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
