@@ -14,12 +14,18 @@ export const projects = pgTable("projects", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   type: text("type").notNull(), // B2B SaaS, B2C Mobile App, Marketplace, etc.
-  status: text("status").notNull().default("draft"), // draft, in_progress, completed
+  status: text("status").notNull().default("draft"), // draft, in_progress, completed (workflow status)
+  ideaStatus: text("idea_status").notNull().default("exploring"), // exploring, active, backburner, archived
   progress: integer("progress").notNull().default(0),
   rawIdea: text("raw_idea").notNull(),
   startMode: text("start_mode").notNull().default("idea"), // "idea" or "problem"
   conversationMode: text("conversation_mode").notNull().default("supportive"), // "supportive" or "challenger"
   prdContent: text("prd_content"), // Generated PRD markdown
+  notes: text("notes"), // User's quick notes about the idea
+  viabilityScore: integer("viability_score"), // 1-10 score
+  viabilityBreakdown: jsonb("viability_breakdown"), // { marketSize, competition, effort, profitPotential }
+  competitors: jsonb("competitors"), // Array of competitor objects
+  keyInsights: jsonb("key_insights"), // Array of insight strings
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

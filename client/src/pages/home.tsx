@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X, Lightbulb, AlertCircle, Shield, Swords } from "lucide-react";
+import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X, Lightbulb, AlertCircle, Shield, Swords, StickyNote, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,7 +12,7 @@ type NameSuggestion = {
   style: string;
 };
 
-type StartMode = "idea" | "problem";
+type StartMode = "idea" | "problem" | "quick";
 type ConversationMode = "supportive" | "challenger";
 
 const AUDIENCE_TYPES = [
@@ -75,6 +75,51 @@ export default function Home() {
   const handleSelectMode = (mode: StartMode) => {
     setStartMode(mode);
     setStep("input");
+  };
+
+  const handleQuickCapture = async () => {
+    if (idea.length < 10) {
+      toast({
+        variant: "destructive",
+        title: "Idea too short",
+        description: "Please describe your idea in at least 10 characters.",
+      });
+      return;
+    }
+    setStep("type");
+  };
+
+  const handleQuickStart = async () => {
+    if (!selectedType) {
+      toast({
+        variant: "destructive",
+        title: "Select a type",
+        description: "Please select what type of product you're building.",
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const response = await fetch("/api/projects/quick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawIdea: idea, type: selectedType, notes: idea }),
+      });
+
+      if (!response.ok) throw new Error("Failed to capture idea");
+
+      const project = await response.json();
+      setLocation(`/idea/${project.id}`);
+    } catch (error) {
+      console.error("Error capturing idea:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to capture your idea. Please try again.",
+      });
+      setIsCreating(false);
+    }
   };
 
   const handleContinue = () => {
@@ -164,35 +209,51 @@ export default function Home() {
                   Whether you have a solution in mind or just see a problem worth solving—Idea Foundry helps you vet, refine, and transform ideas into actionable plans.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <button
                     onClick={() => handleSelectMode("idea")}
                     className="group p-6 rounded-2xl border-2 border-border bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
                     data-testid="mode-idea"
                   >
                     <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                      <Lightbulb className="w-6 h-6 text-primary" />
+                      <MessageSquare className="w-6 h-6 text-primary" />
                     </div>
-                    <h3 className="text-xl font-display font-bold mb-2">Start with an Idea</h3>
+                    <h3 className="text-xl font-display font-bold mb-2">Explore with AI</h3>
                     <p className="text-sm text-muted-foreground">
-                      You already have a product concept in mind. Let's refine it into a detailed PRD.
+                      Start a conversation to explore, refine, and validate your idea with AI guidance.
                     </p>
                   </button>
 
                   <button
-                    onClick={() => handleSelectMode("problem")}
-                    className="group p-6 rounded-2xl border-2 border-border bg-card hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left"
-                    data-testid="mode-problem"
+                    onClick={() => handleSelectMode("quick")}
+                    className="group p-6 rounded-2xl border-2 border-border bg-card hover:border-yellow-500/50 hover:bg-yellow-500/5 transition-all text-left"
+                    data-testid="mode-quick"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center mb-4 group-hover:bg-cyan-500/20 transition-colors">
-                      <AlertCircle className="w-6 h-6 text-cyan-500" />
+                    <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center mb-4 group-hover:bg-yellow-500/20 transition-colors">
+                      <StickyNote className="w-6 h-6 text-yellow-500" />
                     </div>
-                    <h3 className="text-xl font-display font-bold mb-2">Start with a Problem</h3>
+                    <h3 className="text-xl font-display font-bold mb-2">Quick Capture</h3>
                     <p className="text-sm text-muted-foreground">
-                      You've spotted a pain point. Let's brainstorm solutions and find profitable opportunities.
+                      Just jot down your idea for later. No AI conversation - marinate on it first.
                     </p>
                   </button>
                 </div>
+
+                <button
+                  onClick={() => handleSelectMode("problem")}
+                  className="group w-full p-4 rounded-xl border-2 border-border bg-card hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left flex items-center gap-4"
+                  data-testid="mode-problem"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors shrink-0">
+                    <AlertCircle className="w-5 h-5 text-cyan-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-display font-bold">Start with a Problem</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Spotted a pain point? Brainstorm solutions together.
+                    </p>
+                  </div>
+                </button>
 
                 <div className="mt-12 flex items-center gap-8 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -437,7 +498,8 @@ export default function Home() {
                   })}
                 </div>
 
-                {/* Conversation Mode Toggle */}
+                {/* Conversation Mode Toggle - only for AI exploration modes */}
+                {startMode !== "quick" && (
                 <div className="mb-8 p-4 rounded-xl bg-card border border-border">
                   <div className="text-sm font-medium mb-3">Choose your AI personality:</div>
                   <div className="grid grid-cols-2 gap-3">
@@ -484,22 +546,31 @@ export default function Home() {
                     </p>
                   )}
                 </div>
+                )}
 
                 <Button 
                   size="lg" 
                   className="gap-2 rounded-xl w-full sm:w-auto"
                   disabled={!selectedType || isCreating}
-                  onClick={handleStart}
+                  onClick={startMode === "quick" ? handleQuickStart : handleStart}
                   data-testid="button-start"
                 >
                   {isCreating ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Creating...
+                      {startMode === "quick" ? "Saving..." : "Creating..."}
                     </>
                   ) : (
                     <>
-                      Start Building <ArrowRight className="w-4 h-4" />
+                      {startMode === "quick" ? (
+                        <>
+                          <StickyNote className="w-4 h-4" /> Capture Idea
+                        </>
+                      ) : (
+                        <>
+                          Start Exploring <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
                     </>
                   )}
                 </Button>

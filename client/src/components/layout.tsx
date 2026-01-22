@@ -53,16 +53,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const isActive = location === item.href;
             return (
-              <Link key={item.label} href={item.href}>
-                <a className={cn(
+              <Link 
+                key={item.label} 
+                href={item.href}
+                className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium",
                   isActive 
                     ? "bg-sidebar-accent text-sidebar-accent-foreground" 
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-                )}>
-                  <item.icon className="w-4 h-4" />
-                  {item.label}
-                </a>
+                )}
+              >
+                <item.icon className="w-4 h-4" />
+                {item.label}
               </Link>
             );
           })}

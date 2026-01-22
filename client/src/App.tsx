@@ -8,12 +8,14 @@ import Home from "@/pages/home";
 import Dashboard from "@/pages/dashboard";
 import Conversation from "@/pages/conversation";
 import PrdView from "@/pages/prd-view";
+import IdeaDetail from "@/pages/idea-detail";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/idea/:id" component={IdeaDetail} />
       <Route path="/conversation/:id" component={Conversation} />
       <Route path="/prd/:id" component={PrdView} />
       <Route component={NotFound} />

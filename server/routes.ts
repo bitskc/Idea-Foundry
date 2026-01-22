@@ -261,6 +261,37 @@ Return only the JSON array, no other text.`
   });
 
   // Create new project from idea or problem
+  // Quick capture - create project without conversation (for marinating ideas)
+  app.post("/api/projects/quick", async (req, res) => {
+    try {
+      const { rawIdea, type = "Unknown", notes = "" } = req.body;
+      
+      if (!rawIdea || rawIdea.length < 10) {
+        return res.status(400).json({ error: "Please provide at least 10 characters describing your idea" });
+      }
+
+      // Create project without conversation - for quick capture
+      const project = await storage.createProject({
+        title: rawIdea.substring(0, 50) + (rawIdea.length > 50 ? "..." : ""),
+        description: rawIdea,
+        type,
+        status: "draft",
+        ideaStatus: "exploring",
+        progress: 0,
+        rawIdea,
+        startMode: "quick",
+        conversationMode: "supportive",
+        prdContent: null,
+        notes: notes || rawIdea,
+      });
+
+      res.status(201).json(project);
+    } catch (error) {
+      console.error("Error creating quick capture:", error);
+      res.status(500).json({ error: "Failed to capture idea" });
+    }
+  });
+
   app.post("/api/projects", async (req, res) => {
     try {
       const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive" } = req.body;
@@ -275,6 +306,7 @@ Return only the JSON array, no other text.`
         description: rawIdea,
         type,
         status: "draft",
+        ideaStatus: "exploring",
         progress: 0,
         rawIdea,
         startMode,
@@ -369,6 +401,22 @@ Return only the JSON array, no other text.`
     }
   });
 
+  // Update project (PATCH)
+  app.patch("/api/projects/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updates = req.body;
+      const project = await storage.updateProject(id, updates);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      res.json(project);
+    } catch (error) {
+      console.error("Error updating project:", error);
+      res.status(500).json({ error: "Failed to update project" });
+    }
+  });
+
   // Delete project
   app.delete("/api/projects/:id", async (req, res) => {
     try {
@@ -378,6 +426,115 @@ Return only the JSON array, no other text.`
     } catch (error) {
       console.error("Error deleting project:", error);
       res.status(500).json({ error: "Failed to delete project" });
+    }
+  });
+
+  // Generate competitor research and viability score for a project
+  app.post("/api/projects/:id/research", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const prompt = `Analyze this business idea and provide competitor research and a viability assessment.
+
+IDEA: ${project.title}
+DESCRIPTION: ${project.description}
+RAW IDEA: ${project.rawIdea}
+TYPE: ${project.type}
+
+Respond with a JSON object containing:
+1. "viabilityScore": number from 1-10 (10 = highly viable)
+2. "viabilityBreakdown": object with "marketSize", "competition", "effort", "profitPotential" each 1-10
+3. "competitors": array of 3-5 competitor objects, each with "name", "description", "strengths" (array of 2-3 strings), "weaknesses" (array of 2-3 strings), "url" (optional)
+4. "keyInsights": array of 4-6 key insights or recommendations (strings)
+
+Be realistic and honest in your assessment. Consider market size, competition intensity, required effort to build, and profit potential.
+
+IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a business analyst providing competitor research and viability assessments. Always respond with valid JSON only." },
+          { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      let researchData;
+      try {
+        researchData = JSON.parse(content);
+      } catch (parseError) {
+        console.error("Failed to parse research response:", content);
+        throw new Error("Invalid research response format");
+      }
+
+      // Update project with research data
+      const updatedProject = await storage.updateProject(id, {
+        viabilityScore: researchData.viabilityScore,
+        viabilityBreakdown: researchData.viabilityBreakdown,
+        competitors: researchData.competitors,
+        keyInsights: researchData.keyInsights,
+      });
+
+      res.json(updatedProject);
+    } catch (error) {
+      console.error("Error generating research:", error);
+      res.status(500).json({ error: "Failed to generate research" });
+    }
+  });
+
+  // Start conversation for an existing project (for quick-capture projects)
+  app.post("/api/projects/:id/start-conversation", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { conversationMode = "supportive" } = req.body;
+      
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Check if conversation already exists
+      const existingConversation = await storage.getConversationByProjectId(id);
+      if (existingConversation) {
+        return res.json(existingConversation);
+      }
+
+      // Create new conversation
+      const conversation = await storage.createConversation({
+        projectId: id,
+        currentSection: "Problem Statement",
+        currentStep: 0,
+        answers: {},
+      });
+
+      // Add initial AI greeting
+      const greeting = conversationMode === "challenging" 
+        ? `Welcome! I'm here to challenge your idea and help you think critically about it.\n\nYou shared: "${project.rawIdea?.substring(0, 100)}..."\n\nLet me ask you some tough questions. What specific problem are you trying to solve, and why do you think people will pay for this solution?`
+        : `Hi! I'm excited to help you explore and develop your idea.\n\nYou shared: "${project.rawIdea?.substring(0, 100)}..."\n\nLet's start by understanding the problem. What specific pain point or need does your idea address?`;
+
+      await storage.createMessage({
+        conversationId: conversation.id,
+        role: "assistant",
+        content: greeting,
+      });
+
+      // Update project to reflect it now has an active conversation
+      await storage.updateProject(id, {
+        startMode: "idea",
+        conversationMode,
+      });
+
+      res.json(conversation);
+    } catch (error) {
+      console.error("Error starting conversation:", error);
+      res.status(500).json({ error: "Failed to start conversation" });
     }
   });
 
