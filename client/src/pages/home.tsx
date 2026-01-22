@@ -300,6 +300,19 @@ export default function Home() {
                       Describe your vision. We'll help you turn it into a complete PRD.
                     </p>
                   </>
+                ) : startMode === "quick" ? (
+                  <>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-600 text-xs font-medium mb-4">
+                      <StickyNote className="w-3 h-3" />
+                      Quick Capture
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-display font-bold mb-3">
+                      Capture your idea
+                    </h2>
+                    <p className="text-muted-foreground mb-6">
+                      Jot it down quickly. You can explore it with AI later when you're ready.
+                    </p>
+                  </>
                 ) : (
                   <>
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-500 text-xs font-medium mb-4">
@@ -319,6 +332,8 @@ export default function Home() {
                   <Textarea 
                     placeholder={startMode === "idea" 
                       ? "Describe your idea... (e.g., 'A mobile app that helps contractors manage schedules and get paid faster')"
+                      : startMode === "quick"
+                      ? "Jot down your idea... (e.g., 'SaaS for meal prep planning with AI-generated shopping lists')"
                       : "Describe the problem... (e.g., 'Small business owners waste 10+ hours a week on invoicing and chasing payments')"
                     }
                     className="resize-none border-none shadow-none focus-visible:ring-0 text-lg min-h-[120px] bg-transparent p-4"
