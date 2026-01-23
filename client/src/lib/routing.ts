@@ -1,25 +1,81 @@
 /**
- * Routing utilities for navigation
- * For now, all routes are on the same domain
- * Future: Can split www.ideafoundry.app (landing) and plan.ideafoundry.app (app)
+ * Routing utilities for subdomain-based navigation
+ * - www.ideafoundry.app -> Landing page only
+ * - plan.ideafoundry.app -> Auth + App only
  */
 
+export function getSubdomain(): 'www' | 'plan' | 'local' | 'other' {
+  const hostname = window.location.hostname;
+  
+  // Local development
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'local';
+  }
+  
+  // Check subdomain
+  if (hostname.startsWith('www.')) {
+    return 'www';
+  }
+  
+  if (hostname.startsWith('plan.')) {
+    return 'plan';
+  }
+  
+  // Apex domain (ideafoundry.app) or preview URLs
+  return 'other';
+}
+
 export function getAppUrl(): string {
-  // For now, just use /auth on the same domain
-  return '/auth';
+  const subdomain = getSubdomain();
+  const protocol = window.location.protocol;
+  
+  // Already on plan subdomain
+  if (subdomain === 'plan') {
+    return '/auth';
+  }
+  
+  // Local development
+  if (subdomain === 'local') {
+    return '/auth';
+  }
+  
+  // On www or apex - redirect to plan subdomain
+  return `${protocol}//plan.ideafoundry.app/auth`;
 }
 
 export function getHomeUrl(): string {
-  return '/';
+  const subdomain = getSubdomain();
+  const protocol = window.location.protocol;
+  
+  // Already on www subdomain
+  if (subdomain === 'www') {
+    return '/';
+  }
+  
+  // Local development
+  if (subdomain === 'local') {
+    return '/';
+  }
+  
+  // On plan or apex - redirect to www subdomain
+  return `${protocol}//www.ideafoundry.app/`;
 }
 
-export function isAppSubdomain(): boolean {
-  // Not using subdomains yet
-  return true;
+export function shouldShowLandingOnly(): boolean {
+  const subdomain = getSubdomain();
+  
+  // On www, only show landing
+  return subdomain === 'www';
 }
 
-export function shouldShowLanding(): boolean {
-  const pathname = window.location.pathname;
-  // Show landing only on root path
-  return pathname === '/';
+export function shouldShowAppOnly(): boolean {
+  const subdomain = getSubdomain();
+  
+  // On plan, only show app/auth
+  return subdomain === 'plan';
+}
+
+export function isLocalDevelopment(): boolean {
+  const subdomain = getSubdomain();
+  return subdomain === 'local';
 }
