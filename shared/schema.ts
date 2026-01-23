@@ -1,16 +1,19 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, timestamp, integer, jsonb, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  id: uuid("id").primaryKey(), // Matches Supabase auth.users.id
+  email: text("email").notNull().unique(),
+  username: text("username"),
+  password: text("password"), // Legacy - unused with Supabase Auth
+  subscriptionStatus: text("subscription_status").notNull().default("free"), // 'free' | 'pro'
 });
 
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id),
   title: text("title").notNull(),
   description: text("description").notNull(),
   type: text("type").notNull(), // B2B SaaS, B2C Mobile App, Marketplace, etc.
@@ -31,6 +34,8 @@ export const projects = pgTable("projects", {
   keyInsights: jsonb("key_insights"), // Array of insight strings
   githubRepoUrl: text("github_repo_url"), // Optional GitHub repository URL
   synergyAnalysis: jsonb("synergy_analysis"), // Cached synergy report
+  techStack: jsonb("tech_stack"), // User's selected/saved tech stack
+  techStackRecommendation: jsonb("tech_stack_recommendation"), // AI recommendation cache
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -62,8 +67,10 @@ export const notes = pgTable("notes", {
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
+  id: true,
+  email: true,
   username: true,
-  password: true,
+  subscriptionStatus: true,
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({
@@ -103,3 +110,93 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type Note = typeof notes.$inferSelect;
 export type InsertNote = z.infer<typeof insertNoteSchema>;
+
+// Tech Stack Types
+export interface TechStackItem {
+  name: string;
+  notes?: string;
+  aiRecommended?: boolean;
+}
+
+export interface TechStack {
+  frontend?: TechStackItem;
+  backend?: TechStackItem;
+  database?: TechStackItem;
+  hosting?: TechStackItem;
+  auth?: TechStackItem;
+  payments?: TechStackItem;
+  other?: TechStackItem[];
+}
+
+export interface TechStackRecommendationItem {
+  name: string;
+  reason: string;
+}
+
+export interface TechStackRecommendation {
+  recommended: {
+    frontend?: TechStackRecommendationItem;
+    backend?: TechStackRecommendationItem;
+    database?: TechStackRecommendationItem;
+    hosting?: TechStackRecommendationItem;
+    auth?: TechStackRecommendationItem;
+    payments?: TechStackRecommendationItem;
+  };
+  fullStack?: {
+    name: string;
+    reason: string;
+  };
+  aiAssistants?: Array<{
+    name: string;
+    bestFor: string;
+    tip?: string;
+  }>;
+  mvpTimeline?: string;
+  costEstimate?: string;
+  warnings?: string[];
+}
+
+// Zod schemas for API validation
+export const TechStackItemSchema = z.object({
+  name: z.string(),
+  notes: z.string().optional(),
+  aiRecommended: z.boolean().optional(),
+});
+
+export const TechStackSchema = z.object({
+  frontend: TechStackItemSchema.optional(),
+  backend: TechStackItemSchema.optional(),
+  database: TechStackItemSchema.optional(),
+  hosting: TechStackItemSchema.optional(),
+  auth: TechStackItemSchema.optional(),
+  payments: TechStackItemSchema.optional(),
+  other: z.array(TechStackItemSchema).optional(),
+});
+
+export const TechStackRecommendationItemSchema = z.object({
+  name: z.string(),
+  reason: z.string(),
+});
+
+export const TechStackRecommendationSchema = z.object({
+  recommended: z.object({
+    frontend: TechStackRecommendationItemSchema.optional(),
+    backend: TechStackRecommendationItemSchema.optional(),
+    database: TechStackRecommendationItemSchema.optional(),
+    hosting: TechStackRecommendationItemSchema.optional(),
+    auth: TechStackRecommendationItemSchema.optional(),
+    payments: TechStackRecommendationItemSchema.optional(),
+  }),
+  fullStack: z.object({
+    name: z.string(),
+    reason: z.string(),
+  }).optional(),
+  aiAssistants: z.array(z.object({
+    name: z.string(),
+    bestFor: z.string(),
+    tip: z.string().optional(),
+  })).optional(),
+  mvpTimeline: z.string().optional(),
+  costEstimate: z.string().optional(),
+  warnings: z.array(z.string()).optional(),
+});

@@ -16,20 +16,23 @@ import {
   notes
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  upsertUser(user: InsertUser): Promise<User>;
 
   // Project methods
-  getAllProjects(): Promise<Project[]>;
+  getProjectsByUserId(userId: string): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, updates: Partial<InsertProject>): Promise<Project | undefined>;
   deleteProject(id: number): Promise<void>;
+  countProjectsByUserId(userId: string): Promise<number>;
 
   // Conversation methods
   getConversation(id: number): Promise<Conversation | undefined>;
@@ -43,6 +46,7 @@ export interface IStorage {
 
   // Note methods
   getNotesByProject(projectId: number): Promise<Note[]>;
+  getNote(id: number): Promise<Note | undefined>;
   createNote(note: InsertNote): Promise<Note>;
   deleteNote(id: number): Promise<void>;
 }
@@ -59,14 +63,43 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
+  async upsertUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: { email: insertUser.email },
+      })
+      .returning();
+    return user;
+  }
+
   // Project methods
-  async getAllProjects(): Promise<Project[]> {
-    return db.select().from(projects).orderBy(desc(projects.updatedAt));
+  async getProjectsByUserId(userId: string): Promise<Project[]> {
+    return db
+      .select()
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .orderBy(desc(projects.updatedAt));
+  }
+
+  async countProjectsByUserId(userId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(projects)
+      .where(eq(projects.userId, userId));
+    return result?.count ?? 0;
   }
 
   async getProject(id: number): Promise<Project | undefined> {
@@ -130,6 +163,11 @@ export class DatabaseStorage implements IStorage {
   // Note methods
   async getNotesByProject(projectId: number): Promise<Note[]> {
     return db.select().from(notes).where(eq(notes.projectId, projectId)).orderBy(desc(notes.createdAt));
+  }
+
+  async getNote(id: number): Promise<Note | undefined> {
+    const [note] = await db.select().from(notes).where(eq(notes.id, id));
+    return note;
   }
 
   async createNote(note: InsertNote): Promise<Note> {
