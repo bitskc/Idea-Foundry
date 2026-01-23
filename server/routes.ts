@@ -350,14 +350,20 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
       const authReq = req as unknown as AuthenticatedRequest;
       const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive", targetAvatar = null, discoveryPath = "idea_first", ideaPurpose = "monetize" } = req.body;
 
+      console.log("[CREATE PROJECT] User:", authReq.user.id, "Email:", authReq.user.email);
+      console.log("[CREATE PROJECT] Body:", { rawIdea: rawIdea?.substring(0, 50), type, startMode });
+
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
       }
 
       // Check free tier limit
       const [user] = await db.select().from(users).where(eq(users.id, authReq.user.id));
+      console.log("[CREATE PROJECT] User found:", !!user, "Subscription:", user?.subscriptionStatus);
+      
       if (user?.subscriptionStatus === "free") {
         const projectCount = await storage.countProjectsByUserId(authReq.user.id);
+        console.log("[CREATE PROJECT] Project count:", projectCount);
         if (projectCount >= 2) {
           return res.status(402).json({
             error: "FREE_LIMIT_REACHED",
@@ -368,6 +374,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
       }
 
       // Create project
+      console.log("[CREATE PROJECT] Creating project...");
       const project = await storage.createProject({
         title: rawIdea.substring(0, 50) + (rawIdea.length > 50 ? "..." : ""),
         description: rawIdea,
@@ -384,6 +391,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
         targetAvatar,
         userId: authReq.user.id,
       });
+      console.log("[CREATE PROJECT] Project created:", project.id);
 
       // Create associated conversation with appropriate starting section
       const conversation = await storage.createConversation({
