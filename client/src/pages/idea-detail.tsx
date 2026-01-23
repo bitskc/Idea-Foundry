@@ -2,16 +2,17 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowLeft, 
-  Lightbulb, 
-  Flame, 
-  Clock, 
+import {
+  ArrowLeft,
+  Lightbulb,
+  Flame,
+  Clock,
   Archive,
   MessageSquare,
   Hammer,
@@ -43,7 +44,7 @@ import type { Project, Conversation as ConversationType, Message } from "@shared
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
-const STATUS_CONFIG: Record<IdeaStatus, { label: string; icon: React.ComponentType<{className?: string}>; color: string }> = {
+const STATUS_CONFIG: Record<IdeaStatus, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   exploring: { label: "Exploring", icon: Lightbulb, color: "bg-yellow-500/10 text-yellow-600 border-yellow-200" },
   active: { label: "Active", icon: Flame, color: "bg-green-500/10 text-green-600 border-green-200" },
   backburner: { label: "Backburner", icon: Clock, color: "bg-blue-500/10 text-blue-600 border-blue-200" },
@@ -69,7 +70,7 @@ export default function IdeaDetail() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
   const [project, setProject] = useState<Project | null>(null);
   const [conversation, setConversation] = useState<ConversationType | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -84,7 +85,9 @@ export default function IdeaDetail() {
   const [userRequirements, setUserRequirements] = useState("");
   const [isGeneratingPrd, setIsGeneratingPrd] = useState(false);
   const [isGeneratingStack, setIsGeneratingStack] = useState(false);
+  const [isSavingStack, setIsSavingStack] = useState(false);
   const [stackRecommendation, setStackRecommendation] = useState<any>(null);
+  const [savedTechStack, setSavedTechStack] = useState<any>(null);
   const [notesExpanded, setNotesExpanded] = useState(true);
   const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
 
@@ -94,18 +97,23 @@ export default function IdeaDetail() {
 
   const loadProjectData = async () => {
     try {
-      const response = await fetch(`/api/projects/${params.id}`);
-      if (!response.ok) throw new Error("Failed to load idea");
-      const data = await response.json();
-      setProject(data);
+      const response = await api.get<any>(`/api/projects/${params.id}`);
+      setProject(response);
+      // Load cached tech stack data
+      if (response.techStack) {
+        setSavedTechStack(response.techStack);
+      }
+      if (response.techStackRecommendation) {
+        setStackRecommendation(response.techStackRecommendation);
+      }
       // Fetch notes for this project
       const notesRes = await fetch(`/api/projects/${params.id}/notes`);
       if (notesRes.ok) {
         setNotesList(await notesRes.json());
       }
-      if (data.conversation) {
-        setConversation(data.conversation);
-        const messagesRes = await fetch(`/api/conversations/${data.conversation.id}/messages`);
+      if (response.conversation) {
+        setConversation(response.conversation);
+        const messagesRes = await fetch(`/api/conversations/${response.conversation.id}/messages`);
         if (messagesRes.ok) {
           setMessages(await messagesRes.json());
         }
@@ -218,7 +226,7 @@ export default function IdeaDetail() {
       const response = await fetch(`/api/projects/${project.id}/generate-prd`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           track: prdTrack,
           userRequirements: userRequirements.trim() || undefined
         }),
@@ -226,9 +234,9 @@ export default function IdeaDetail() {
       if (!response.ok) throw new Error("Failed to generate PRD");
       const data = await response.json();
       setProject(prev => prev ? { ...prev, prdContent: data.prdContent } : null);
-      toast({ 
-        title: "PRD Generated!", 
-        description: `Your ${prdTrack === "quick" ? "Quick" : prdTrack === "standard" ? "Standard" : "Production"} PRD is ready.` 
+      toast({
+        title: "PRD Generated!",
+        description: `Your ${prdTrack === "quick" ? "Quick" : prdTrack === "standard" ? "Standard" : "Production"} PRD is ready.`
       });
     } catch (error) {
       console.error("Error generating PRD:", error);
@@ -300,16 +308,16 @@ export default function IdeaDetail() {
       <div className="container mx-auto p-6 md:p-8 max-w-5xl">
         {/* Header */}
         <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setLocation("/app")}
             className="mb-4 -ml-2"
             data-testid="button-back"
           >
             <ArrowLeft className="w-4 h-4 mr-1" /> Back to Ideas
           </Button>
-          
+
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -322,13 +330,12 @@ export default function IdeaDetail() {
               <h1 className="text-3xl font-display font-bold mb-2">{project.title}</h1>
               <p className="text-muted-foreground">{project.description}</p>
             </div>
-            
+
             {project.viabilityScore && (
               <div className="text-center shrink-0">
-                <div className={`text-4xl font-bold ${
-                  project.viabilityScore >= 7 ? 'text-green-600' : 
+                <div className={`text-4xl font-bold ${project.viabilityScore >= 7 ? 'text-green-600' :
                   project.viabilityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
-                }`}>
+                  }`}>
                   {project.viabilityScore}
                 </div>
                 <div className="text-xs text-muted-foreground">Viability Score</div>
@@ -362,8 +369,8 @@ export default function IdeaDetail() {
                   <p className="text-muted-foreground mb-4 max-w-md mx-auto">
                     Let AI analyze your idea, find competitors, and calculate a viability score in under 60 seconds.
                   </p>
-                  <Button 
-                    onClick={generateResearch} 
+                  <Button
+                    onClick={generateResearch}
                     disabled={isGeneratingResearch}
                     data-testid="button-generate-research"
                   >
@@ -486,8 +493,8 @@ export default function IdeaDetail() {
 
             {/* Notes */}
             <Card>
-              <CardHeader 
-                className="cursor-pointer select-none" 
+              <CardHeader
+                className="cursor-pointer select-none"
                 onClick={() => setNotesExpanded(!notesExpanded)}
                 data-testid="button-toggle-notes"
               >
@@ -524,8 +531,8 @@ export default function IdeaDetail() {
                         }
                       }}
                     />
-                    <Button 
-                      onClick={addNote} 
+                    <Button
+                      onClick={addNote}
                       disabled={isAddingNote || !newNote.trim()}
                       size="sm"
                       className="shrink-0"
@@ -538,7 +545,7 @@ export default function IdeaDetail() {
                       )}
                     </Button>
                   </div>
-                  
+
                   {notesList.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
                       No notes yet. Add your first note above.
@@ -560,8 +567,8 @@ export default function IdeaDetail() {
                           });
                         };
                         return (
-                          <div 
-                            key={note.id} 
+                          <div
+                            key={note.id}
                             className="group p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
                             data-testid={`note-${note.id}`}
                           >
@@ -597,8 +604,8 @@ export default function IdeaDetail() {
                               </button>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
-                              {new Date(note.createdAt).toLocaleDateString(undefined, { 
-                                month: 'short', 
+                              {new Date(note.createdAt).toLocaleDateString(undefined, {
+                                month: 'short',
                                 day: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit'
@@ -626,17 +633,16 @@ export default function IdeaDetail() {
                   <div className="space-y-4 max-h-[400px] overflow-y-auto mb-4">
                     {messages.slice(-10).map((msg) => (
                       <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[80%] p-3 rounded-lg ${
-                          msg.role === "user" 
-                            ? "bg-primary text-primary-foreground" 
-                            : "bg-secondary"
-                        }`}>
+                        <div className={`max-w-[80%] p-3 rounded-lg ${msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary"
+                          }`}>
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <Button 
+                  <Button
                     onClick={() => setLocation(`/app/conversation/${conversation.id}`)}
                     className="w-full"
                     data-testid="button-continue-conversation"
@@ -654,7 +660,7 @@ export default function IdeaDetail() {
                   <p className="text-muted-foreground mb-4 max-w-md mx-auto">
                     Have a conversation with AI to explore, refine, and challenge your idea.
                   </p>
-                  <Button 
+                  <Button
                     onClick={startConversation}
                     disabled={isStartingConversation}
                     data-testid="button-start-conversation"
@@ -695,14 +701,14 @@ export default function IdeaDetail() {
                       <p className="font-medium">Your PRD has been generated!</p>
                     </div>
                     <div className="flex gap-3">
-                      <Button 
+                      <Button
                         onClick={() => setLocation(`/app/prd/${project.id}`)}
                         data-testid="button-view-prd"
                       >
                         <FileText className="w-4 h-4 mr-2" />
                         View PRD
                       </Button>
-                      <Button 
+                      <Button
                         variant="outline"
                         onClick={async () => {
                           await fetch(`/api/projects/${project.id}`, {
@@ -728,11 +734,10 @@ export default function IdeaDetail() {
                         <button
                           type="button"
                           onClick={() => setPrdTrack("quick")}
-                          className={`p-4 rounded-lg border-2 text-left transition-all ${
-                            prdTrack === "quick" 
-                              ? "border-primary bg-primary/5" 
-                              : "border-border hover:border-primary/50"
-                          }`}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${prdTrack === "quick"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                            }`}
                           data-testid="track-quick"
                         >
                           <div className="flex items-center gap-2 mb-2">
@@ -751,11 +756,10 @@ export default function IdeaDetail() {
                         <button
                           type="button"
                           onClick={() => setPrdTrack("standard")}
-                          className={`p-4 rounded-lg border-2 text-left transition-all ${
-                            prdTrack === "standard" 
-                              ? "border-primary bg-primary/5" 
-                              : "border-border hover:border-primary/50"
-                          }`}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${prdTrack === "standard"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                            }`}
                           data-testid="track-standard"
                         >
                           <div className="flex items-center gap-2 mb-2">
@@ -775,11 +779,10 @@ export default function IdeaDetail() {
                         <button
                           type="button"
                           onClick={() => setPrdTrack("production")}
-                          className={`p-4 rounded-lg border-2 text-left transition-all ${
-                            prdTrack === "production" 
-                              ? "border-primary bg-primary/5" 
-                              : "border-border hover:border-primary/50"
-                          }`}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${prdTrack === "production"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                            }`}
                           data-testid="track-production"
                         >
                           <div className="flex items-center gap-2 mb-2">
@@ -814,7 +817,7 @@ export default function IdeaDetail() {
                     </div>
 
                     {/* Generate Button */}
-                    <Button 
+                    <Button
                       onClick={generatePrd}
                       disabled={isGeneratingPrd}
                       className="w-full"
@@ -857,10 +860,10 @@ export default function IdeaDetail() {
                 {!stackRecommendation ? (
                   <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                      Our AI will analyze your idea and recommend the best tech stack for speed to MVP, 
+                      Our AI will analyze your idea and recommend the best tech stack for speed to MVP,
                       AI coding assistant compatibility, and cost efficiency.
                     </p>
-                    <Button 
+                    <Button
                       onClick={generateStackRecommendation}
                       disabled={isGeneratingStack}
                       className="w-full"
@@ -1010,8 +1013,8 @@ export default function IdeaDetail() {
                     )}
 
                     {/* Regenerate Button */}
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setStackRecommendation(null)}
                       className="w-full"
                       data-testid="button-reset-stack"

@@ -5,6 +5,10 @@ import { GeminiAdapter } from "./ai/gemini";
 import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
 import { z } from "zod";
+import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
+import { db } from "./db";
+import { users, TechStackRecommendationSchema } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 
 // Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
 // Ideally this would be configurable per-user or feature
@@ -210,6 +214,19 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // Health check endpoint (public, no auth)
+  app.get("/api/health", async (req, res) => {
+    try {
+      await db.execute(sql`SELECT 1`);
+      res.json({ status: "ok", timestamp: new Date().toISOString() });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: "Database connection failed" });
+    }
+  });
+
+  // Apply auth to all API routes below
+  app.use("/api", requireAuth);
+
   // Generate app name suggestions
   app.post("/api/generate-names", async (req, res) => {
     try {
@@ -258,10 +275,11 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
     }
   });
 
-  // Get all projects
+  // Get all projects for authenticated user
   app.get("/api/projects", async (req, res) => {
     try {
-      const projectsList = await storage.getAllProjects();
+      const authReq = req as unknown as AuthenticatedRequest;
+      const projectsList = await storage.getProjectsByUserId(authReq.user.id);
       res.json(projectsList);
     } catch (error) {
       console.error("Error fetching projects:", error);
@@ -278,6 +296,11 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
         return res.status(404).json({ error: "Project not found" });
       }
 
+      const authReq = req as unknown as AuthenticatedRequest;
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       const conversation = await storage.getConversationByProjectId(id);
       res.json({ ...project, conversation });
     } catch (error) {
@@ -290,6 +313,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
   // Quick capture - create project without conversation (for marinating ideas)
   app.post("/api/projects/quick", async (req, res) => {
     try {
+      const authReq = req as unknown as AuthenticatedRequest;
       const { rawIdea, type = "Unknown", notes = "", targetAvatar = null } = req.body;
 
       if (!rawIdea || rawIdea.length < 10) {
@@ -310,6 +334,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
         prdContent: null,
         notes: notes || rawIdea,
         targetAvatar,
+        userId: authReq.user.id,
       });
 
       res.status(201).json(project);
@@ -322,10 +347,24 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
   // Create new full project
   app.post("/api/projects", async (req, res) => {
     try {
+      const authReq = req as unknown as AuthenticatedRequest;
       const { rawIdea, type = "Unknown", startMode = "idea", conversationMode = "supportive", targetAvatar = null, discoveryPath = "idea_first", ideaPurpose = "monetize" } = req.body;
 
       if (!rawIdea || rawIdea.length < 10) {
         return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
+      }
+
+      // Check free tier limit
+      const [user] = await db.select().from(users).where(eq(users.id, authReq.user.id));
+      if (user?.subscriptionStatus === "free") {
+        const projectCount = await storage.countProjectsByUserId(authReq.user.id);
+        if (projectCount >= 2) {
+          return res.status(402).json({
+            error: "FREE_LIMIT_REACHED",
+            message: "You've used your 2 free ideas. Upgrade to Pro for unlimited.",
+            upgradeUrl: "/app/upgrade",
+          });
+        }
       }
 
       // Create project
@@ -343,6 +382,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
         ideaPurpose,
         prdContent: null,
         targetAvatar,
+        userId: authReq.user.id,
       });
 
       // Create associated conversation with appropriate starting section
@@ -431,11 +471,18 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
   app.patch("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const updates = req.body;
-      const project = await storage.updateProject(id, updates);
-      if (!project) {
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const existingProject = await storage.getProject(id);
+      if (!existingProject) {
         return res.status(404).json({ error: "Project not found" });
       }
+      if (existingProject.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const updates = req.body;
+      const project = await storage.updateProject(id, updates);
       res.json(project);
     } catch (error) {
       console.error("Error updating project:", error);
@@ -447,6 +494,16 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
   app.delete("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       await storage.deleteProject(id);
       res.status(204).send();
     } catch (error) {
@@ -459,9 +516,14 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
   app.post("/api/projects/:id/research", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
       const project = await storage.getProject(id);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       const prompt = `Analyze this business idea and provide competitor research and a viability assessment.
@@ -502,15 +564,117 @@ Be realistic and honest in your assessment. Consider market size, competition in
     }
   });
 
+  // Generate tech stack recommendation for a project
+  app.post("/api/projects/:id/recommend-stack", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Check for cached recommendation (allow force refresh via query param)
+      const forceRefresh = req.query.refresh === 'true';
+      if (!forceRefresh && project.techStackRecommendation &&
+        typeof project.techStackRecommendation === 'object' &&
+        Object.keys(project.techStackRecommendation).length > 0) {
+        return res.json(project.techStackRecommendation);
+      }
+
+      // Get conversation context if available
+      let conversationContext = "";
+      const conversation = await storage.getConversationByProjectId(id);
+      if (conversation) {
+        const messagesList = await storage.getMessagesByConversation(conversation.id);
+        // Get last 10 messages for context
+        const recentMessages = messagesList.slice(-10);
+        if (recentMessages.length > 0) {
+          conversationContext = recentMessages
+            .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content.substring(0, 200)}...`)
+            .join("\n");
+        }
+      }
+
+      const prompt = `Analyze this project idea and recommend an optimal tech stack for a solo founder or small team.
+
+PROJECT: ${project.title}
+DESCRIPTION: ${project.description}
+RAW IDEA: ${project.rawIdea}
+TYPE: ${project.type}
+PURPOSE: ${project.ideaPurpose || "monetize"}
+${conversationContext ? `\nCONTEXT FROM CONVERSATION:\n${conversationContext}` : ""}
+
+Consider:
+1. Speed to MVP - prioritize fast iteration and time-to-market
+2. AI coding assistant compatibility - choose well-documented, popular technologies
+3. Cost efficiency - free tiers where possible for early stage
+4. Scalability - can grow with the product without major rewrites
+5. Solo founder friendly - minimize DevOps complexity
+6. The project type and purpose when making recommendations
+
+Return a JSON object with this exact structure:
+{
+  "recommended": {
+    "frontend": { "name": "Technology name", "reason": "Brief reason why" },
+    "backend": { "name": "Technology name", "reason": "Brief reason why" },
+    "database": { "name": "Technology name", "reason": "Brief reason why" },
+    "hosting": { "name": "Technology name", "reason": "Brief reason why" },
+    "auth": { "name": "Technology name", "reason": "Brief reason why" },
+    "payments": { "name": "Technology name", "reason": "Brief reason why" }
+  },
+  "fullStack": {
+    "name": "Full-stack alternative if applicable",
+    "reason": "Why this could be a simpler choice"
+  },
+  "aiAssistants": [
+    { "name": "AI Tool Name", "bestFor": "What it's best at", "tip": "Optional pro tip" }
+  ],
+  "mvpTimeline": "Estimated time to MVP (e.g., '2-4 weeks')",
+  "costEstimate": "Monthly infrastructure cost estimate (e.g., '$0-50/month')",
+  "warnings": ["Array of things to watch out for or consider"]
+}
+
+Be practical and opinionated. Choose technologies that work well together and are widely supported by AI coding assistants.`;
+
+      // Use Anthropic if available for better reasoning, otherwise Gemini
+      const service = anthropicService || aiService;
+
+      const recommendation = await service.generateJSON(prompt, [], {
+        schema: TechStackRecommendationSchema,
+        systemPrompt: "You are a senior full-stack architect helping founders choose the right tech stack for their projects. Be practical, opinionated, and focused on speed to MVP.",
+        maxTokens: 1500
+      });
+
+      // Cache the recommendation
+      await storage.updateProject(id, {
+        techStackRecommendation: recommendation
+      });
+
+      res.json(recommendation);
+    } catch (error) {
+      console.error("Error generating tech stack recommendation:", error);
+      res.status(500).json({ error: "Failed to generate tech stack recommendation" });
+    }
+  });
+
   // Start conversation for an existing project (for quick-capture projects)
   app.post("/api/projects/:id/start-conversation", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
       const { conversationMode = "supportive" } = req.body;
 
       const project = await storage.getProject(id);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       // Check if conversation already exists
@@ -555,9 +719,19 @@ Be realistic and honest in your assessment. Consider market size, competition in
   app.get("/api/conversations/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
       const conversation = await storage.getConversation(id);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      const project = await storage.getProject(conversation.projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       const messagesList = await storage.getMessagesByConversation(id);
@@ -572,6 +746,7 @@ Be realistic and honest in your assessment. Consider market size, competition in
   app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
       const { content } = req.body;
 
       if (!content || content.trim().length === 0) {
@@ -582,6 +757,15 @@ Be realistic and honest in your assessment. Consider market size, competition in
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // Get project to determine audience type, start mode, and conversation mode
+      const project = await storage.getProject(conversation.projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       // Save user message
@@ -597,9 +781,6 @@ Be realistic and honest in your assessment. Consider market size, competition in
         role: m.role === "user" ? "user" as const : "assistant" as const,
         content: m.content,
       }));
-
-      // Get project to determine audience type, start mode, and conversation mode
-      const project = await storage.getProject(conversation.projectId);
       const audienceType = project?.type;
       const projectStartMode = project?.startMode || "idea";
       const projectConversationMode = project?.conversationMode || "supportive";
@@ -679,6 +860,16 @@ Be realistic and honest in your assessment. Consider market size, competition in
   app.get("/api/projects/:id/notes", async (req, res) => {
     try {
       const projectId = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       const notesList = await storage.getNotesByProject(projectId);
       res.json(notesList);
     } catch (error) {
@@ -690,7 +881,16 @@ Be realistic and honest in your assessment. Consider market size, competition in
   app.post("/api/projects/:id/notes", async (req, res) => {
     try {
       const projectId = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
       const { content } = req.body;
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       if (!content || content.trim().length === 0) {
         return res.status(400).json({ error: "Note content is required" });
@@ -710,6 +910,21 @@ Be realistic and honest in your assessment. Consider market size, competition in
   app.delete("/api/notes/:id", async (req, res) => {
     try {
       const noteId = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const note = await storage.getNote(noteId);
+      if (!note) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+
+      const project = await storage.getProject(note.projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       await storage.deleteNote(noteId);
       res.json({ success: true });
     } catch (error) {
@@ -722,10 +937,14 @@ Be realistic and honest in your assessment. Consider market size, competition in
   app.post("/api/projects/:id/synergies", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const project = await storage.getProject(id);
+      const authReq = req as unknown as AuthenticatedRequest;
 
+      const project = await storage.getProject(id);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       // Check for cached synergy analysis
@@ -733,8 +952,8 @@ Be realistic and honest in your assessment. Consider market size, competition in
         return res.json(project.synergyAnalysis);
       }
 
-      // Get all other projects
-      const allProjects = await storage.getAllProjects();
+      // Get all other projects for this user
+      const allProjects = await storage.getProjectsByUserId(authReq.user.id);
       const otherProjects = allProjects.filter(p => p.id !== id);
 
       if (otherProjects.length === 0) {
