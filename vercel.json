@@ -2,7 +2,14 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
   "framework": null,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" }
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ]
 }
