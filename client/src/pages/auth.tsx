@@ -43,12 +43,25 @@ export default function AuthPage() {
                 toast.success("Welcome back!");
                 setLocation("/app");
             } else {
-                const { error } = await supabase.auth.signUp({
+                const { data: signUpData, error } = await supabase.auth.signUp({
                     email: data.email,
                     password: data.password,
                 });
                 if (error) throw error;
-                toast.success("Account created! Please check your email to verify.");
+                
+                // Check if email confirmation is required
+                if (signUpData?.user && !signUpData.session) {
+                    toast.success("Account created! Please check your email to verify your account.", {
+                        duration: 10000,
+                        description: "We sent a confirmation link to " + data.email
+                    });
+                } else if (signUpData?.session) {
+                    // Auto-login enabled (no email confirmation required)
+                    toast.success("Account created successfully!");
+                    setLocation("/app");
+                } else {
+                    toast.success("Account created! Please check your email to verify.");
+                }
             }
         } catch (error: any) {
             toast.error(error.message || "Authentication failed");
