@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { getAppUrl } from "@/lib/routing";
 import { 
   Lightbulb, 
   Target, 
@@ -19,6 +20,15 @@ import {
 
 export default function Landing() {
   const [, setLocation] = useLocation();
+  
+  const handleGetStarted = () => {
+    const appUrl = getAppUrl();
+    if (appUrl.startsWith('http')) {
+      window.location.href = appUrl;
+    } else {
+      setLocation(appUrl);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -37,10 +47,10 @@ export default function Landing() {
               <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
             </div>
             <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => setLocation("/app")} data-testid="button-signin">
+              <Button variant="ghost" onClick={handleGetStarted} data-testid="button-signin">
                 Sign In
               </Button>
-              <Button onClick={() => setLocation("/app")} data-testid="button-get-started">
+              <Button onClick={handleGetStarted} data-testid="button-get-started">
                 Get Started Free
               </Button>
             </div>
@@ -62,7 +72,7 @@ export default function Landing() {
             Capture ideas quickly, validate with AI-powered competitor research, and generate comprehensive product specs that any developer or AI can implement.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="gap-2 text-lg px-8" onClick={() => setLocation("/app")} data-testid="button-cta-primary">
+            <Button size="lg" className="gap-2 text-lg px-8" onClick={handleGetStarted} data-testid="button-cta-primary">
               Start Free <ArrowRight className="w-5 h-5" aria-hidden="true" />
             </Button>
             <Button size="lg" variant="outline" className="gap-2 text-lg px-8" data-testid="button-watch-demo">
@@ -235,7 +245,7 @@ export default function Landing() {
                   <span>Production-level PRDs</span>
                 </li>
               </ul>
-              <Button variant="outline" className="w-full" onClick={() => setLocation("/app")} data-testid="button-pricing-free">
+              <Button variant="outline" className="w-full" onClick={handleGetStarted} data-testid="button-pricing-free">
                 Get Started Free
               </Button>
             </article>
@@ -273,7 +283,7 @@ export default function Landing() {
                   <span>Production-level PRDs</span>
                 </li>
               </ul>
-              <Button className="w-full" onClick={() => setLocation("/app")} data-testid="button-pricing-pro">
+              <Button className="w-full" onClick={handleGetStarted} data-testid="button-pricing-pro">
                 Start 7-Day Free Trial
               </Button>
             </article>
@@ -288,7 +298,7 @@ export default function Landing() {
             <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-8">
               Join thousands of founders who've turned rough ideas into validated, buildable products.
             </p>
-            <Button size="lg" className="gap-2 text-lg px-8" onClick={() => setLocation("/app")} data-testid="button-cta-final">
+            <Button size="lg" className="gap-2 text-lg px-8" onClick={handleGetStarted} data-testid="button-cta-final">
               Get Started Free <ArrowRight className="w-5 h-5" aria-hidden="true" />
             </Button>
           </div>
