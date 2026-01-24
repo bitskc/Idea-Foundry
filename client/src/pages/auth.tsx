@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,105 +9,120 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 
-const signInSchema = z.object({
-    email: z.string().email("Invalid email address"),
-    password: z.string().min(1, "Password is required"),
-});
-
-const signUpSchema = z.object({
+const authSchema = z.object({
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
-    confirmPassword: z.string().min(1, "Please confirm your password"),
-}).refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
 });
 
-type SignInFormValues = z.infer<typeof signInSchema>;
-type SignUpFormValues = z.infer<typeof signUpSchema>;
+const resetSchema = z.object({
+    email: z.string().email("Invalid email address"),
+});
+
+type AuthFormValues = z.infer<typeof authSchema>;
+type ResetFormValues = z.infer<typeof resetSchema>;
+
+type AuthMode = "login" | "signup" | "reset";
 
 export default function AuthPage() {
-    const [isLogin, setIsLogin] = useState(true);
+    const [mode, setMode] = useState<AuthMode>("login");
     const [isLoading, setIsLoading] = useState(false);
     const [, setLocation] = useLocation();
 
-    const signInForm = useForm<SignInFormValues>({
-        resolver: zodResolver(signInSchema),
+    const form = useForm<AuthFormValues>({
+        resolver: zodResolver(authSchema),
         defaultValues: {
             email: "",
             password: "",
         },
     });
 
-    const signUpForm = useForm<SignUpFormValues>({
-        resolver: zodResolver(signUpSchema),
+    const resetForm = useForm<ResetFormValues>({
+        resolver: zodResolver(resetSchema),
         defaultValues: {
             email: "",
-            password: "",
-            confirmPassword: "",
         },
     });
 
-    const currentForm = isLogin ? signInForm : signUpForm;
+    const switchMode = (newMode: AuthMode) => {
+        setMode(newMode);
+        form.reset();
+        resetForm.reset();
+    };
 
-    // Reset form when toggling between login/signup
-    useEffect(() => {
-        signInForm.reset();
-        signUpForm.reset();
-    }, [isLogin]);
-
-    async function onSignIn(data: SignInFormValues) {
+    async function onSubmit(data: AuthFormValues) {
         setIsLoading(true);
         try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email: data.email,
-                password: data.password,
-            });
-            if (error) throw error;
-            toast.success("Welcome back!");
-            setLocation("/app");
-        } catch (error: any) {
-            toast.error(error.message || "Sign in failed");
-        } finally {
-            setIsLoading(false);
-        }
-    }
-
-    async function onSignUp(data: SignUpFormValues) {
-        setIsLoading(true);
-        try {
-            const { data: signUpData, error } = await supabase.auth.signUp({
-                email: data.email,
-                password: data.password,
-            });
-            if (error) throw error;
-            
-            // Check if email confirmation is required
-            if (signUpData?.user && !signUpData.session) {
-                toast.success("Account created! Please check your email to verify your account.", {
-                    duration: 10000,
-                    description: "We sent a confirmation link to " + data.email
+            if (mode === "login") {
+                const { error } = await supabase.auth.signInWithPassword({
+                    email: data.email,
+                    password: data.password,
                 });
-                signUpForm.reset();
-            } else if (signUpData?.session) {
-                // Auto-login enabled (no email confirmation required)
-                toast.success("Account created successfully!");
+                if (error) throw error;
+                toast.success("Welcome back!");
                 setLocation("/app");
-            } else {
-                toast.success("Account created! Please check your email to verify.");
-                signUpForm.reset();
+            } else if (mode === "signup") {
+                const { data: signUpData, error } = await supabase.auth.signUp({
+                    email: data.email,
+                    password: data.password,
+                });
+                if (error) throw error;
+                
+                // Check if email confirmation is required
+                if (signUpData?.user && !signUpData.session) {
+                    toast.success("Account created! Please check your email to verify your account.", {
+                        duration: 10000,
+                        description: "We sent a confirmation link to " + data.email
+                    });
+                } else if (signUpData?.session) {
+                    // Auto-login enabled (no email confirmation required)
+                    toast.success("Account created successfully!");
+                    setLocation("/app");
+                } else {
+                    toast.success("Account created! Please check your email to verify.");
+                }
             }
         } catch (error: any) {
-            toast.error(error.message || "Sign up failed");
+            toast.error(error.message || "Authentication failed");
         } finally {
             setIsLoading(false);
         }
     }
 
-    const toggleMode = () => {
-        setIsLogin(!isLogin);
+    async function onResetSubmit(data: ResetFormValues) {
+        setIsLoading(true);
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+                redirectTo: `${window.location.origin}/auth?mode=update-password`,
+            });
+            if (error) throw error;
+            toast.success("Password reset email sent!", {
+                duration: 10000,
+                description: "Check your inbox for a link to reset your password."
+            });
+            switchMode("login");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to send reset email");
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    const getTitle = () => {
+        switch (mode) {
+            case "login": return "Welcome back";
+            case "signup": return "Create an account";
+            case "reset": return "Reset password";
+        }
+    };
+
+    const getDescription = () => {
+        switch (mode) {
+            case "login": return "Enter your credentials to access your workspace";
+            case "signup": return "Enter your email to create a new workspace";
+            case "reset": return "Enter your email and we'll send you a reset link";
+        }
     };
 
     return (
@@ -115,19 +130,15 @@ export default function AuthPage() {
             <div className="flex items-center justify-center p-8 bg-zinc-50 dark:bg-zinc-950">
                 <Card className="w-full max-w-md">
                     <CardHeader>
-                        <CardTitle>{isLogin ? "Welcome back" : "Create an account"}</CardTitle>
-                        <CardDescription>
-                            {isLogin
-                                ? "Enter your credentials to access your workspace"
-                                : "Enter your details to create a new workspace"}
-                        </CardDescription>
+                        <CardTitle>{getTitle()}</CardTitle>
+                        <CardDescription>{getDescription()}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {isLogin ? (
-                            <Form {...signInForm}>
-                                <form onSubmit={signInForm.handleSubmit(onSignIn)} className="space-y-4">
+                        {mode === "reset" ? (
+                            <Form {...resetForm}>
+                                <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
                                     <FormField
-                                        control={signInForm.control}
+                                        control={resetForm.control}
                                         name="email"
                                         render={({ field }) => (
                                             <FormItem>
@@ -143,35 +154,17 @@ export default function AuthPage() {
                                             </FormItem>
                                         )}
                                     />
-                                    <FormField
-                                        control={signInForm.control}
-                                        name="password"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Password</FormLabel>
-                                                <FormControl>
-                                                    <Input 
-                                                        type="password" 
-                                                        placeholder="••••••••" 
-                                                        autoComplete="current-password"
-                                                        {...field} 
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
                                     <Button type="submit" className="w-full" disabled={isLoading}>
                                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        Sign In
+                                        Send Reset Link
                                     </Button>
                                 </form>
                             </Form>
                         ) : (
-                            <Form {...signUpForm}>
-                                <form onSubmit={signUpForm.handleSubmit(onSignUp)} className="space-y-4">
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                                     <FormField
-                                        control={signUpForm.control}
+                                        control={form.control}
                                         name="email"
                                         render={({ field }) => (
                                             <FormItem>
@@ -188,7 +181,7 @@ export default function AuthPage() {
                                         )}
                                     />
                                     <FormField
-                                        control={signUpForm.control}
+                                        control={form.control}
                                         name="password"
                                         render={({ field }) => (
                                             <FormItem>
@@ -196,8 +189,8 @@ export default function AuthPage() {
                                                 <FormControl>
                                                     <Input 
                                                         type="password" 
-                                                        placeholder="••••••••" 
-                                                        autoComplete="new-password"
+                                                        placeholder="••••••" 
+                                                        autoComplete={mode === "login" ? "current-password" : "new-password"}
                                                         {...field} 
                                                     />
                                                 </FormControl>
@@ -205,63 +198,43 @@ export default function AuthPage() {
                                             </FormItem>
                                         )}
                                     />
-                                    <FormField
-                                        control={signUpForm.control}
-                                        name="confirmPassword"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Confirm Password</FormLabel>
-                                                <FormControl>
-                                                    <Input 
-                                                        type="password" 
-                                                        placeholder="••••••••" 
-                                                        autoComplete="new-password"
-                                                        {...field} 
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    {mode === "login" && (
+                                        <Button
+                                            type="button"
+                                            variant="link"
+                                            className="px-0 text-sm text-muted-foreground"
+                                            onClick={() => switchMode("reset")}
+                                        >
+                                            Forgot password?
+                                        </Button>
+                                    )}
                                     <Button type="submit" className="w-full" disabled={isLoading}>
                                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        Sign Up
+                                        {mode === "login" ? "Sign In" : "Sign Up"}
                                     </Button>
                                 </form>
                             </Form>
                         )}
                     </CardContent>
                     <CardFooter className="flex flex-col gap-2">
-                        <Button
-                            variant="link"
-                            className="w-full"
-                            onClick={toggleMode}
-                        >
-                            {isLogin
-                                ? "Don't have an account? Sign Up"
-                                : "Already have an account? Sign In"}
-                        </Button>
-                        {isLogin && (
+                        {mode === "reset" ? (
                             <Button
                                 variant="link"
-                                className="w-full text-sm text-muted-foreground"
-                                onClick={async () => {
-                                    const email = signInForm.getValues("email");
-                                    if (!email) {
-                                        toast.error("Please enter your email address");
-                                        return;
-                                    }
-                                    try {
-                                        await supabase.auth.resetPasswordForEmail(email, {
-                                            redirectTo: `${window.location.origin}/auth`,
-                                        });
-                                        toast.success("Password reset email sent! Check your inbox.");
-                                    } catch (error: any) {
-                                        toast.error(error.message || "Failed to send reset email");
-                                    }
-                                }}
+                                className="w-full"
+                                onClick={() => switchMode("login")}
                             >
-                                Forgot password?
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Back to Sign In
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="link"
+                                className="w-full"
+                                onClick={() => switchMode(mode === "login" ? "signup" : "login")}
+                            >
+                                {mode === "login"
+                                    ? "Don't have an account? Sign Up"
+                                    : "Already have an account? Sign In"}
                             </Button>
                         )}
                     </CardFooter>
