@@ -941,6 +941,488 @@ Be practical and opinionated. Choose technologies that work well together and ar
     }
   });
 
+  // Generate PRD
+  app.post("/api/projects/:id/generate-prd", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Handle both "track" (from idea-detail) and "format" (from prd-view) params
+      const validTracks = ["quick", "standard", "production"];
+      const formatToTrack: Record<string, string> = { full: "standard", business: "standard", pitch: "quick" };
+      const requestedTrack = req.body?.track || formatToTrack[req.body?.format] || "standard";
+      const track = validTracks.includes(requestedTrack) ? requestedTrack : "standard";
+      const userRequirements = req.body?.userRequirements || "";
+
+      // Build context from conversation if available
+      let conversationContext = "";
+      const conversation = await storage.getConversationByProjectId(projectId);
+      if (conversation) {
+        const messagesList = await storage.getMessagesByConversation(conversation.id);
+        conversationContext = messagesList
+          .map(m => `${m.role === "user" ? "Founder" : "PM"}: ${m.content}`)
+          .join("\n\n");
+      }
+
+      // Build base context from project data
+      const projectContext = `
+IDEA TITLE: ${project.title}
+IDEA DESCRIPTION: ${project.description}
+RAW IDEA: ${project.rawIdea}
+TYPE: ${project.type}
+NOTES: ${project.notes || "None"}
+${conversationContext ? `\nCONVERSATION:\n${conversationContext}` : ""}
+${userRequirements ? `\nUSER REQUIREMENTS:\n${userRequirements}` : ""}
+`;
+
+      // Implementation status section included in all PRD formats
+      const implementationStatusSection = `
+## Implementation Status
+
+> **Instructions for AI Agent:** As you implement this PRD, update this section to track your progress. Change the status of each item as you work through it. This section serves as a living record of what has been completed, what is in progress, and what remains.
+>
+> **Status Legend:**
+> - \`[ ]\` Not Started
+> - \`[~]\` In Progress
+> - \`[x]\` Complete
+> - \`[!]\` Blocked (add note explaining why)
+>
+> **How to update:** After completing each feature or section, come back to this status table and mark it accordingly. Add notes about any deviations from the PRD, issues encountered, or decisions made during implementation.
+
+### Overall Progress
+- [ ] Project Setup & Configuration
+- [ ] Database Schema & Migrations
+- [ ] Backend API Endpoints
+- [ ] Frontend Pages & Components
+- [ ] Authentication & Authorization
+- [ ] Core Feature Integration
+- [ ] Testing & Validation
+- [ ] Deployment
+
+### Feature Implementation Status
+<!-- AI Agent: Replace the items below with the actual features from this PRD as you begin implementation. Mark each with the appropriate status. -->
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| [Feature 1 from PRD] | [ ] Not Started | |
+| [Feature 2 from PRD] | [ ] Not Started | |
+| [Feature 3 from PRD] | [ ] Not Started | |
+
+### Implementation Log
+<!-- AI Agent: Add dated entries here as you make progress. Example: -->
+<!-- - **[Date]**: Started project setup, initialized repo, installed dependencies -->
+<!-- - **[Date]**: Completed database schema, all migrations running -->
+<!-- - **[Date]**: Feature X complete, moved to Feature Y -->
+`;
+
+      let prdPrompt = "";
+      let maxTokens = 4000;
+
+      if (track === "quick") {
+        maxTokens = 3000;
+        prdPrompt = `Create a QUICK PRD for rapid prototyping. This will be used by an AI coding agent (like Claude Code, Cursor, etc.) to build a working prototype.
+
+${projectContext}
+
+Generate a concise PRD with these sections:
+
+# [Product Name] - Quick PRD
+
+${implementationStatusSection}
+
+## Overview
+- One paragraph explaining what this product does and who it's for
+
+## Problem
+- The core problem being solved (2-3 sentences)
+
+## Solution
+- How the product solves it (2-3 sentences)
+
+## Core Features (MVP)
+List 3-5 essential features. For each:
+- **Feature Name**: Brief description
+- User Story: "As a [user], I want [action] so that [benefit]"
+
+## Tech Stack Recommendation
+- Frontend: [recommendation]
+- Backend: [recommendation]
+- Database: [recommendation]
+- Key dependencies to install
+
+## Pages/Screens
+List the main pages needed with a one-line description each
+
+## Data Model (Simple)
+List the main entities and their key fields (just field names, not full schema)
+
+IMPORTANT: In the "Implementation Status" section, replace the placeholder feature names in the Feature Implementation Status table with the actual features you defined in "Core Features (MVP)" above, each marked as "[ ] Not Started".
+
+Keep the entire document under 1500 words. Be specific enough that an AI can start building immediately.`;
+
+      } else if (track === "standard") {
+        maxTokens = 6000;
+        prdPrompt = `Create a STANDARD PRD with enough detail for AI coding agents to implement well.
+
+${projectContext}
+
+Generate a detailed PRD with these sections:
+
+# [Product Name] - Product Requirements Document
+
+${implementationStatusSection}
+
+## 1. Executive Summary
+- Problem statement (2-3 sentences)
+- Solution overview (2-3 sentences)
+- Target users
+- Key differentiators
+
+## 2. User Personas
+For the primary persona:
+- Name, role, demographics
+- Goals and motivations
+- Pain points and frustrations
+- How they'll use the product
+
+## 3. Core Features (MVP)
+For each of 5-8 features:
+- **Feature Name**
+- Description (what it does)
+- User Story: "As a [user], I want [action] so that [benefit]"
+- Acceptance Criteria (3-5 testable criteria as checkboxes)
+- Priority: Must-have / Should-have / Nice-to-have
+
+## 4. Technical Architecture
+### Tech Stack
+- Frontend: [specific framework/library with version]
+- Backend: [specific framework with version]
+- Database: [type and why]
+- Authentication: [approach]
+- Hosting: [recommendation]
+
+### API Endpoints
+List the main API endpoints:
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+
+### Database Schema
+For each table/collection:
+- Table name
+- Fields with types
+- Relationships
+
+## 5. UI Components
+List the main UI components needed:
+- Component name
+- Purpose
+- Key props/state
+
+## 6. Pages/Routes
+| Route | Page | Components Used | Description |
+|-------|------|-----------------|-------------|
+
+## 7. Monetization
+- Pricing model
+- Revenue streams
+
+## 8. Success Metrics
+- 3-5 KPIs with target values
+
+## 9. MVP Roadmap
+- Week 1-2: [priorities]
+- Week 3-4: [priorities]
+
+## 10. Risks
+- Top 3 technical risks and mitigations
+
+IMPORTANT: In the "Implementation Status" section, replace the placeholder feature names in the Feature Implementation Status table with the actual features you defined in "Core Features (MVP)" above, each marked as "[ ] Not Started".
+
+Be specific with technology choices and include enough detail that an AI can implement each feature.`;
+
+      } else {
+        maxTokens = 10000;
+        prdPrompt = `Create a PRODUCTION-READY PRD with maximum detail. This PRD will be used by AI coding agents (like Claude Code, Cursor, Windsurf, etc.) to implement a complete application. Include code examples, file structures, and step-by-step guidance.
+
+${projectContext}
+
+Generate an exhaustive PRD with these sections:
+
+# [Product Name] - Production PRD
+
+${implementationStatusSection}
+
+## 1. Executive Summary
+- Problem statement
+- Solution overview
+- Target market and size
+- Competitive advantage
+- Revenue potential
+
+## 2. User Research & Personas
+### Primary Persona
+- Detailed demographics and psychographics
+- Day-in-the-life scenario
+- Goals, motivations, and frustrations
+- Current solutions and why they fail
+- Feature priorities
+
+### Secondary Persona (if applicable)
+- Same detail as primary
+
+### User Journey Map
+Step-by-step journey from discovery to regular use
+
+## 3. Feature Specifications
+
+For each feature (6-10 features):
+
+### Feature: [Name]
+**Priority:** Must-have / Should-have / Nice-to-have
+**Complexity:** Low / Medium / High
+
+**Description:**
+[Detailed description of what this feature does]
+
+**User Stories:**
+- As a [user type], I want [action], so that [benefit]
+- As a [user type], I want [action], so that [benefit]
+
+**Acceptance Criteria:**
+- [ ] Criterion 1 (specific and testable)
+- [ ] Criterion 2
+- [ ] Criterion 3
+- [ ] Criterion 4
+
+**UI/UX Requirements:**
+- Component placement
+- Interaction patterns
+- Responsive behavior
+
+**Error Handling:**
+- Error state 1: [what triggers it] → [how to handle]
+- Error state 2: [what triggers it] → [how to handle]
+
+**Edge Cases:**
+- Edge case 1: [scenario] → [expected behavior]
+- Edge case 2: [scenario] → [expected behavior]
+
+---
+
+## 4. Technical Architecture
+
+### Tech Stack (with justification)
+| Layer | Technology | Version | Why |
+|-------|------------|---------|-----|
+| Frontend | | | |
+| Backend | | | |
+| Database | | | |
+| Auth | | | |
+| Hosting | | | |
+
+### Project File Structure
+\`\`\`
+project-root/
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ui/           # Reusable UI components
+│   │   │   ├── [feature]/    # Feature-specific components
+│   │   ├── pages/            # Route pages
+│   │   ├── hooks/            # Custom hooks
+│   │   ├── lib/              # Utilities
+│   │   └── App.tsx
+├── server/
+│   ├── routes.ts             # API routes
+│   ├── storage.ts            # Database operations
+│   └── index.ts              # Server entry
+├── shared/
+│   └── schema.ts             # Shared types/schema
+└── package.json
+\`\`\`
+
+### Database Schema (Complete)
+Define all tables needed for this specific application. For each table include:
+- Table name (snake_case)
+- All fields with PostgreSQL types
+- Primary keys, foreign keys, and indexes
+- Relationships between tables
+
+Example format:
+\`\`\`sql
+-- Table: [entity_name]
+CREATE TABLE [entity_name] (
+  id SERIAL PRIMARY KEY,
+  [field_name] [TYPE] [CONSTRAINTS],
+  created_at TIMESTAMP DEFAULT NOW()
+);
+\`\`\`
+
+List ALL tables required for the MVP features described above.
+
+### API Specification (Complete)
+
+#### Endpoint: [METHOD] /api/[path]
+**Description:** [What this endpoint does]
+**Authentication:** Required / Optional / None
+**Request:**
+\`\`\`json
+{
+  "field1": "type and description",
+  "field2": "type and description"
+}
+\`\`\`
+**Response (Success - 200):**
+\`\`\`json
+{
+  "data": { ... }
+}
+\`\`\`
+**Response (Error - 400/401/500):**
+\`\`\`json
+{
+  "error": "Error message"
+}
+\`\`\`
+
+[Repeat for all endpoints]
+
+## 5. UI Component Library
+
+### Component: [ComponentName]
+**Purpose:** [What it does]
+**Props:**
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+
+**Usage Example:**
+\`\`\`tsx
+<ComponentName prop1="value" prop2={data} />
+\`\`\`
+
+[Repeat for major components]
+
+## 6. Page Specifications
+
+### Page: [Page Name]
+**Route:** /path
+**Purpose:** [What users do here]
+**Components Used:** [List of components]
+**Data Requirements:** [What API calls are needed]
+**State Management:** [Local state, server state, etc.]
+
+**Wireframe Description:**
+[Text description of layout - header, main content areas, sidebar if any]
+
+**User Interactions:**
+1. User clicks X → Y happens
+2. User submits form → Z happens
+
+[Repeat for all pages]
+
+## 7. Implementation Guide (Step-by-Step)
+
+### Phase 1: Project Setup
+1. Initialize project with [command]
+2. Install dependencies: [list]
+3. Set up database schema
+4. Configure environment variables:
+   - DATABASE_URL
+   - [other env vars]
+
+### Phase 2: Core Backend
+1. Implement [feature] API endpoint
+   - Create route handler
+   - Add storage method
+   - Test with curl/Postman
+2. [Next feature]
+
+### Phase 3: Core Frontend
+1. Create [component]
+2. Build [page]
+3. Connect to API
+
+### Phase 4: Polish & Testing
+1. Error handling
+2. Loading states
+3. Basic styling
+4. Manual testing
+
+## 8. Environment & Configuration
+
+### Required Environment Variables
+| Variable | Description | Example |
+|----------|-------------|---------|
+| DATABASE_URL | PostgreSQL connection | postgres://... |
+
+### Package Dependencies
+\`\`\`json
+{
+  "dependencies": {
+    "[package]": "[version]"
+  }
+}
+\`\`\`
+
+## 9. Validation & Testing
+
+### Manual Test Cases
+| Test | Steps | Expected Result |
+|------|-------|-----------------|
+| [Feature] works | 1. Do X, 2. Do Y | Z should happen |
+
+## 10. Monetization Strategy
+- Pricing tiers
+- Payment integration approach
+
+## 11. Success Metrics & KPIs
+| Metric | Target | How to Measure |
+|--------|--------|----------------|
+
+## 12. Risks & Mitigation
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+
+## 13. Future Roadmap
+- Phase 2 features (3-6 months)
+- Phase 3 features (6-12 months)
+
+---
+
+IMPORTANT: In the "Implementation Status" section, replace the placeholder feature names in the Feature Implementation Status table with the actual features you defined in "Feature Specifications" above, each marked as "[ ] Not Started". Also update the "Overall Progress" checklist to reflect the actual phases from your Implementation Guide.
+
+This PRD should be detailed enough that even a basic AI model can follow the step-by-step implementation guide and build a working application. Include actual code patterns and specific technology recommendations.`;
+      }
+
+      // Use Anthropic for complex PRD generation if available, otherwise Gemini
+      const service = anthropicService || aiService;
+      const prdContent = await service.generateText(prdPrompt, [], {
+        systemPrompt: "You are an expert product manager and technical architect. Generate comprehensive, actionable PRDs that AI coding agents can use to implement complete applications. Always fill in the Implementation Status section with the actual features from the PRD.",
+        maxTokens,
+      });
+
+      // Save PRD to project
+      await storage.updateProject(projectId, {
+        prdContent,
+        status: "completed",
+        progress: 100,
+      });
+
+      res.json({ prdContent });
+    } catch (error) {
+      console.error("Error generating PRD:", error);
+      res.status(500).json({ error: "Failed to generate PRD" });
+    }
+  });
+
   // Create Synergy Analysis
   app.post("/api/projects/:id/synergies", async (req, res) => {
     try {
