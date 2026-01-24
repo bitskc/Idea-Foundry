@@ -24,8 +24,26 @@ async function buildAll() {
     logLevel: "info",
   });
 
-  // Note: Vercel serverless function (api/index.ts) is compiled by Vercel natively
-  // No need to pre-bundle it here
+  console.log("building Vercel serverless function...");
+  
+  // Bundle the API function with all dependencies for Vercel
+  // Vercel's native TS compilation doesn't bundle imports, so we must pre-bundle
+  await esbuild({
+    entryPoints: ["api/index.ts"],
+    platform: "node",
+    bundle: true,
+    format: "esm",
+    outfile: "api/index.mjs",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+    banner: {
+      js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`,
+    },
+    external: [],
+    minify: true,
+    logLevel: "info",
+  });
 
   console.log("build complete!");
 }
