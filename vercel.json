@@ -3,33 +3,22 @@
   "outputDirectory": "dist/public",
   "framework": null,
   "functions": {
-    "api/*.cjs": {
-      "runtime": "@vercel/node@5",
+    "api/index.ts": {
       "maxDuration": 30
     }
   },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index.ts"
+    }
+  ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.cjs"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "/assets/$1"
-    },
-    {
-      "src": "/favicon.png",
-      "dest": "/favicon.png"
-    },
-    {
-      "src": "/opengraph.jpg",
-      "dest": "/opengraph.jpg"
-    },
     {
       "handle": "filesystem"
     },
     {
-      "src": "/(.*)",
+      "src": "/((?!api/).*)",
       "dest": "/index.html"
     }
   ]
