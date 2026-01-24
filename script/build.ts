@@ -46,6 +46,7 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
+  // Build standalone server for local/non-Vercel production
   await esbuild({
     entryPoints: ["server/index.ts"],
     platform: "node",
@@ -58,6 +59,25 @@ async function buildAll() {
     minify: true,
     external: externals,
     logLevel: "info",
+  });
+
+  // Build Vercel serverless handler
+  console.log("building vercel handler...");
+  await esbuild({
+    entryPoints: ["server/vercel.ts"],
+    platform: "node",
+    bundle: true,
+    format: "esm",
+    outfile: "api/index.js",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+    minify: true,
+    external: externals,
+    logLevel: "info",
+    banner: {
+      js: '// Vercel Serverless Function - Auto-generated',
+    },
   });
 }
 
