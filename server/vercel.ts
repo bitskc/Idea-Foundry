@@ -8,10 +8,37 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { registerRoutes } from './routes';
 import { createServer } from 'http';
 
 let cachedApp: express.Express | null = null;
+
+// Rate limiters
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 AI requests per window (more restrictive)
+  message: { error: 'AI request limit reached. Please try again in a few minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 auth attempts per hour
+  message: { error: 'Too many authentication attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 async function getApp(): Promise<express.Express> {
   if (cachedApp) {
@@ -20,19 +47,36 @@ async function getApp(): Promise<express.Express> {
 
   const app = express();
   
-  // CORS configuration for subdomain communication
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: false, // Disable CSP for SPA compatibility
+    crossOriginEmbedderPolicy: false,
+  }));
+  
+  // CORS configuration - stricter in production
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? [
+        'https://www.ideafoundry.app',
+        'https://plan.ideafoundry.app',
+        'https://ideafoundry.app',
+      ]
+    : true; // Allow all in development
+
   app.use(cors({
-    origin: [
-      'https://www.ideafoundry.app',
-      'https://plan.ideafoundry.app',
-      'https://ideafoundry.app',
-      /\.vercel\.app$/,
-    ],
+    origin: allowedOrigins,
     credentials: true,
   }));
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
+  
+  // Apply rate limiters
+  app.use('/api/', generalLimiter);
+  app.use('/api/conversations/:id/messages', aiLimiter);
+  app.use('/api/projects/:id/research', aiLimiter);
+  app.use('/api/projects/:id/prd', aiLimiter);
+  app.use('/api/projects/:id/synergy', aiLimiter);
+  app.use('/api/auth/', authLimiter);
 
   // Request logging middleware
   app.use((req, res, next) => {
@@ -72,9 +116,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return app(req, res);
   } catch (error) {
     console.error('[Vercel Handler Error]', error);
+    // Don't leak error details in production
     res.status(500).json({ 
-      error: 'Server initialization failed',
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Server initialization failed'
     });
   }
 }
