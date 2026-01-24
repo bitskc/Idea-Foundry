@@ -9,17 +9,24 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 
 const authSchema = z.object({
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+const resetSchema = z.object({
+    email: z.string().email("Invalid email address"),
+});
+
 type AuthFormValues = z.infer<typeof authSchema>;
+type ResetFormValues = z.infer<typeof resetSchema>;
+
+type AuthMode = "login" | "signup" | "reset";
 
 export default function AuthPage() {
-    const [isLogin, setIsLogin] = useState(true);
+    const [mode, setMode] = useState<AuthMode>("login");
     const [isLoading, setIsLoading] = useState(false);
     const [, setLocation] = useLocation();
 
@@ -31,10 +38,23 @@ export default function AuthPage() {
         },
     });
 
+    const resetForm = useForm<ResetFormValues>({
+        resolver: zodResolver(resetSchema),
+        defaultValues: {
+            email: "",
+        },
+    });
+
+    const switchMode = (newMode: AuthMode) => {
+        setMode(newMode);
+        form.reset();
+        resetForm.reset();
+    };
+
     async function onSubmit(data: AuthFormValues) {
         setIsLoading(true);
         try {
-            if (isLogin) {
+            if (mode === "login") {
                 const { error } = await supabase.auth.signInWithPassword({
                     email: data.email,
                     password: data.password,
@@ -42,7 +62,7 @@ export default function AuthPage() {
                 if (error) throw error;
                 toast.success("Welcome back!");
                 setLocation("/app");
-            } else {
+            } else if (mode === "signup") {
                 const { data: signUpData, error } = await supabase.auth.signUp({
                     email: data.email,
                     password: data.password,
@@ -70,64 +90,153 @@ export default function AuthPage() {
         }
     }
 
+    async function onResetSubmit(data: ResetFormValues) {
+        setIsLoading(true);
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+                redirectTo: `${window.location.origin}/auth?mode=update-password`,
+            });
+            if (error) throw error;
+            toast.success("Password reset email sent!", {
+                duration: 10000,
+                description: "Check your inbox for a link to reset your password."
+            });
+            switchMode("login");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to send reset email");
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    const getTitle = () => {
+        switch (mode) {
+            case "login": return "Welcome back";
+            case "signup": return "Create an account";
+            case "reset": return "Reset password";
+        }
+    };
+
+    const getDescription = () => {
+        switch (mode) {
+            case "login": return "Enter your credentials to access your workspace";
+            case "signup": return "Enter your email to create a new workspace";
+            case "reset": return "Enter your email and we'll send you a reset link";
+        }
+    };
+
     return (
         <div className="min-h-screen grid lg:grid-cols-2">
             <div className="flex items-center justify-center p-8 bg-zinc-50 dark:bg-zinc-950">
                 <Card className="w-full max-w-md">
                     <CardHeader>
-                        <CardTitle>{isLogin ? "Welcome back" : "Create an account"}</CardTitle>
-                        <CardDescription>
-                            {isLogin
-                                ? "Enter your credentials to access your workspace"
-                                : "Enter your email to create a new workspace"}
-                        </CardDescription>
+                        <CardTitle>{getTitle()}</CardTitle>
+                        <CardDescription>{getDescription()}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="email"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Email</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="name@example.com" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
+                        {mode === "reset" ? (
+                            <Form {...resetForm}>
+                                <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
+                                    <FormField
+                                        control={resetForm.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email</FormLabel>
+                                                <FormControl>
+                                                    <Input 
+                                                        placeholder="name@example.com" 
+                                                        autoComplete="email"
+                                                        {...field} 
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <Button type="submit" className="w-full" disabled={isLoading}>
+                                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        Send Reset Link
+                                    </Button>
+                                </form>
+                            </Form>
+                        ) : (
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email</FormLabel>
+                                                <FormControl>
+                                                    <Input 
+                                                        placeholder="name@example.com" 
+                                                        autoComplete="email"
+                                                        {...field} 
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="password"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Password</FormLabel>
+                                                <FormControl>
+                                                    <Input 
+                                                        type="password" 
+                                                        placeholder="••••••" 
+                                                        autoComplete={mode === "login" ? "current-password" : "new-password"}
+                                                        {...field} 
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    {mode === "login" && (
+                                        <Button
+                                            type="button"
+                                            variant="link"
+                                            className="px-0 text-sm text-muted-foreground"
+                                            onClick={() => switchMode("reset")}
+                                        >
+                                            Forgot password?
+                                        </Button>
                                     )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="password"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Password</FormLabel>
-                                            <FormControl>
-                                                <Input type="password" placeholder="••••••" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <Button type="submit" className="w-full" disabled={isLoading}>
-                                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    {isLogin ? "Sign In" : "Sign Up"}
-                                </Button>
-                            </form>
-                        </Form>
+                                    <Button type="submit" className="w-full" disabled={isLoading}>
+                                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        {mode === "login" ? "Sign In" : "Sign Up"}
+                                    </Button>
+                                </form>
+                            </Form>
+                        )}
                     </CardContent>
-                    <CardFooter>
-                        <Button
-                            variant="link"
-                            className="w-full"
-                            onClick={() => setIsLogin(!isLogin)}
-                        >
-                            {isLogin
-                                ? "Don't have an account? Sign Up"
-                                : "Already have an account? Sign In"}
-                        </Button>
+                    <CardFooter className="flex flex-col gap-2">
+                        {mode === "reset" ? (
+                            <Button
+                                variant="link"
+                                className="w-full"
+                                onClick={() => switchMode("login")}
+                            >
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Back to Sign In
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="link"
+                                className="w-full"
+                                onClick={() => switchMode(mode === "login" ? "signup" : "login")}
+                            >
+                                {mode === "login"
+                                    ? "Don't have an account? Sign Up"
+                                    : "Already have an account? Sign In"}
+                            </Button>
+                        )}
                     </CardFooter>
                 </Card>
             </div>

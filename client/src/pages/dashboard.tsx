@@ -391,16 +391,42 @@ export default function Dashboard() {
         </div>
 
         {filteredProjects.length === 0 && projects.length > 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No ideas in this category.</p>
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+              {activeFilter === "archived" ? (
+                <Archive className="w-8 h-8 text-muted-foreground" />
+              ) : activeFilter === "active" ? (
+                <Flame className="w-8 h-8 text-muted-foreground" />
+              ) : activeFilter === "backburner" ? (
+                <Clock className="w-8 h-8 text-muted-foreground" />
+              ) : (
+                <Lightbulb className="w-8 h-8 text-muted-foreground" />
+              )}
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No {STATUS_CONFIG[activeFilter as IdeaStatus]?.label || ""} ideas</h3>
+            <p className="text-muted-foreground mb-4">
+              {activeFilter === "archived" 
+                ? "Archive ideas you want to keep but aren't actively working on."
+                : `Move ideas here when they're ${activeFilter === "active" ? "ready to build" : activeFilter === "backburner" ? "on hold" : "being explored"}.`
+              }
+            </p>
+            <Button variant="outline" onClick={() => setActiveFilter("all")}>
+              View All Ideas
+            </Button>
           </div>
         )}
 
         {projects.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No ideas yet. Let's start exploring!</p>
-            <Button onClick={() => setLocation("/app/new")} className="gap-2">
-              <Plus className="w-4 h-4" /> Start Your First Idea
+          <div className="text-center py-16">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+              <Lightbulb className="w-10 h-10 text-primary" />
+            </div>
+            <h3 className="text-2xl font-display font-bold mb-3">Capture your first idea</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Every great product starts with an idea. Use our AI-powered brainstorming partner to refine yours into something buildable.
+            </p>
+            <Button size="lg" onClick={() => setLocation("/app/new")} className="gap-2">
+              <Plus className="w-5 h-5" /> Start Your First Idea
             </Button>
           </div>
         )}
