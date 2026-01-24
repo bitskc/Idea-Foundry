@@ -14,7 +14,7 @@ import {
   conversations,
   messages,
   notes
-} from "@shared/schema";
+} from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
 

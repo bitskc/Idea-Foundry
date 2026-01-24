@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../supabase";
 import { db } from "../db";
-import { users } from "@shared/schema";
+import { users } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
 export interface AuthenticatedRequest extends Request {

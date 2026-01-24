@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile, mkdir, copyFile } from "fs/promises";
+import { rm } from "fs/promises";
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
@@ -24,31 +24,8 @@ async function buildAll() {
     logLevel: "info",
   });
 
-  console.log("building Vercel serverless function...");
-  
-  // Bundle the API entry point with all dependencies for Vercel
-  // This creates a self-contained bundle that doesn't need external imports
-  await esbuild({
-    entryPoints: ["api/index.ts"],
-    platform: "node",
-    bundle: true,
-    format: "esm",
-    outfile: "api/index.js",
-    define: {
-      "process.env.NODE_ENV": '"production"',
-    },
-    minify: true,
-    // Don't externalize anything - bundle everything
-    external: [],
-    // Banner to handle dynamic requires
-    banner: {
-      js: `
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-`,
-    },
-    logLevel: "info",
-  });
+  // Note: Vercel serverless function (api/index.ts) is compiled by Vercel natively
+  // No need to pre-bundle it here
 
   console.log("build complete!");
 }
