@@ -29,7 +29,7 @@ async function buildAll() {
   // Bundle the API function with all dependencies for Vercel
   // Vercel's native TS compilation doesn't bundle imports, so we must pre-bundle
   await esbuild({
-    entryPoints: ["api/index.ts"],
+    entryPoints: ["server/vercel-entry.ts"],
     platform: "node",
     bundle: true,
     format: "esm",
