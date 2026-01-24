@@ -8,7 +8,13 @@
       "maxDuration": 30
     }
   },
-  "env": ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"],
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "SUPABASE_URL": "@supabase_url",
+    "SUPABASE_SERVICE_KEY": "@supabase_service_key",
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "ANTHROPIC_API_KEY": "@anthropic_api_key"
+  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.mjs" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
