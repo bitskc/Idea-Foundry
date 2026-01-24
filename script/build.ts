@@ -65,8 +65,51 @@ async function buildAll() {
   });
 
   // Build Vercel serverless handler
-  // Use CJS format to avoid dynamic require issues with postgres and other packages
+  // Use CJS format and externalize Node.js built-ins to avoid dynamic require issues
   console.log("building vercel handler...");
+  
+  // Node.js built-in modules that must be externalized
+  const nodeBuiltins = [
+    "node:events",
+    "node:buffer",
+    "node:stream",
+    "node:path",
+    "node:fs",
+    "node:net",
+    "node:tls",
+    "node:crypto",
+    "node:os",
+    "node:url",
+    "node:util",
+    "node:http",
+    "node:https",
+    "node:zlib",
+    "node:querystring",
+    "node:assert",
+    "node:child_process",
+    "node:dns",
+    "node:string_decoder",
+    "events",
+    "buffer",
+    "stream",
+    "path",
+    "fs",
+    "net",
+    "tls",
+    "crypto",
+    "os",
+    "url",
+    "util",
+    "http",
+    "https",
+    "zlib",
+    "querystring",
+    "assert",
+    "child_process",
+    "dns",
+    "string_decoder",
+  ];
+  
   await esbuild({
     entryPoints: ["server/vercel.ts"],
     platform: "node",
@@ -77,7 +120,7 @@ async function buildAll() {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
-    external: externals,
+    external: [...externals, ...nodeBuiltins],
     logLevel: "info",
   });
 }
