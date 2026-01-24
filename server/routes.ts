@@ -7,7 +7,7 @@ import { AIService, AIMessage } from "./ai/service";
 import { z } from "zod";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
 import { db } from "./db";
-import { users, TechStackRecommendationSchema } from "@shared/schema";
+import { users, TechStackRecommendationSchema } from "../shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 // Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
