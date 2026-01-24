@@ -65,22 +65,20 @@ async function buildAll() {
   });
 
   // Build Vercel serverless handler
+  // Use CJS format to avoid dynamic require issues with postgres and other packages
   console.log("building vercel handler...");
   await esbuild({
     entryPoints: ["server/vercel.ts"],
     platform: "node",
     bundle: true,
-    format: "esm",
-    outfile: "api/index.js",
+    format: "cjs",
+    outfile: "api/index.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
     external: externals,
     logLevel: "info",
-    banner: {
-      js: '// Vercel Serverless Function - Auto-generated',
-    },
   });
 }
 
