@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
+import { api, getAuthHeaders } from "@/lib/api";
 import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -93,15 +94,7 @@ export default function ConversationPage() {
         }
         const base64 = btoa(binary);
         
-        const response = await fetch("/api/speech-to-text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: base64 }),
-        });
-
-        if (!response.ok) throw new Error("Failed to transcribe");
-
-        const data = await response.json();
+        const data = await api.post<{ transcript: string }>("/api/speech-to-text", { audio: base64 });
         setInput(data.transcript);
       } catch (error) {
         console.error("Error transcribing:", error);
@@ -130,18 +123,10 @@ export default function ConversationPage() {
 
   const playMessageAudio = async (messageId: number, text: string) => {
     if (isPlayingAudio === messageId) return;
-    
+
     setIsPlayingAudio(messageId);
     try {
-      const response = await fetch("/api/text-to-speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.substring(0, 500), voice: "nova" }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate speech");
-
-      const data = await response.json();
+      const data = await api.post<{ audio: string }>("/api/text-to-speech", { text: text.substring(0, 500), voice: "nova" });
       const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
       audio.onended = () => setIsPlayingAudio(null);
       audio.onerror = () => {
@@ -175,21 +160,19 @@ export default function ConversationPage() {
 
   const loadConversation = async () => {
     if (!conversationId) return;
-    
+
     try {
-      const response = await fetch(`/api/conversations/${conversationId}`);
-      if (!response.ok) throw new Error("Failed to load conversation");
-      
-      const data = await response.json();
+      const data = await api.get<Conversation & { messages: Message[]; projectId: number }>(`/api/conversations/${conversationId}`);
       setConversation(data);
       setMessages(data.messages || []);
       setCurrentSection(data.currentSection || "Problem Statement");
-      
+
       // Get project to sync progress
-      const projectResponse = await fetch(`/api/projects/${data.projectId}`);
-      if (projectResponse.ok) {
-        const projectData = await projectResponse.json();
+      try {
+        const projectData = await api.get<{ progress: number }>(`/api/projects/${data.projectId}`);
         setProgress(projectData.progress || 10);
+      } catch {
+        // Project fetch failed, use default progress
       }
     } catch (error) {
       console.error("Error loading conversation:", error);
@@ -231,9 +214,10 @@ export default function ConversationPage() {
     setMessages(prev => [...prev, typingMsg]);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...authHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ content: userMessage }),
       });
 
@@ -356,12 +340,8 @@ export default function ConversationPage() {
                onClick={async () => {
                  // Generate PRD and navigate to view
                  try {
-                   const response = await fetch(`/api/projects/${conversation.projectId}/generate-prd`, {
-                     method: "POST",
-                   });
-                   if (response.ok) {
-                     setLocation(`/app/prd/${conversation.projectId}`);
-                   }
+                   await api.post(`/api/projects/${conversation.projectId}/generate-prd`);
+                   setLocation(`/app/prd/${conversation.projectId}`);
                  } catch (error) {
                    console.error("Error generating PRD:", error);
                  }

@@ -107,16 +107,16 @@ export default function IdeaDetail() {
         setStackRecommendation(response.techStackRecommendation);
       }
       // Fetch notes for this project
-      const notesRes = await fetch(`/api/projects/${params.id}/notes`);
-      if (notesRes.ok) {
-        setNotesList(await notesRes.json());
-      }
+      try {
+        const notes = await api.get(`/api/projects/${params.id}/notes`);
+        setNotesList(notes as any[]);
+      } catch { /* ignore */ }
       if (response.conversation) {
         setConversation(response.conversation);
-        const messagesRes = await fetch(`/api/conversations/${response.conversation.id}/messages`);
-        if (messagesRes.ok) {
-          setMessages(await messagesRes.json());
-        }
+        try {
+          const msgs = await api.get(`/api/conversations/${response.conversation.id}/messages`);
+          setMessages(msgs as any[]);
+        } catch { /* ignore */ }
       }
     } catch (error) {
       console.error("Error loading idea:", error);
@@ -134,14 +134,8 @@ export default function IdeaDetail() {
     if (!project || !newNote.trim()) return;
     setIsAddingNote(true);
     try {
-      const response = await fetch(`/api/projects/${project.id}/notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newNote }),
-      });
-      if (!response.ok) throw new Error("Failed to add note");
-      const note = await response.json();
-      setNotesList([note, ...notesList]);
+      const note = await api.post(`/api/projects/${project.id}/notes`, { content: newNote });
+      setNotesList([note as any, ...notesList]);
       setNewNote("");
       toast({ title: "Note added" });
     } catch (error) {
@@ -158,8 +152,7 @@ export default function IdeaDetail() {
 
   const deleteNote = async (noteId: number) => {
     try {
-      const response = await fetch(`/api/notes/${noteId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete note");
+      await api.delete(`/api/notes/${noteId}`);
       setNotesList(notesList.filter(n => n.id !== noteId));
       toast({ title: "Note deleted" });
     } catch (error) {
@@ -176,12 +169,8 @@ export default function IdeaDetail() {
     if (!project) return;
     setIsGeneratingResearch(true);
     try {
-      const response = await fetch(`/api/projects/${project.id}/research`, {
-        method: "POST",
-      });
-      if (!response.ok) throw new Error("Failed to generate research");
-      const data = await response.json();
-      setProject(prev => prev ? { ...prev, ...data } : null);
+      const data = await api.post(`/api/projects/${project.id}/research`);
+      setProject(prev => prev ? { ...prev, ...(data as object) } : null);
       toast({ title: "Research generated!", description: "Competitor analysis and viability score updated." });
     } catch (error) {
       console.error("Error generating research:", error);
@@ -199,13 +188,7 @@ export default function IdeaDetail() {
     if (!project) return;
     setIsStartingConversation(true);
     try {
-      const response = await fetch(`/api/projects/${project.id}/start-conversation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationMode: "supportive" }),
-      });
-      if (!response.ok) throw new Error("Failed to start conversation");
-      const data = await response.json();
+      const data = await api.post<{ id: number }>(`/api/projects/${project.id}/start-conversation`, { conversationMode: "supportive" });
       setLocation(`/app/conversation/${data.id}`);
     } catch (error) {
       console.error("Error starting conversation:", error);
@@ -223,16 +206,10 @@ export default function IdeaDetail() {
     if (!project) return;
     setIsGeneratingPrd(true);
     try {
-      const response = await fetch(`/api/projects/${project.id}/generate-prd`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          track: prdTrack,
-          userRequirements: userRequirements.trim() || undefined
-        }),
+      const data = await api.post<{ prdContent: string }>(`/api/projects/${project.id}/generate-prd`, {
+        track: prdTrack,
+        userRequirements: userRequirements.trim() || undefined
       });
-      if (!response.ok) throw new Error("Failed to generate PRD");
-      const data = await response.json();
       setProject(prev => prev ? { ...prev, prdContent: data.prdContent } : null);
       toast({
         title: "PRD Generated!",
@@ -254,12 +231,7 @@ export default function IdeaDetail() {
     if (!project) return;
     setIsGeneratingStack(true);
     try {
-      const response = await fetch(`/api/projects/${project.id}/recommend-stack`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!response.ok) throw new Error("Failed to get stack recommendation");
-      const data = await response.json();
+      const data = await api.post(`/api/projects/${project.id}/recommend-stack`);
       setStackRecommendation(data);
       toast({ title: "Tech Stack Ready!", description: "We've analyzed your idea and recommended a tech stack." });
     } catch (error) {
@@ -711,11 +683,7 @@ export default function IdeaDetail() {
                       <Button
                         variant="outline"
                         onClick={async () => {
-                          await fetch(`/api/projects/${project.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ prdContent: null }),
-                          });
+                          await api.patch(`/api/projects/${project.id}`, { prdContent: null });
                           setProject(prev => prev ? { ...prev, prdContent: null } : null);
                         }}
                         data-testid="button-regenerate-prd"

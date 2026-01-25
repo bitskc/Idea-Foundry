@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
+import { api } from "@/lib/api";
 import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Share2, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle, Clock, AlertTriangle, CheckCircle, Rabbit, ChevronDown, ChevronUp } from "lucide-react";
@@ -70,14 +71,11 @@ export default function PrdView() {
 
   const loadProject = async () => {
     if (!projectId) return;
-    
+
     try {
-      const response = await fetch(`/api/projects/${projectId}`);
-      if (!response.ok) throw new Error("Failed to load project");
-      
-      const data = await response.json();
+      const data = await api.get<Project>(`/api/projects/${projectId}`);
       setProject(data);
-      
+
       // If no PRD content yet, generate it
       if (!data.prdContent) {
         await generatePRD();
@@ -100,17 +98,9 @@ export default function PrdView() {
     setIsGenerating(true);
     setCurrentFormat(format);
     try {
-      const response = await fetch(`/api/projects/${projectId}/generate-prd`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format }),
-      });
-      
-      if (!response.ok) throw new Error("Failed to generate PRD");
-      
-      const data = await response.json();
+      const data = await api.post<{ prdContent: string }>(`/api/projects/${projectId}/generate-prd`, { format });
       setProject(prev => prev ? { ...prev, prdContent: data.prdContent } : null);
-      
+
       const formatLabel = FORMAT_OPTIONS.find(f => f.id === format)?.label || "PRD";
       toast({
         title: `${formatLabel} Generated`,
@@ -192,17 +182,11 @@ export default function PrdView() {
 
   const generateLandingPage = async () => {
     if (!projectId) return;
-    
+
     setIsGeneratingLandingPage(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/generate-landing-page`, {
-        method: "POST",
-      });
-      
-      if (!response.ok) throw new Error("Failed to generate landing page");
-      
-      const data = await response.json();
-      
+      const data = await api.post<{ html: string }>(`/api/projects/${projectId}/generate-landing-page`);
+
       // Download the HTML file
       const blob = new Blob([data.html], { type: "text/html" });
       const url = URL.createObjectURL(blob);
@@ -233,13 +217,7 @@ export default function PrdView() {
     
     setIsFindingCommunities(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/find-communities`, {
-        method: "POST",
-      });
-      
-      if (!response.ok) throw new Error("Failed to find communities");
-      
-      const data = await response.json();
+      const data = await api.post<CommunityData>(`/api/projects/${projectId}/find-communities`);
       setCommunities(data);
       
       toast({
@@ -260,16 +238,10 @@ export default function PrdView() {
 
   const checkReality = async () => {
     if (!projectId) return;
-    
+
     setIsCheckingReality(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/reality-check`, {
-        method: "POST",
-      });
-      
-      if (!response.ok) throw new Error("Failed to run reality check");
-      
-      const data = await response.json();
+      const data = await api.post<RealityCheckData>(`/api/projects/${projectId}/reality-check`);
       setRealityCheck(data);
       
       toast({
