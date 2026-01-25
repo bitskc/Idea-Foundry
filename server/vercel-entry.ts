@@ -7,6 +7,36 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// CORS configuration
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow all in development
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+
+    const allowedDomains = [
+      'https://www.ideafoundry.app',
+      'https://plan.ideafoundry.app',
+      'https://ideafoundry.app',
+    ];
+
+    // Check if origin is in the allowed list
+    if (allowedDomains.includes(origin)) return callback(null, true);
+
+    // Allow Vercel preview deployments
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+
+    // Allow the specific Vercel deployment URL if set
+    if (process.env.VERCEL_URL && origin === `https://${process.env.VERCEL_URL}`) return callback(null, true);
+
+    console.warn(`Blocked CORS request from: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
 // Request logging middleware
 app.use((req, res, next) => {
     const start = Date.now();
