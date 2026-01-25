@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
 
