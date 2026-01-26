@@ -17,6 +17,7 @@ import {
   Users,
   Target
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 type StartMode = "idea" | "quick" | "problem";
 type DiscoveryPath = "idea_first" | "audience_first";
@@ -121,19 +122,12 @@ export default function NewIdea() {
   const handleQuickStart = async () => {
     setIsCreating(true);
     try {
-      const response = await fetch("/api/projects/quick", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          rawIdea: idea, 
-          type: selectedType, 
-          notes: idea,
-          targetAvatar: avatar.role ? avatar : null,
-        }),
+      const data = await api.post<{ id: number }>("/api/projects/quick", { 
+        rawIdea: idea, 
+        type: selectedType, 
+        notes: idea,
+        targetAvatar: avatar.role ? avatar : null,
       });
-
-      if (!response.ok) throw new Error("Failed to save idea");
-      const data = await response.json();
       toast({ title: "Idea captured!", description: "You can explore it whenever you're ready." });
       setLocation(`/app/ideas/${data.id}`);
     } catch (error) {
@@ -160,22 +154,15 @@ export default function NewIdea() {
 
     setIsCreating(true);
     try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          rawIdea: idea, 
-          type: selectedType, 
-          startMode,
-          conversationMode: "supportive",
-          targetAvatar: avatar,
-          ideaPurpose,
-          discoveryPath,
-        }),
+      const data = await api.post<{ conversation: { id: number } }>("/api/projects", { 
+        rawIdea: idea, 
+        type: selectedType, 
+        startMode,
+        conversationMode: "supportive",
+        targetAvatar: avatar,
+        ideaPurpose,
+        discoveryPath,
       });
-
-      if (!response.ok) throw new Error("Failed to create idea");
-      const data = await response.json();
       setLocation(`/app/conversation/${data.conversation.id}`);
     } catch (error) {
       console.error("Error creating idea:", error);

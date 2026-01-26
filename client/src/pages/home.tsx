@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X, Lightbulb, AlertCircle, Shield, Swords, StickyNote, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
 
 type NameSuggestion = {
   name: string;
@@ -50,15 +51,7 @@ export default function Home() {
     setIsGeneratingNames(true);
     setShowNamePanel(true);
     try {
-      const response = await fetch("/api/generate-names", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea, type: selectedType }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate names");
-
-      const data = await response.json();
+      const data = await api.post<{ names: NameSuggestion[] }>("/api/generate-names", { idea, type: selectedType });
       setNameSuggestions(data.names || []);
     } catch (error) {
       console.error("Error generating names:", error);
@@ -101,15 +94,7 @@ export default function Home() {
 
     setIsCreating(true);
     try {
-      const response = await fetch("/api/projects/quick", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawIdea: idea, type: selectedType, notes: idea }),
-      });
-
-      if (!response.ok) throw new Error("Failed to capture idea");
-
-      const project = await response.json();
+      const project = await api.post<{ id: number }>("/api/projects/quick", { rawIdea: idea, type: selectedType, notes: idea });
       setLocation(`/idea/${project.id}`);
     } catch (error) {
       console.error("Error capturing idea:", error);
@@ -146,15 +131,7 @@ export default function Home() {
 
     setIsCreating(true);
     try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawIdea: idea, type: selectedType, startMode, conversationMode }),
-      });
-
-      if (!response.ok) throw new Error("Failed to start idea session");
-
-      const project = await response.json();
+      const project = await api.post<{ conversation: { id: number } }>("/api/projects", { rawIdea: idea, type: selectedType, startMode, conversationMode });
       setLocation(`/conversation/${project.conversation.id}`);
     } catch (error) {
       console.error("Error starting idea:", error);
