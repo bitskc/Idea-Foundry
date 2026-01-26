@@ -11,7 +11,9 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "vitest run --testPathPattern=integration",
+    "test:e2e": "npm run dev & sleep 5 && vitest run --testPathPattern=integration && kill %1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
