@@ -3,15 +3,16 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
-if (!supabaseUrl) {
-  console.warn("SUPABASE_URL is not set - auth will not work");
+console.log("[Supabase Init] Starting initialization...");
+console.log("[Supabase Init] SUPABASE_URL:", supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : "NOT SET");
+console.log("[Supabase Init] SUPABASE_SERVICE_KEY:", supabaseServiceKey ? `${supabaseServiceKey.substring(0, 20)}...` : "NOT SET");
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  const error = "CRITICAL: Supabase credentials not set. Auth will fail!";
+  console.error(error);
+  throw new Error(error);
 }
 
-if (!supabaseServiceKey) {
-  console.warn("SUPABASE_SERVICE_KEY is not set - auth will not work");
-}
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-export const supabaseAdmin = createClient(
-  supabaseUrl || "",
-  supabaseServiceKey || ""
-);
+console.log("[Supabase Init] Client created successfully");
