@@ -1,14 +1,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage-supabase";
 import { GeminiAdapter } from "./ai/gemini";
 import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
 import { z } from "zod";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
-import { db } from "./db";
-import { users, TechStackRecommendationSchema } from "../shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { TechStackRecommendationSchema } from "../shared/schema";
+import { supabaseAdmin } from "./supabase";
 
 // Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
 // Ideally this would be configurable per-user or feature
@@ -217,7 +216,9 @@ export async function registerRoutes(
   // Health check endpoint (public, no auth)
   app.get("/api/health", async (req, res) => {
     try {
-      await db.execute(sql`SELECT 1`);
+      // Test Supabase connection
+      const { error } = await supabaseAdmin.from('users').select('id').limit(1);
+      if (error) throw error;
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     } catch (error) {
       res.status(500).json({ status: "error", message: "Database connection failed" });
@@ -358,7 +359,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
       }
 
       // Check free tier limit
-      const [user] = await db.select().from(users).where(eq(users.id, authReq.user.id));
+      const user = await storage.getUser(authReq.user.id);
       console.log("[CREATE PROJECT] User found:", !!user, "Subscription:", user?.subscriptionStatus);
       
       if (user?.subscriptionStatus === "free") {
