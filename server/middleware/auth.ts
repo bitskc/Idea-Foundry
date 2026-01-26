@@ -1,8 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../supabase";
-import { db } from "../db";
-import { users } from "../../shared/schema";
-import { eq } from "drizzle-orm";
 
 export interface AuthenticatedRequest extends Request {
   user: { id: string; email: string };
@@ -41,26 +38,30 @@ export async function requireAuth(
 
     // Ensure user exists in our database (fallback sync)
     console.log("Checking user in database...");
-    console.log("DATABASE_URL set:", !!process.env.DATABASE_URL);
     
-    const existingUser = await db
+    const { data: existingUser, error: userError } = await supabaseAdmin
+      .from("users")
       .select()
-      .from(users)
-      .where(eq(users.id, data.user.id));
+      .eq("id", data.user.id)
+      .single();
 
-    console.log("Existing user found:", existingUser.length > 0);
+    console.log("Existing user found:", !!existingUser);
 
-    if (existingUser.length === 0) {
+    if (!existingUser) {
       console.log("Creating new user in database...");
-      await db
-        .insert(users)
-        .values({
+      const { error: insertError } = await supabaseAdmin
+        .from("users")
+        .insert({
           id: data.user.id,
           email: data.user.email!,
-          subscriptionStatus: "free",
-        })
-        .onConflictDoNothing();
-      console.log("User created successfully");
+          subscription_status: "free",
+        });
+      
+      if (insertError) {
+        console.error("Failed to create user:", insertError);
+      } else {
+        console.log("User created successfully");
+      }
     }
 
     (req as AuthenticatedRequest).user = {
