@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import type { Project } from "@shared/schema";
+import { api } from "@/lib/api";
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 

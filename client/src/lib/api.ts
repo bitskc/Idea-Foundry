@@ -1,8 +1,14 @@
 import { supabase } from "./supabase";
 
-export async function getAuthHeaders(): Promise<HeadersInit> {
-  const { data } = await supabase.auth.getSession();
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    console.error("[API] Error getting session:", error);
+  }
   const token = data.session?.access_token;
+  if (!token) {
+    console.warn("[API] No auth token available - user may not be logged in");
+  }
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

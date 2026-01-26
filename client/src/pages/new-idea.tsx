@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { api } from "@/lib/api";
 import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +17,7 @@ import {
   Users,
   Target
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 type StartMode = "idea" | "quick" | "problem";
 type DiscoveryPath = "idea_first" | "audience_first";
@@ -122,9 +122,9 @@ export default function NewIdea() {
   const handleQuickStart = async () => {
     setIsCreating(true);
     try {
-      const data = await api.post<{ id: number }>("/api/projects/quick", {
-        rawIdea: idea,
-        type: selectedType,
+      const data = await api.post<{ id: number }>("/api/projects/quick", { 
+        rawIdea: idea, 
+        type: selectedType, 
         notes: idea,
         targetAvatar: avatar.role ? avatar : null,
       });
@@ -154,9 +154,9 @@ export default function NewIdea() {
 
     setIsCreating(true);
     try {
-      const data = await api.post<{ conversation: { id: number } }>("/api/projects", {
-        rawIdea: idea,
-        type: selectedType,
+      const data = await api.post<{ conversation: { id: number } }>("/api/projects", { 
+        rawIdea: idea, 
+        type: selectedType, 
         startMode,
         conversationMode: "supportive",
         targetAvatar: avatar,

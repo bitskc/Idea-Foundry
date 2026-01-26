@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, Sparkles, CheckCircle2, Loader2, Building2, Smartphone, Store, Bot, Globe, Cpu, Wand2, X, Lightbulb, AlertCircle, Shield, Swords, StickyNote, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
 
 type NameSuggestion = {
   name: string;
