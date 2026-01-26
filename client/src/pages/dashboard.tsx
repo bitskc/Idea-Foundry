@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import type { Project } from "@shared/schema";
+import { api } from "@/lib/api";
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
@@ -40,9 +41,7 @@ export default function Dashboard() {
 
   const loadProjects = async () => {
     try {
-      const response = await fetch("/api/projects");
-      if (!response.ok) throw new Error("Failed to load ideas");
-      const data = await response.json();
+      const data = await api.get<Project[]>("/api/projects");
       setProjects(data);
     } catch (error) {
       console.error("Error loading ideas:", error);
@@ -58,8 +57,7 @@ export default function Dashboard() {
 
   const deleteProject = async (id: number) => {
     try {
-      const response = await fetch(`/api/projects/${id}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete idea");
+      await api.delete(`/api/projects/${id}`);
       
       setProjects(prev => prev.filter(p => p.id !== id));
       toast({
@@ -78,12 +76,7 @@ export default function Dashboard() {
 
   const updateIdeaStatus = async (id: number, newStatus: IdeaStatus) => {
     try {
-      const response = await fetch(`/api/projects/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ideaStatus: newStatus }),
-      });
-      if (!response.ok) throw new Error("Failed to update status");
+      await api.patch(`/api/projects/${id}`, { ideaStatus: newStatus });
       
       setProjects(prev => prev.map(p => 
         p.id === id ? { ...p, ideaStatus: newStatus } : p
@@ -114,12 +107,7 @@ export default function Dashboard() {
 
   const saveDescription = async (id: number) => {
     try {
-      const response = await fetch(`/api/projects/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: editingDescription }),
-      });
-      if (!response.ok) throw new Error("Failed to update description");
+      await api.patch(`/api/projects/${id}`, { description: editingDescription });
       
       setProjects(prev => prev.map(p => 
         p.id === id ? { ...p, description: editingDescription } : p
