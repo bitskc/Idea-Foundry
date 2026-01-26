@@ -74,6 +74,14 @@ export async function requireAuth(
     console.error("Error name:", (err as Error).name);
     console.error("Error message:", (err as Error).message);
     console.error("Error stack:", (err as Error).stack);
-    res.status(500).json({ error: "Authentication failed", details: (err as Error).message });
+    console.error("Supabase Admin client state:", {
+      hasClient: !!supabaseAdmin,
+      hasAuth: !!supabaseAdmin?.auth,
+    });
+    res.status(500).json({ 
+      error: "Authentication failed", 
+      details: (err as Error).message,
+      name: (err as Error).name 
+    });
   }
 }
