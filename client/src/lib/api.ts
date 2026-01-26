@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-async function getAuthHeaders(): Promise<HeadersInit> {
+export async function getAuthHeaders(): Promise<HeadersInit> {
   const { data, error } = await supabase.auth.getSession();
   if (error) {
     console.error("[API] Error getting session:", error);

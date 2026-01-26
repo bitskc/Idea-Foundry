@@ -6,6 +6,7 @@ import { Download, FileText, Share2, Loader2, ArrowLeft, RefreshCw, Briefcase, P
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Project, Conversation } from "@shared/schema";
+import { api } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,10 +73,7 @@ export default function PrdView() {
     if (!projectId) return;
     
     try {
-      const response = await fetch(`/api/projects/${projectId}`);
-      if (!response.ok) throw new Error("Failed to load project");
-      
-      const data = await response.json();
+      const data = await api.get<any>(`/api/projects/${projectId}`);
       setProject(data);
       
       // If no PRD content yet, generate it
@@ -100,15 +98,7 @@ export default function PrdView() {
     setIsGenerating(true);
     setCurrentFormat(format);
     try {
-      const response = await fetch(`/api/projects/${projectId}/generate-prd`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format }),
-      });
-      
-      if (!response.ok) throw new Error("Failed to generate PRD");
-      
-      const data = await response.json();
+      const data = await api.post<any>(`/api/projects/${projectId}/generate-prd`, { format });
       setProject(prev => prev ? { ...prev, prdContent: data.prdContent } : null);
       
       const formatLabel = FORMAT_OPTIONS.find(f => f.id === format)?.label || "PRD";
@@ -195,13 +185,7 @@ export default function PrdView() {
     
     setIsGeneratingLandingPage(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/generate-landing-page`, {
-        method: "POST",
-      });
-      
-      if (!response.ok) throw new Error("Failed to generate landing page");
-      
-      const data = await response.json();
+      const data = await api.post<any>(`/api/projects/${projectId}/generate-landing-page`);
       
       // Download the HTML file
       const blob = new Blob([data.html], { type: "text/html" });
@@ -233,13 +217,7 @@ export default function PrdView() {
     
     setIsFindingCommunities(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/find-communities`, {
-        method: "POST",
-      });
-      
-      if (!response.ok) throw new Error("Failed to find communities");
-      
-      const data = await response.json();
+      const data = await api.post<any>(`/api/projects/${projectId}/find-communities`);
       setCommunities(data);
       
       toast({
@@ -263,13 +241,7 @@ export default function PrdView() {
     
     setIsCheckingReality(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/reality-check`, {
-        method: "POST",
-      });
-      
-      if (!response.ok) throw new Error("Failed to run reality check");
-      
-      const data = await response.json();
+      const data = await api.post<any>(`/api/projects/${projectId}/reality-check`);
       setRealityCheck(data);
       
       toast({

@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StickyNote, X, Save, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { api } from "@/lib/api";
 
 interface FloatingNotesProps {
   projectId: number;
@@ -24,12 +25,7 @@ export default function FloatingNotes({ projectId, initialNotes, onNotesUpdate }
   const saveNotes = async () => {
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes }),
-      });
-      if (!response.ok) throw new Error("Failed to save notes");
+      await api.patch(`/api/projects/${projectId}`, { notes });
       toast({ title: "Notes saved" });
       onNotesUpdate?.(notes);
     } catch (error) {

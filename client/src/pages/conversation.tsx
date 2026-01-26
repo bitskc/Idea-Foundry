@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Message, Conversation } from "@shared/schema";
+import { api, getAuthHeaders } from "@/lib/api";
 
 export default function ConversationPage() {
   const [matchApp, paramsApp] = useRoute("/app/conversation/:id");
@@ -177,7 +178,10 @@ export default function ConversationPage() {
     if (!conversationId) return;
     
     try {
-      const response = await fetch(`/api/conversations/${conversationId}`);
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        headers: authHeaders,
+      });
       if (!response.ok) throw new Error("Failed to load conversation");
       
       const data = await response.json();
@@ -186,10 +190,11 @@ export default function ConversationPage() {
       setCurrentSection(data.currentSection || "Problem Statement");
       
       // Get project to sync progress
-      const projectResponse = await fetch(`/api/projects/${data.projectId}`);
-      if (projectResponse.ok) {
-        const projectData = await projectResponse.json();
+      try {
+        const projectData = await api.get<any>(`/api/projects/${data.projectId}`);
         setProgress(projectData.progress || 10);
+      } catch (err) {
+        console.warn("Could not load project progress");
       }
     } catch (error) {
       console.error("Error loading conversation:", error);
@@ -231,9 +236,13 @@ export default function ConversationPage() {
     setMessages(prev => [...prev, typingMsg]);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
         body: JSON.stringify({ content: userMessage }),
       });
 
@@ -356,12 +365,8 @@ export default function ConversationPage() {
                onClick={async () => {
                  // Generate PRD and navigate to view
                  try {
-                   const response = await fetch(`/api/projects/${conversation.projectId}/generate-prd`, {
-                     method: "POST",
-                   });
-                   if (response.ok) {
-                     setLocation(`/app/prd/${conversation.projectId}`);
-                   }
+                   await api.post(`/api/projects/${conversation.projectId}/generate-prd`);
+                   setLocation(`/app/prd/${conversation.projectId}`);
                  } catch (error) {
                    console.error("Error generating PRD:", error);
                  }
