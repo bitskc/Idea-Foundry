@@ -41,6 +41,7 @@ import {
   ChevronUp
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
+import { GitHubRepoLink } from "@/components/github-repo-link";
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
@@ -998,6 +999,13 @@ export default function IdeaDetail() {
                 )}
               </CardContent>
             </Card>
+
+            {/* GitHub Repository */}
+            <GitHubRepoLink
+              projectId={project.id}
+              initialUrl={project.githubRepoUrl}
+              onUpdate={(url) => setProject(prev => prev ? { ...prev, githubRepoUrl: url } : null)}
+            />
 
             {/* Validation Tools */}
             <Card>

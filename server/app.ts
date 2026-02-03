@@ -7,7 +7,18 @@ export async function setupApp() {
     const app = express();
     const httpServer = createServer(app);
 
-    app.use(express.json());
+    // Stripe webhook needs raw body
+    app.use("/api/webhook/stripe", express.raw({ type: "application/json" }));
+    
+    // Use JSON parser for all other routes
+    app.use((req, res, next) => {
+      if (req.path === '/api/webhook/stripe') {
+        next();
+      } else {
+        express.json()(req, res, next);
+      }
+    });
+    
     app.use(express.urlencoded({ extended: false }));
 
     // Request logging middleware

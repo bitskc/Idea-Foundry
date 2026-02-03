@@ -8,6 +8,11 @@ import { z } from "zod";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
 import { TechStackRecommendationSchema } from "../shared/schema";
 import { supabaseAdmin } from "./supabase";
+import { stripe, createCheckoutSession, createPortalSession, getOrCreateCustomer } from "./stripe";
+import Stripe from "stripe";
+import rateLimit from "express-rate-limit";
+import { MCP_TOOLS, executeMcpTool } from "./mcp/index";
+import { validateApiToken } from "./mcp/auth";
 
 // Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
 // Ideally this would be configurable per-user or feature
@@ -222,6 +227,19 @@ export async function registerRoutes(
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     } catch (error) {
       res.status(500).json({ status: "error", message: "Database connection failed" });
+    }
+  });
+
+  // Get current user profile
+  app.get("/api/me", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const user = await storage.getUser(authReq.user.id);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ error: "Failed to fetch user" });
     }
   });
 
@@ -570,6 +588,218 @@ Be realistic and honest in your assessment. Consider market size, competition in
     } catch (error) {
       console.error("Error generating research:", error);
       res.status(500).json({ error: "Failed to generate research" });
+    }
+  });
+
+  // Export project data as structured JSON (US-005)
+  app.get("/api/projects/:id/export", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const format = req.query.format as string | undefined;
+
+      // PRD-only export
+      if (format === "prd") {
+        if (!project.prdContent) {
+          return res.status(404).json({ error: "No PRD generated for this project" });
+        }
+        return res.json({
+          meta: {
+            exportedAt: new Date().toISOString(),
+            version: "1.0",
+            ideaId: project.id,
+            format: "prd",
+          },
+          prd: project.prdContent,
+        });
+      }
+
+      // User stories extraction from PRD
+      if (format === "user-stories") {
+        if (!project.prdContent) {
+          return res.status(404).json({ error: "No PRD generated for this project" });
+        }
+
+        // Parse user stories from PRD markdown (pattern: ### US-XXX: Title)
+        // Using [\s\S] instead of . with 's' flag for cross-line matching
+        const userStoryPattern = /###\s*(US-\d+):\s*([\s\S]+?)(?=\n###|\n##|$)/g;
+        const userStories: Array<{
+          id: string;
+          title: string;
+          description: string;
+          acceptanceCriteria: string[];
+        }> = [];
+
+        let match;
+        while ((match = userStoryPattern.exec(project.prdContent)) !== null) {
+          const storyId = match[1];
+          const content = match[2].trim();
+          const titleMatch = content.match(/^([^\n]+)/);
+          const title = titleMatch ? titleMatch[1].trim() : storyId;
+
+          // Extract acceptance criteria (lines starting with - [ ] or - [x])
+          const acPattern = /-\s*\[[ x]\]\s*(.+)/gi;
+          const acceptanceCriteria: string[] = [];
+          let acMatch;
+          while ((acMatch = acPattern.exec(content)) !== null) {
+            acceptanceCriteria.push(acMatch[1].trim());
+          }
+
+          userStories.push({
+            id: storyId,
+            title,
+            description: content.substring(title.length).trim().split("\n\n")[0] || "",
+            acceptanceCriteria,
+          });
+        }
+
+        return res.json({
+          meta: {
+            exportedAt: new Date().toISOString(),
+            version: "1.0",
+            ideaId: project.id,
+            format: "user-stories",
+          },
+          userStories,
+        });
+      }
+
+      // Full export (default)
+      const exportData = {
+        meta: {
+          exportedAt: new Date().toISOString(),
+          version: "1.0",
+          ideaId: project.id,
+          format: "full",
+        },
+        idea: {
+          id: project.id,
+          title: project.title,
+          description: project.description,
+          type: project.type,
+          status: project.status,
+          ideaStatus: project.ideaStatus,
+          rawIdea: project.rawIdea,
+          githubRepoUrl: project.githubRepoUrl,
+          notes: project.notes,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+        },
+        prd: project.prdContent || null,
+        viability: project.viabilityScore ? {
+          score: project.viabilityScore,
+          breakdown: project.viabilityBreakdown,
+          competitors: project.competitors,
+          insights: project.keyInsights,
+        } : null,
+        techStack: project.techStack || null,
+        targetAvatar: project.targetAvatar || null,
+      };
+
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting project:", error);
+      res.status(500).json({ error: "Failed to export project" });
+    }
+  });
+
+  // Export user stories to GitHub Issues (US-007)
+  app.post("/api/projects/:id/export-github", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { pat, owner, repo, userStories } = req.body;
+
+      if (!pat || typeof pat !== "string") {
+        return res.status(400).json({ error: "GitHub Personal Access Token is required" });
+      }
+      if (!owner || !repo) {
+        return res.status(400).json({ error: "GitHub owner and repo are required" });
+      }
+      if (!Array.isArray(userStories) || userStories.length === 0) {
+        return res.status(400).json({ error: "At least one user story is required" });
+      }
+
+      const created: Array<{ id: string; issueNumber: number; issueUrl: string }> = [];
+      const failed: Array<{ id: string; error: string }> = [];
+
+      for (const story of userStories) {
+        try {
+          // Build issue body with acceptance criteria as checklist
+          let body = `**${story.title}**\n\n`;
+          if (story.description) {
+            body += `${story.description}\n\n`;
+          }
+          if (story.acceptanceCriteria && story.acceptanceCriteria.length > 0) {
+            body += `## Acceptance Criteria\n\n`;
+            for (const ac of story.acceptanceCriteria) {
+              body += `- [ ] ${ac}\n`;
+            }
+          }
+          body += `\n---\n*Exported from Idea Foundry - ${project.title}*`;
+
+          const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${pat}`,
+              "Content-Type": "application/json",
+              Accept: "application/vnd.github.v3+json",
+              "User-Agent": "Idea-Foundry",
+            },
+            body: JSON.stringify({
+              title: `${story.id}: ${story.title}`,
+              body,
+              labels: ["user-story", "from-prd"],
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `HTTP ${response.status}`);
+          }
+
+          const issueData = await response.json();
+          created.push({
+            id: story.id,
+            issueNumber: issueData.number,
+            issueUrl: issueData.html_url,
+          });
+        } catch (error: any) {
+          failed.push({
+            id: story.id,
+            error: error.message || "Unknown error",
+          });
+        }
+      }
+
+      res.json({ created, failed });
+    } catch (error) {
+      console.error("Error exporting to GitHub:", error);
+      res.status(500).json({ error: "Failed to export to GitHub" });
     }
   });
 
@@ -1515,6 +1745,232 @@ Return a JSON object with this structure:
     } catch (error) {
       console.error("Error generating synergies:", error);
       res.status(500).json({ error: "Failed to generate synergy analysis" });
+    }
+  });
+
+  // Stripe Integration
+  app.post("/api/create-checkout-session", async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const user = await storage.getUser(authReq.user.id);
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const customer = await getOrCreateCustomer(user.email, user.username || undefined);
+      
+      if (!user.stripeCustomerId) {
+        await storage.updateUser(user.id, { stripeCustomerId: customer.id });
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+      const returnUrl = `${baseUrl}/app/upgrade`;
+
+      const session = await createCheckoutSession(customer.id, returnUrl, user.id);
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error("Stripe Checkout error:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/create-portal-session", async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const user = await storage.getUser(authReq.user.id);
+      if (!user || !user.stripeCustomerId) {
+        return res.status(400).json({ error: "No subscription found" });
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+      const returnUrl = `${baseUrl}/app/upgrade`;
+
+      const session = await createPortalSession(user.stripeCustomerId, returnUrl);
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error("Stripe Portal error:", error);
+      res.status(500).json({ error: "Failed to create portal session" });
+    }
+  });
+
+  app.post("/api/webhook/stripe", async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
+      console.error("Webhook Error: Missing signature or secret");
+      return res.status(400).send("Webhook Error: Missing signature or secret");
+    }
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      console.error(`Webhook signature verification failed: ${errMessage}`);
+      return res.status(400).send(`Webhook Error: ${errMessage}`);
+    }
+
+    try {
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = session.client_reference_id;
+        const subscriptionId = session.subscription as string | null;
+        
+        if (userId && subscriptionId) {
+            await storage.updateUser(userId, { 
+                subscriptionStatus: 'pro',
+                stripeSubscriptionId: subscriptionId
+            });
+            console.log(`User ${userId} upgraded to Pro`);
+        }
+      } else if (event.type === 'customer.subscription.deleted') {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+        
+        const user = await storage.getUserByStripeCustomerId(customerId);
+        if (user) {
+             await storage.updateUser(user.id, { 
+                 subscriptionStatus: 'free',
+                 stripeSubscriptionId: null
+             });
+             console.log(`User ${user.id} subscription deleted`);
+         }
+      }
+      
+      res.json({ received: true });
+    } catch (error) {
+      console.error("Webhook handler error:", error);
+      res.status(500).send("Webhook handler failed");
+    }
+  });
+
+  // API Token routes (US-008)
+  app.get("/api/tokens", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const tokens = await storage.getApiTokensByUserId(authReq.user.id);
+      res.json(tokens);
+    } catch (error) {
+      console.error("Error fetching tokens:", error);
+      res.status(500).json({ error: "Failed to fetch tokens" });
+    }
+  });
+
+  app.post("/api/tokens", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const { name } = req.body;
+
+      if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        return res.status(400).json({ error: "Token name is required" });
+      }
+
+      const trimmedName = name.trim();
+      if (trimmedName.length > 100) {
+        return res.status(400).json({ error: "Token name must be 100 characters or less" });
+      }
+
+      const result = await storage.createApiToken({
+        userId: authReq.user.id,
+        name: trimmedName,
+        expiresAt: null,
+      });
+
+      res.status(201).json({
+        id: result.metadata.id,
+        name: result.metadata.name,
+        token: result.token, // Only shown once
+        createdAt: result.metadata.createdAt,
+      });
+    } catch (error) {
+      console.error("Error creating token:", error);
+      res.status(500).json({ error: "Failed to create token" });
+    }
+  });
+
+  app.delete("/api/tokens/:id", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      if (!id) {
+        return res.status(400).json({ error: "Token ID is required" });
+      }
+      const tokenId = parseInt(id, 10);
+      if (isNaN(tokenId)) {
+        return res.status(400).json({ error: "Token ID must be a valid number" });
+      }
+
+      // Verify ownership
+      const tokens = await storage.getApiTokensByUserId(authReq.user.id);
+      const tokenExists = tokens.some(t => t.id === tokenId);
+      
+      if (!tokenExists) {
+        return res.status(404).json({ error: "Token not found" });
+      }
+
+      await storage.deleteApiToken(tokenId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting token:", error);
+      res.status(500).json({ error: "Failed to delete token" });
+    }
+  });
+
+  // MCP Server setup (US-001, US-003, US-005, US-006)
+
+  // Rate limiter for MCP endpoints (100 req/min per token)
+  const mcpLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100, // 100 requests per minute
+    keyGenerator: (req) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return req.ip || 'unknown';
+      // Use first 8 chars of token as key for rate limiting
+      return authHeader.slice(0, 20);
+    },
+    handler: (_req, res) => {
+      res.status(429).json({
+        error: "Too many requests",
+        retryAfter: "60s"
+      });
+    },
+  });
+
+  // MCP HTTP endpoint (FR-9)
+  app.post("/api/mcp", mcpLimiter, async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const userId = await validateApiToken(authHeader);
+
+      if (!userId) {
+        return res.status(401).json({ error: "Invalid or missing API token" });
+      }
+
+      // Handle MCP requests (tool calls)
+      const { tool, params } = req.body;
+
+      if (tool) {
+        // Execute the requested tool
+        const result = await executeMcpTool(tool, params || {}, userId);
+        return res.json(result);
+      }
+
+      // Return server capabilities if no specific tool requested
+      res.json({
+        server: "idea-foundry",
+        version: "1.0.0",
+        tools: MCP_TOOLS,
+        resources: [
+          {
+            name: "idea://foundry/{ideaId}",
+            description: "Get full context for an idea including conversation history",
+          },
+        ],
+      });
+    } catch (error) {
+      console.error("MCP endpoint error:", error);
+      res.status(500).json({ error: "MCP server error" });
     }
   });
 

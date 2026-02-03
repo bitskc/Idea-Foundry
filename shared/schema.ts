@@ -9,6 +9,8 @@ export const users = pgTable("users", {
   username: text("username"),
   password: text("password"), // Legacy - unused with Supabase Auth
   subscriptionStatus: text("subscription_status").notNull().default("free"), // 'free' | 'pro'
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
 });
 
 export const projects = pgTable("projects", {
@@ -65,12 +67,24 @@ export const notes = pgTable("notes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const apiTokens = pgTable("api_tokens", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(), // SHA-256 hash of token
+  name: text("name").notNull(), // User-friendly name like "Cursor MCP"
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   id: true,
   email: true,
   username: true,
   subscriptionStatus: true,
+  stripeCustomerId: true,
+  stripeSubscriptionId: true,
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({
@@ -95,6 +109,12 @@ export const insertNoteSchema = createInsertSchema(notes).omit({
   createdAt: true,
 });
 
+export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({
+  id: true,
+  createdAt: true,
+  tokenHash: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -110,6 +130,9 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type Note = typeof notes.$inferSelect;
 export type InsertNote = z.infer<typeof insertNoteSchema>;
+
+export type ApiToken = typeof apiTokens.$inferSelect;
+export type InsertApiToken = z.infer<typeof insertApiTokenSchema>;
 
 // Tech Stack Types
 export interface TechStackItem {

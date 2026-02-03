@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Share2, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle, Clock, AlertTriangle, CheckCircle, Rabbit, ChevronDown, ChevronUp } from "lucide-react";
+import { Download, FileText, Share2, Loader2, ArrowLeft, RefreshCw, Briefcase, Presentation, Code, Globe, Users, ExternalLink, Hash, MessageCircle, Clock, AlertTriangle, CheckCircle, Rabbit, ChevronDown, ChevronUp, Github } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Project, Conversation } from "@shared/schema";
@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GitHubExportDialog } from "@/components/github-export-dialog";
 
 type CommunityData = {
   reddit?: Array<{ name: string; subscribers: string; relevance: string }>;
@@ -59,6 +60,7 @@ export default function PrdView() {
   const [realityCheck, setRealityCheck] = useState<RealityCheckData | null>(null);
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
   const [isPrdExpanded, setIsPrdExpanded] = useState(false);
+  const [isGitHubExportOpen, setIsGitHubExportOpen] = useState(false);
   const { toast } = useToast();
 
   const projectId = params?.id ? parseInt(params.id) : null;
@@ -356,6 +358,10 @@ export default function PrdView() {
                   <FileText className="w-4 h-4 mr-2" />
                   Download JSON
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsGitHubExportOpen(true)} data-testid="export-github">
+                  <Github className="w-4 h-4 mr-2" />
+                  Export to GitHub Issues
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -371,6 +377,15 @@ export default function PrdView() {
             )}
           </div>
         </div>
+
+        {/* GitHub Export Dialog */}
+        <GitHubExportDialog
+          projectId={project.id}
+          projectTitle={project.title}
+          githubRepoUrl={project.githubRepoUrl}
+          open={isGitHubExportOpen}
+          onOpenChange={setIsGitHubExportOpen}
+        />
 
         {/* Validation Tools Section - Now First */}
         <div className="mb-8">

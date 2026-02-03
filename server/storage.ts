@@ -9,22 +9,28 @@ import {
   type InsertMessage,
   type Note,
   type InsertNote,
+  type ApiToken,
+  type InsertApiToken,
   users,
   projects,
   conversations,
   messages,
-  notes
+  notes,
+  apiTokens
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
+import crypto from "crypto";
 
 export interface IStorage {
   // User methods
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByStripeCustomerId(customerId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   upsertUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
 
   // Project methods
   getProjectsByUserId(userId: string): Promise<Project[]>;
@@ -49,6 +55,13 @@ export interface IStorage {
   getNote(id: number): Promise<Note | undefined>;
   createNote(note: InsertNote): Promise<Note>;
   deleteNote(id: number): Promise<void>;
+
+  // API Token methods
+  getApiTokensByUserId(userId: string): Promise<Omit<ApiToken, 'tokenHash'>[]>;
+  getApiTokenByHash(tokenHash: string): Promise<ApiToken | undefined>;
+  createApiToken(token: InsertApiToken): Promise<{ token: string; metadata: Omit<ApiToken, 'tokenHash'> }>;
+  updateApiTokenLastUsed(id: number): Promise<void>;
+  deleteApiToken(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -68,6 +81,11 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByStripeCustomerId(customerId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.stripeCustomerId, customerId));
+    return user;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
@@ -82,6 +100,17 @@ export class DatabaseStorage implements IStorage {
         set: { email: insertUser.email },
       })
       .returning();
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    
+    if (!user) throw new Error("User not found");
     return user;
   }
 
@@ -177,6 +206,55 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNote(id: number): Promise<void> {
     await db.delete(notes).where(eq(notes.id, id));
+  }
+
+  // API Token methods
+  async getApiTokensByUserId(userId: string): Promise<Omit<ApiToken, 'tokenHash'>[]> {
+    const tokens = await db.select({
+      id: apiTokens.id,
+      userId: apiTokens.userId,
+      name: apiTokens.name,
+      lastUsedAt: apiTokens.lastUsedAt,
+      createdAt: apiTokens.createdAt,
+      expiresAt: apiTokens.expiresAt,
+    }).from(apiTokens).where(eq(apiTokens.userId, userId)).orderBy(desc(apiTokens.createdAt));
+    return tokens;
+  }
+
+  async getApiTokenByHash(tokenHash: string): Promise<ApiToken | undefined> {
+    const [token] = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash));
+    return token;
+  }
+
+  async createApiToken(token: InsertApiToken): Promise<{ token: string; metadata: Omit<ApiToken, 'tokenHash'> }> {
+    const randomBytes = crypto.randomBytes(32).toString('hex');
+    const fullToken = `if_sk_${randomBytes}`; // SEC-003: Add identifiable prefix
+    const tokenHash = crypto.createHash('sha256').update(fullToken).digest('hex');
+
+    const [created] = await db.insert(apiTokens).values({
+      ...token,
+      tokenHash,
+    }).returning();
+
+    return {
+      token: fullToken,
+      metadata: {
+        id: created.id,
+        userId: created.userId,
+        name: created.name,
+        lastUsedAt: created.lastUsedAt,
+        createdAt: created.createdAt,
+        expiresAt: created.expiresAt,
+      }
+    };
+  }
+
+  async updateApiTokenLastUsed(id: number): Promise<void> {
+    await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, id));
+  }
+
+  async deleteApiToken(id: number): Promise<void> {
+    await db.delete(apiTokens).where(eq(apiTokens.id, id));
   }
 }
 
