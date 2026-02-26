@@ -1,5 +1,16 @@
-import { storage } from "../storage-supabase";
+import { isDevMode } from "../supabase";
+import { mockStorage } from "../storage-mock";
+import type { IStorage } from "../storage";
 import { validateApiToken } from "./auth";
+
+// Conditionally load storage
+let storage: IStorage;
+if (isDevMode) {
+  storage = mockStorage;
+} else {
+  const { storage: supabaseStorage } = await import("../storage-supabase");
+  storage = supabaseStorage;
+}
 
 /**
  * Define MCP tools available for the Idea Foundry API

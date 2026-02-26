@@ -1,18 +1,29 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage-supabase";
+import { isDevMode } from "./supabase";
 import { GeminiAdapter } from "./ai/gemini";
 import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
 import { z } from "zod";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
 import { TechStackRecommendationSchema } from "../shared/schema";
-import { supabaseAdmin } from "./supabase";
 import { stripe, createCheckoutSession, createPortalSession, getOrCreateCustomer } from "./stripe";
 import Stripe from "stripe";
 import rateLimit from "express-rate-limit";
 import { MCP_TOOLS, executeMcpTool } from "./mcp/index";
 import { validateApiToken } from "./mcp/auth";
+import { mockStorage } from "./storage-mock";
+import type { IStorage } from "./storage";
+
+// Conditionally import storage - avoid loading supabase storage in dev mode
+let storage: IStorage;
+if (isDevMode) {
+  storage = mockStorage;
+} else {
+  // Dynamic import to avoid loading supabaseAdmin when not needed
+  const { storage: supabaseStorage } = await import("./storage-supabase");
+  storage = supabaseStorage;
+}
 
 // Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
 // Ideally this would be configurable per-user or feature
@@ -221,9 +232,12 @@ export async function registerRoutes(
   // Health check endpoint (public, no auth)
   app.get("/api/health", async (req, res) => {
     try {
-      // Test Supabase connection
-      const { error } = await supabaseAdmin.from('users').select('id').limit(1);
-      if (error) throw error;
+      if (isDevMode) {
+        res.json({ status: "ok", mode: "dev", timestamp: new Date().toISOString() });
+        return;
+      }
+      // Test database connection via storage
+      const user = await storage.getUser("health-check-nonexistent");
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     } catch (error) {
       res.status(500).json({ status: "error", message: "Database connection failed" });
@@ -234,7 +248,17 @@ export async function registerRoutes(
   app.get("/api/me", requireAuth, async (req, res) => {
     try {
       const authReq = req as unknown as AuthenticatedRequest;
-      const user = await storage.getUser(authReq.user.id);
+      let user = await storage.getUser(authReq.user.id);
+      
+      // In dev mode, create the user if they don't exist
+      if (!user && isDevMode) {
+        user = await storage.createUser({
+          id: authReq.user.id,
+          email: authReq.user.email,
+          subscriptionStatus: "pro",
+        });
+      }
+      
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json(user);
     } catch (error) {
@@ -1925,10 +1949,14 @@ Return a JSON object with this structure:
     max: 100, // 100 requests per minute
     keyGenerator: (req) => {
       const authHeader = req.headers.authorization;
-      if (!authHeader) return req.ip || 'unknown';
-      // Use first 8 chars of token as key for rate limiting
-      return authHeader.slice(0, 20);
+      if (authHeader) {
+        // Use first 20 chars of auth header as key for rate limiting
+        return authHeader.slice(0, 20);
+      }
+      // Fallback to 'unknown' - don't use IP to avoid IPv6 issues
+      return 'anonymous';
     },
+    validate: { xForwardedForHeader: false }, // Disable IPv6 validation warning
     handler: (_req, res) => {
       res.status(429).json({
         error: "Too many requests",

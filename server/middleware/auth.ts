@@ -1,15 +1,28 @@
 import type { Request, Response, NextFunction } from "express";
-import { supabaseAdmin } from "../supabase";
+import { supabaseAdmin, isDevMode } from "../supabase";
 
 export interface AuthenticatedRequest extends Request {
   user: { id: string; email: string };
 }
+
+// Mock user for dev mode
+const DEV_USER = {
+  id: "dev-user-00000000-0000-0000-0000-000000000001",
+  email: "dev@example.com",
+};
 
 export async function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  // Dev mode: bypass auth entirely
+  if (isDevMode) {
+    (req as AuthenticatedRequest).user = DEV_USER;
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith("Bearer ")) {

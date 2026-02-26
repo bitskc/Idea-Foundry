@@ -13,7 +13,7 @@ function log(message: string, source = "express") {
 (async () => {
   const { httpServer } = await setupApp();
 
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "5050", 10);
   httpServer.listen(
     {
       port,

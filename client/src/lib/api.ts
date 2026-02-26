@@ -1,6 +1,11 @@
-import { supabase } from "./supabase";
+import { supabase, isDevMode } from "./supabase";
 
 export async function getAuthHeaders(): Promise<HeadersInit> {
+  // In dev mode, return a dev token
+  if (isDevMode) {
+    return { Authorization: "Bearer dev_token_for_local_testing" };
+  }
+
   const { data, error } = await supabase.auth.getSession();
   if (error) {
     console.error("[API] Error getting session:", error);

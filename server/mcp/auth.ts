@@ -1,5 +1,19 @@
-import { storage } from "../storage-supabase";
+import { isDevMode } from "../supabase";
+import { mockStorage } from "../storage-mock";
+import type { IStorage } from "../storage";
 import crypto from "crypto";
+
+// Conditionally load storage
+let storage: IStorage;
+if (isDevMode) {
+  storage = mockStorage;
+} else {
+  const { storage: supabaseStorage } = await import("../storage-supabase");
+  storage = supabaseStorage;
+}
+
+// Dev mode user ID
+const DEV_USER_ID = "dev-user-00000000-0000-0000-0000-000000000001";
 
 /**
  * Validates API token and returns user ID if valid
@@ -13,6 +27,12 @@ export async function validateApiToken(authHeader?: string): Promise<string | nu
     if (!match) return null;
 
     const token = match[1];
+    
+    // In dev mode, accept any token starting with "dev_" or "if_sk_dev"
+    if (isDevMode && (token.startsWith("dev_") || token.startsWith("if_sk_dev"))) {
+      return DEV_USER_ID;
+    }
+
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     const apiToken = await storage.getApiTokenByHash(tokenHash);
