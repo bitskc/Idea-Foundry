@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "KUR16VaHuiZ9XhMafJr6a"
+uri = "file://client/public/assets/hero-graphic.png"
+type = "image"
+title = "forge spark abstract hero background"

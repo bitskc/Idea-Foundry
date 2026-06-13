@@ -3,10 +3,11 @@ import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreVertical, Calendar, ArrowRight, Loader2, Trash2, Flame, Lightbulb, Archive, Clock, Pencil, Check, X } from "lucide-react";
+import { Plus, MoreVertical, Calendar, ArrowRight, Loader2, Trash2, Flame, Lightbulb, Archive, Clock, Pencil, Check, X, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { motion } from "framer-motion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,10 +20,23 @@ import type { Project } from "@shared/schema";
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
 const STATUS_CONFIG: Record<IdeaStatus, { label: string; icon: React.ComponentType<{className?: string}>; color: string }> = {
-  exploring: { label: "Exploring", icon: Lightbulb, color: "bg-yellow-500/10 text-yellow-600 border-yellow-200" },
-  active: { label: "Active", icon: Flame, color: "bg-green-500/10 text-green-600 border-green-200" },
-  backburner: { label: "Backburner", icon: Clock, color: "bg-blue-500/10 text-blue-600 border-blue-200" },
-  archived: { label: "Archived", icon: Archive, color: "bg-gray-500/10 text-gray-600 border-gray-200" },
+  exploring: { label: "Exploring", icon: Lightbulb, color: "bg-yellow-500/10 text-yellow-600 border-yellow-200/20" },
+  active: { label: "Active", icon: Flame, color: "bg-green-500/10 text-green-600 border-green-200/20" },
+  backburner: { label: "Backburner", icon: Clock, color: "bg-blue-500/10 text-blue-600 border-blue-200/20" },
+  archived: { label: "Archived", icon: Archive, color: "bg-gray-500/10 text-gray-500 border-gray-200/20" },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 }
+  }
+};
+
+const fadeIn = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } }
 };
 
 export default function Dashboard() {
@@ -163,8 +177,9 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-screen">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-muted-foreground font-medium animate-pulse">Loading your forge...</p>
         </div>
       </AppLayout>
     );
@@ -172,47 +187,50 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="container mx-auto p-6 md:p-10 max-w-6xl">
-        <div className="flex items-center justify-between mb-6">
+      <div className="container mx-auto p-6 md:p-10 max-w-7xl relative">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full pointer-events-none -z-10" />
+        
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
           <div>
-            <h1 className="text-3xl font-display font-bold mb-2">My Ideas</h1>
-            <p className="text-muted-foreground">Your ideas, refined and ready to build.</p>
+            <h1 className="text-4xl md:text-5xl font-display font-black mb-3 tracking-tight">My Foundry</h1>
+            <p className="text-lg text-muted-foreground">Your ideas, refined and ready to build.</p>
           </div>
-          <Button onClick={() => setLocation("/app/new")} className="gap-2" data-testid="button-new-idea">
-            <Plus className="w-4 h-4" /> New Idea
+          <Button onClick={() => setLocation("/app/new")} className="gap-2 h-12 px-6 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all text-base font-semibold shrink-0" data-testid="button-new-idea">
+            <Plus className="w-5 h-5" /> New Idea
           </Button>
         </div>
 
         {/* Status Filter Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2" data-testid="status-filters">
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-2 scrollbar-none" data-testid="status-filters">
           <Button
             variant={activeFilter === "all" ? "default" : "outline"}
             size="sm"
             onClick={() => setActiveFilter("all")}
-            className="shrink-0"
+            className={`shrink-0 rounded-full font-semibold transition-all ${activeFilter === "all" ? "shadow-md shadow-primary/20" : ""}`}
             data-testid="filter-all"
           >
             All Ideas
-            <Badge variant="secondary" className="ml-2 bg-background/50">
+            <Badge variant="secondary" className="ml-2 bg-background/50 rounded-full">
               {projects.filter(p => (p.ideaStatus || "exploring") !== "archived").length}
             </Badge>
           </Button>
           {(Object.entries(STATUS_CONFIG) as [IdeaStatus, typeof STATUS_CONFIG[IdeaStatus]][]).map(([key, config]) => {
             const StatusIcon = config.icon;
             const count = projects.filter(p => (p.ideaStatus || "exploring") === key).length;
+            const isActive = activeFilter === key;
             return (
               <Button
                 key={key}
-                variant={activeFilter === key ? "default" : "outline"}
+                variant={isActive ? "default" : "outline"}
                 size="sm"
                 onClick={() => setActiveFilter(key)}
-                className="shrink-0 gap-1"
+                className={`shrink-0 gap-1.5 rounded-full font-semibold transition-all ${isActive ? "shadow-md shadow-primary/20" : ""}`}
                 data-testid={`filter-${key}`}
               >
                 <StatusIcon className="w-3.5 h-3.5" />
                 {config.label}
                 {count > 0 && (
-                  <Badge variant="secondary" className="ml-1 bg-background/50">
+                  <Badge variant="secondary" className="ml-1.5 bg-background/50 rounded-full">
                     {count}
                   </Badge>
                 )}
@@ -221,188 +239,211 @@ export default function Dashboard() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div 
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
           {/* New Idea Card (Quick Action) */}
-          <div 
-            onClick={() => setLocation("/app/new")}
-            className="group border-2 border-dashed border-muted hover:border-primary/50 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-card/50 hover:bg-card"
-            data-testid="card-new-idea"
-          >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
-              <Plus className="w-6 h-6" />
+          <motion.div variants={fadeIn} data-testid="card-new-idea">
+            <div 
+              onClick={() => setLocation("/app/new")}
+              className="h-full group border-2 border-dashed border-border/60 hover:border-primary/50 rounded-3xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-card/30 hover:bg-primary/5 backdrop-blur-sm shadow-sm hover:shadow-xl hover:shadow-primary/5"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shadow-sm">
+                <Plus className="w-8 h-8" />
+              </div>
+              <h3 className="font-display font-bold text-xl mb-2 tracking-tight">Strike the Anvil</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">Start brainstorming a new concept with your AI sparring partner</p>
             </div>
-            <h3 className="font-semibold text-lg mb-1">Explore New Idea</h3>
-            <p className="text-sm text-muted-foreground">Start brainstorming with your AI sparring partner</p>
-          </div>
+          </motion.div>
 
           {/* Idea Cards */}
           {filteredProjects.map((project) => {
             const statusConfig = getIdeaStatusConfig(project.ideaStatus || "exploring");
             const StatusIcon = statusConfig.icon;
             return (
-              <Card key={project.id} className="group hover:shadow-lg transition-all border-border/60" data-testid={`card-idea-${project.id}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex gap-2 mb-2">
-                      <Badge variant="secondary">{project.type}</Badge>
-                      <Badge variant="outline" className={`${statusConfig.color} gap-1`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {statusConfig.label}
-                      </Badge>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 text-muted-foreground">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "active")}>
-                          <Flame className="w-4 h-4 mr-2 text-green-600" />
-                          Move to Active
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "exploring")}>
-                          <Lightbulb className="w-4 h-4 mr-2 text-yellow-600" />
-                          Move to Exploring
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "backburner")}>
-                          <Clock className="w-4 h-4 mr-2 text-blue-600" />
-                          Move to Backburner
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "archived")}>
-                          <Archive className="w-4 h-4 mr-2 text-gray-600" />
-                          Archive
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => deleteProject(project.id)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <CardTitle 
-                    className="leading-tight group-hover:text-primary transition-colors cursor-pointer hover:underline"
-                    onClick={() => setLocation(`/app/ideas/${project.id}`)}
-                    data-testid={`title-idea-${project.id}`}
-                  >
-                    {project.title}
-                  </CardTitle>
-                  {editingId === project.id ? (
-                    <div className="mt-1 flex gap-2 items-start">
-                      <Input
-                        value={editingDescription}
-                        onChange={(e) => setEditingDescription(e.target.value)}
-                        className="text-sm"
-                        autoFocus
-                        data-testid={`input-edit-description-${project.id}`}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveDescription(project.id);
-                          if (e.key === 'Escape') cancelEditing();
-                        }}
-                      />
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-8 w-8 shrink-0"
-                        onClick={() => saveDescription(project.id)}
-                        data-testid={`button-save-description-${project.id}`}
-                      >
-                        <Check className="w-4 h-4 text-green-600" />
-                      </Button>
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-8 w-8 shrink-0"
-                        onClick={cancelEditing}
-                        data-testid={`button-cancel-edit-${project.id}`}
-                      >
-                        <X className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="group/desc flex items-start gap-1 mt-1">
-                      <CardDescription className="line-clamp-2 flex-1">
-                        {project.description || "No summary yet"}
-                      </CardDescription>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startEditing(project);
-                        }}
-                        className="opacity-0 group-hover/desc:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all shrink-0"
-                        data-testid={`button-edit-description-${project.id}`}
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="pb-3">
-                  {project.viabilityScore && (
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs text-muted-foreground">Viability</span>
-                      <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-500 ${
-                            project.viabilityScore >= 7 ? 'bg-green-500' : 
-                            project.viabilityScore >= 4 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`} 
-                          style={{ width: `${project.viabilityScore * 10}%` }}
-                        />
+              <motion.div key={project.id} variants={fadeIn}>
+                <Card className="h-full group hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 border-border/40 bg-card/80 backdrop-blur-md rounded-3xl overflow-hidden flex flex-col" data-testid={`card-idea-${project.id}`}>
+                  <CardHeader className="pb-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary" className="rounded-full bg-secondary/50 font-semibold">{project.type}</Badge>
+                        <Badge variant="outline" className={`rounded-full ${statusConfig.color} gap-1.5 border font-semibold backdrop-blur-md`}>
+                          <StatusIcon className="w-3 h-3" />
+                          {statusConfig.label}
+                        </Badge>
                       </div>
-                      <span className="text-sm font-semibold">{project.viabilityScore}/10</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 text-muted-foreground hover:bg-muted/50 rounded-full">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl border-border/40 shadow-xl">
+                          <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "active")} className="rounded-lg cursor-pointer">
+                            <Flame className="w-4 h-4 mr-2 text-green-500" />
+                            Move to Active
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "exploring")} className="rounded-lg cursor-pointer">
+                            <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
+                            Move to Exploring
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "backburner")} className="rounded-lg cursor-pointer">
+                            <Clock className="w-4 h-4 mr-2 text-blue-500" />
+                            Move to Backburner
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateIdeaStatus(project.id, "archived")} className="rounded-lg cursor-pointer">
+                            <Archive className="w-4 h-4 mr-2 text-gray-500" />
+                            Archive
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => deleteProject(project.id)}
+                            className="text-destructive rounded-lg cursor-pointer focus:bg-destructive/10 focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  )}
-                  <div className="flex justify-between text-xs text-muted-foreground mb-2">
-                    <span>Progress</span>
-                    <span>{project.progress}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-500" 
-                      style={{ width: `${project.progress}%` }}
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-3 border-t flex justify-between items-center text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {formatDate(project.updatedAt)}
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 gap-1 hover:text-primary p-0 hover:bg-transparent"
-                    onClick={() => {
-                      setLocation(`/app/ideas/${project.id}`);
-                    }}
-                    data-testid={`button-view-${project.id}`}
-                  >
-                    View Idea <ArrowRight className="w-3 h-3" />
-                  </Button>
-                </CardFooter>
-              </Card>
+                    <CardTitle 
+                      className="font-display font-bold text-xl leading-tight group-hover:text-primary transition-colors cursor-pointer"
+                      onClick={() => setLocation(`/app/ideas/${project.id}`)}
+                      data-testid={`title-idea-${project.id}`}
+                    >
+                      {project.title}
+                    </CardTitle>
+                    {editingId === project.id ? (
+                      <div className="mt-3 flex gap-2 items-start">
+                        <Input
+                          value={editingDescription}
+                          onChange={(e) => setEditingDescription(e.target.value)}
+                          className="text-sm rounded-lg bg-background/50 border-primary/30 focus-visible:ring-primary/30"
+                          autoFocus
+                          data-testid={`input-edit-description-${project.id}`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveDescription(project.id);
+                            if (e.key === 'Escape') cancelEditing();
+                          }}
+                        />
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-9 w-9 shrink-0 rounded-lg hover:bg-green-500/10 hover:text-green-500 transition-colors"
+                          onClick={() => saveDescription(project.id)}
+                          data-testid={`button-save-description-${project.id}`}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-9 w-9 shrink-0 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          onClick={cancelEditing}
+                          data-testid={`button-cancel-edit-${project.id}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="group/desc flex items-start gap-1 mt-2">
+                        <CardDescription className="line-clamp-2 flex-1 text-sm leading-relaxed">
+                          {project.description || "No summary yet. Add a brief description to remember the core concept."}
+                        </CardDescription>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditing(project);
+                          }}
+                          className="opacity-0 group-hover/desc:opacity-100 p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-all shrink-0"
+                          data-testid={`button-edit-description-${project.id}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </CardHeader>
+                  <CardContent className="pb-5 mt-auto">
+                    {project.viabilityScore && (
+                      <div className="flex items-center gap-3 mb-4 bg-muted/30 p-2.5 rounded-xl border border-border/30">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Viability</span>
+                        <div className="flex-1 h-1.5 bg-background rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-700 ease-out ${
+                              project.viabilityScore >= 7 ? 'bg-green-500' : 
+                              project.viabilityScore >= 4 ? 'bg-yellow-500' : 'bg-destructive'
+                            }`} 
+                            style={{ width: `${project.viabilityScore * 10}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold w-6 text-right">{project.viabilityScore}<span className="text-muted-foreground/50">/10</span></span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+                      <span>Progress</span>
+                      <span className="text-foreground">{project.progress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-secondary/50 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-700 ease-out" 
+                        style={{ width: `${project.progress}%` }}
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="pt-4 pb-4 border-t border-border/40 flex justify-between items-center text-xs text-muted-foreground bg-muted/10">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {formatDate(project.updatedAt)}
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 gap-1.5 hover:text-primary p-0 hover:bg-transparent font-bold"
+                      onClick={() => {
+                        setLocation(`/app/ideas/${project.id}`);
+                      }}
+                      data-testid={`button-view-${project.id}`}
+                    >
+                      View details <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
 
         {filteredProjects.length === 0 && projects.length > 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No ideas in this category.</p>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="text-center py-20 bg-card/30 rounded-3xl border border-border/40 mt-8 backdrop-blur-sm"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4 text-muted-foreground">
+              <Archive className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-display font-bold mb-2">No ideas here</h3>
+            <p className="text-muted-foreground">Try changing your filter to see other projects.</p>
+          </motion.div>
         )}
 
         {projects.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No ideas yet. Let's start exploring!</p>
-            <Button onClick={() => setLocation("/app/new")} className="gap-2">
-              <Plus className="w-4 h-4" /> Start Your First Idea
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="text-center py-24 bg-card/30 rounded-3xl border border-border/40 mt-8 backdrop-blur-sm relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6 text-primary shadow-inner">
+              <Sparkles className="w-10 h-10" />
+            </div>
+            <h3 className="text-2xl font-display font-bold mb-3 tracking-tight">Your forge is empty</h3>
+            <p className="text-muted-foreground mb-8 max-w-md mx-auto text-lg">Every great product starts as a raw idea. Strike the anvil and see what takes shape.</p>
+            <Button onClick={() => setLocation("/app/new")} className="gap-2 h-12 px-8 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all text-base font-semibold">
+              <Plus className="w-5 h-5" /> Start Forging
             </Button>
-          </div>
+          </motion.div>
         )}
       </div>
     </AppLayout>

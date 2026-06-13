@@ -15,7 +15,9 @@ import {
   ArrowRight,
   Sparkles,
   Users,
-  Target
+  Target,
+  Flame,
+  ChevronLeft
 } from "lucide-react";
 
 type StartMode = "idea" | "quick" | "problem";
@@ -48,6 +50,13 @@ const COMPANY_SIZES = [
   { id: "enterprise", label: "Enterprise (200+)" },
   { id: "consumer", label: "Individual Consumer" },
 ];
+
+const slideUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 },
+  transition: { duration: 0.4, ease: "easeOut" as const }
+};
 
 export default function NewIdea() {
   const [, setLocation] = useLocation();
@@ -193,55 +202,41 @@ export default function NewIdea() {
 
   return (
     <AppLayout showBackButton backTo="/app">
-      <div className="container mx-auto px-6 py-8 max-w-2xl">
+      <div className="container mx-auto px-6 py-10 max-w-3xl relative">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 blur-[100px] rounded-full pointer-events-none -z-10" />
+        
         <AnimatePresence mode="wait">
           {step === "mode" && (
-            <motion.div
-              key="mode-step"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <h1 className="text-3xl font-display font-bold mb-2">
-                Start a New Idea
-              </h1>
-              <p className="text-muted-foreground mb-8">
-                Choose how you want to begin
-              </p>
+            <motion.div {...slideUp} key="mode-step">
+              <div className="text-center mb-10">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-orange-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/20">
+                  <Flame className="w-8 h-8 text-white" />
+                </div>
+                <h1 className="text-4xl md:text-5xl font-display font-black mb-4 tracking-tight">
+                  Start Forging
+                </h1>
+                <p className="text-lg text-muted-foreground max-w-lg mx-auto">
+                  Choose your approach to shape your next concept into reality.
+                </p>
+              </div>
 
               <div className="space-y-4">
                 <button
                   onClick={() => handleSelectMode("idea")}
-                  className="group w-full p-6 rounded-xl border-2 border-border bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-primary hover:shadow-xl hover:shadow-primary/10 hover:bg-primary/5 transition-all duration-300 text-left relative overflow-hidden"
                   data-testid="mode-idea"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <MessageSquare className="w-6 h-6 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">Explore with AI</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Have a conversation to develop your idea, get feedback, and build a PRD
-                      </p>
-                    </div>
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-primary" />
                   </div>
-                </button>
-
-                <button
-                  onClick={() => handleSelectMode("quick")}
-                  className="group w-full p-6 rounded-xl border-2 border-border bg-card hover:border-yellow-500/50 hover:bg-yellow-500/5 transition-all text-left"
-                  data-testid="mode-quick"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center group-hover:bg-yellow-500/20 transition-colors">
-                      <StickyNote className="w-6 h-6 text-yellow-500" />
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shrink-0">
+                      <MessageSquare className="w-7 h-7 text-primary group-hover:text-primary-foreground" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">Quick Capture</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Jot it down for later. No AI conversation - marinate on it first
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Explore with AI Strategist</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        Have a deep conversation to pressure-test your idea, get instant feedback, and output a dev-ready PRD.
                       </p>
                     </div>
                   </div>
@@ -249,17 +244,41 @@ export default function NewIdea() {
 
                 <button
                   onClick={() => handleSelectMode("problem")}
-                  className="group w-full p-6 rounded-xl border-2 border-border bg-card hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left"
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-cyan-500 hover:shadow-xl hover:shadow-cyan-500/10 hover:bg-cyan-500/5 transition-all duration-300 text-left relative overflow-hidden"
                   data-testid="mode-problem"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
-                      <AlertCircle className="w-6 h-6 text-cyan-500" />
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-cyan-500" />
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300 shrink-0">
+                      <AlertCircle className="w-7 h-7 text-cyan-500 group-hover:text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">Start with a Problem</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Spotted a pain point? Brainstorm solutions together
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Start with a Problem</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        Spotted a pain point but no solution yet? We'll brainstorm together to find the right angle.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleSelectMode("quick")}
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-yellow-500 hover:shadow-xl hover:shadow-yellow-500/10 hover:bg-yellow-500/5 transition-all duration-300 text-left relative overflow-hidden"
+                  data-testid="mode-quick"
+                >
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-yellow-600" />
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-yellow-500/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-yellow-500 group-hover:text-white transition-all duration-300 shrink-0">
+                      <StickyNote className="w-7 h-7 text-yellow-600 group-hover:text-white" />
+                    </div>
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Quick Capture</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        Just jot down the spark of inspiration. Save it to your foundry and expand on it when you have more time.
                       </p>
                     </div>
                   </div>
@@ -269,47 +288,43 @@ export default function NewIdea() {
           )}
 
           {step === "input" && (
-            <motion.div
-              key="input-step"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Button variant="ghost" onClick={() => setStep("mode")} className="mb-4 -ml-2">
-                Back
+            <motion.div {...slideUp} key="input-step">
+              <Button variant="ghost" onClick={() => setStep("mode")} className="mb-6 -ml-3 font-semibold text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="w-4 h-4 mr-1" /> Back to choices
               </Button>
 
-              {startMode === "idea" ? (
-                <>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">
-                    <Lightbulb className="w-3 h-3" />
-                    Explore with AI
-                  </div>
-                  <h2 className="text-2xl font-display font-bold mb-2">What's your product idea?</h2>
-                  <p className="text-muted-foreground mb-6">Describe your vision and we'll explore it together.</p>
-                </>
-              ) : startMode === "quick" ? (
-                <>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-600 text-xs font-medium mb-4">
-                    <StickyNote className="w-3 h-3" />
-                    Quick Capture
-                  </div>
-                  <h2 className="text-2xl font-display font-bold mb-2">Capture your idea</h2>
-                  <p className="text-muted-foreground mb-6">Jot it down quickly. Explore with AI whenever you're ready.</p>
-                </>
-              ) : (
-                <>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-500 text-xs font-medium mb-4">
-                    <AlertCircle className="w-3 h-3" />
-                    Start with a Problem
-                  </div>
-                  <h2 className="text-2xl font-display font-bold mb-2">What problem have you spotted?</h2>
-                  <p className="text-muted-foreground mb-6">Describe the pain point and we'll brainstorm solutions.</p>
-                </>
-              )}
+              <div className="mb-8">
+                {startMode === "idea" ? (
+                  <>
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-bold tracking-wide uppercase mb-4">
+                      <Lightbulb className="w-4 h-4" />
+                      Explore with AI
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-display font-black mb-3 tracking-tight">What's your product idea?</h2>
+                    <p className="text-lg text-muted-foreground">Describe your vision and we'll forge it together.</p>
+                  </>
+                ) : startMode === "quick" ? (
+                  <>
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow-500/10 text-yellow-600 text-sm font-bold tracking-wide uppercase mb-4">
+                      <StickyNote className="w-4 h-4" />
+                      Quick Capture
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-display font-black mb-3 tracking-tight">Capture the spark</h2>
+                    <p className="text-lg text-muted-foreground">Jot it down quickly before you lose it.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 text-cyan-600 text-sm font-bold tracking-wide uppercase mb-4">
+                      <AlertCircle className="w-4 h-4" />
+                      Problem First
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-display font-black mb-3 tracking-tight">What problem have you spotted?</h2>
+                    <p className="text-lg text-muted-foreground">Describe the pain point and we'll brainstorm solutions.</p>
+                  </>
+                )}
+              </div>
 
-              <div className="bg-card border border-border rounded-xl p-4 mb-6">
+              <div className="bg-card/50 backdrop-blur-sm border-2 border-border/60 rounded-3xl p-6 mb-8 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 transition-all shadow-sm">
                 <Textarea
                   placeholder={
                     startMode === "idea"
@@ -318,60 +333,60 @@ export default function NewIdea() {
                       ? "e.g., SaaS for meal prep planning with AI-generated shopping lists..."
                       : "e.g., Small business owners waste 10+ hours a week on invoicing..."
                   }
-                  className="resize-none border-none shadow-none focus-visible:ring-0 text-base min-h-[120px] bg-transparent p-0"
+                  className="resize-none border-none shadow-none focus-visible:ring-0 text-lg min-h-[200px] bg-transparent p-0 placeholder:text-muted-foreground/60 leading-relaxed"
                   value={idea}
                   onChange={(e) => setIdea(e.target.value)}
                   disabled={isCreating}
                   data-testid="input-idea"
+                  autoFocus
                 />
-                <div className="text-xs text-muted-foreground mt-2">
-                  {idea.length}/10 min characters
+                <div className="flex justify-between items-center text-sm mt-4 pt-4 border-t border-border/40">
+                  <span className="text-muted-foreground font-medium">Be as rough or detailed as you want.</span>
+                  <span className={`font-semibold ${idea.length >= 10 ? "text-green-500" : "text-muted-foreground"}`}>
+                    {idea.length}/10 min chars
+                  </span>
                 </div>
               </div>
 
               <Button 
                 onClick={handleContinue}
                 disabled={idea.length < 10}
-                className="w-full"
+                className="w-full h-14 text-lg rounded-2xl shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all font-semibold"
                 size="lg"
               >
-                Continue <ArrowRight className="w-4 h-4 ml-2" />
+                Continue <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </motion.div>
           )}
 
           {step === "type" && (
-            <motion.div
-              key="type-step"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Button variant="ghost" onClick={() => setStep("input")} className="mb-4 -ml-2">
-                Back
+            <motion.div {...slideUp} key="type-step">
+              <Button variant="ghost" onClick={() => setStep("input")} className="mb-6 -ml-3 font-semibold text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="w-4 h-4 mr-1" /> Back
               </Button>
 
-              <h2 className="text-2xl font-display font-bold mb-2">What type of product?</h2>
-              <p className="text-muted-foreground mb-6">This helps us ask the right questions.</p>
+              <h2 className="text-3xl md:text-4xl font-display font-black mb-3 tracking-tight">What type of product?</h2>
+              <p className="text-lg text-muted-foreground mb-8">This helps shape the market analysis and PRD structure.</p>
 
-              <div className="grid grid-cols-2 gap-3 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
                 {AUDIENCE_TYPES.map((type) => {
                   const isSelected = selectedType === type.id;
                   return (
                     <button
                       key={type.id}
                       onClick={() => setSelectedType(type.id)}
-                      className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      className={`p-6 rounded-3xl border-2 text-left transition-all duration-200 flex items-start gap-4 ${
                         isSelected
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/50"
+                          ? "border-primary bg-primary/5 shadow-md shadow-primary/10 scale-[1.02]"
+                          : "border-border/60 bg-card/50 hover:border-primary/50 hover:bg-card hover:shadow-md"
                       }`}
                       data-testid={`type-${type.id}`}
                     >
-                      <div className="text-2xl mb-2">{type.icon}</div>
-                      <div className="font-medium">{type.label}</div>
-                      <div className="text-xs text-muted-foreground">{type.description}</div>
+                      <div className="text-3xl mt-1">{type.icon}</div>
+                      <div>
+                        <div className="font-bold text-lg mb-1">{type.label}</div>
+                        <div className="text-sm text-muted-foreground">{type.description}</div>
+                      </div>
                     </button>
                   );
                 })}
@@ -380,24 +395,24 @@ export default function NewIdea() {
               <Button
                 onClick={handleTypeSelected}
                 disabled={!selectedType || isCreating}
-                className="w-full"
+                className="w-full h-14 text-lg rounded-2xl shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all font-semibold"
                 size="lg"
               >
                 {startMode === "quick" ? (
                   isCreating ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Forging...
                     </>
                   ) : (
                     <>
-                      <StickyNote className="w-4 h-4 mr-2" />
-                      Capture Idea
+                      <StickyNote className="w-5 h-5 mr-2" />
+                      Save to Foundry
                     </>
                   )
                 ) : (
                   <>
-                    Continue <ArrowRight className="w-4 h-4 ml-2" />
+                    Continue <ArrowRight className="w-5 h-5 ml-2" />
                   </>
                 )}
               </Button>
@@ -405,32 +420,31 @@ export default function NewIdea() {
           )}
 
           {step === "purpose" && (
-            <motion.div
-              key="purpose-step"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Button variant="ghost" onClick={() => setStep("type")} className="mb-4 -ml-2">
-                Back
+            <motion.div {...slideUp} key="purpose-step">
+              <Button variant="ghost" onClick={() => setStep("type")} className="mb-6 -ml-3 font-semibold text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="w-4 h-4 mr-1" /> Back
               </Button>
 
-              <h2 className="text-2xl font-display font-bold mb-2">What's the purpose?</h2>
-              <p className="text-muted-foreground mb-6">This helps us focus on what matters most for your situation.</p>
+              <h2 className="text-3xl md:text-4xl font-display font-black mb-3 tracking-tight">What's the goal?</h2>
+              <p className="text-lg text-muted-foreground mb-8">This focuses the AI on what matters most for your situation.</p>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <button
                   onClick={() => handlePurposeSelected("monetize")}
-                  className="group w-full p-5 rounded-xl border-2 border-border bg-card hover:border-green-500/50 hover:bg-green-500/5 transition-all text-left"
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-green-500 hover:shadow-xl hover:shadow-green-500/10 hover:bg-green-500/5 transition-all duration-300 text-left relative overflow-hidden"
                   data-testid="purpose-monetize"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="text-2xl">💰</div>
-                    <div>
-                      <h3 className="font-semibold mb-1">Build a business</h3>
-                      <p className="text-sm text-muted-foreground">
-                        I want to make money from this - sell it to customers
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-green-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-all duration-300 shrink-0">
+                      💰
+                    </div>
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Build a Business</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        I want to validate market demand, analyze competitors, and build a profitable product.
                       </p>
                     </div>
                   </div>
@@ -438,15 +452,20 @@ export default function NewIdea() {
 
                 <button
                   onClick={() => handlePurposeSelected("internal")}
-                  className="group w-full p-5 rounded-xl border-2 border-border bg-card hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left"
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-blue-500 hover:shadow-xl hover:shadow-blue-500/10 hover:bg-blue-500/5 transition-all duration-300 text-left relative overflow-hidden"
                   data-testid="purpose-internal"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="text-2xl">🏢</div>
-                    <div>
-                      <h3 className="font-semibold mb-1">Internal tool or feature</h3>
-                      <p className="text-sm text-muted-foreground">
-                        For my team, company, or an existing product
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-all duration-300 shrink-0">
+                      🏢
+                    </div>
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Internal Tool / Feature</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        I'm building this for an existing team, company, or as a feature for an existing product.
                       </p>
                     </div>
                   </div>
@@ -454,15 +473,20 @@ export default function NewIdea() {
 
                 <button
                   onClick={() => handlePurposeSelected("personal")}
-                  className="group w-full p-5 rounded-xl border-2 border-border bg-card hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-left"
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-purple-500 hover:shadow-xl hover:shadow-purple-500/10 hover:bg-purple-500/5 transition-all duration-300 text-left relative overflow-hidden"
                   data-testid="purpose-personal"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="text-2xl">🧪</div>
-                    <div>
-                      <h3 className="font-semibold mb-1">Personal project</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Just for me, learning, or experimenting
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-purple-500" />
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-all duration-300 shrink-0">
+                      🧪
+                    </div>
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Personal Project</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        I'm building this for myself, to learn a new technology, or just for fun.
                       </p>
                     </div>
                   </div>
@@ -472,40 +496,37 @@ export default function NewIdea() {
           )}
 
           {step === "discovery" && (
-            <motion.div
-              key="discovery-step"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Button variant="ghost" onClick={() => setStep("purpose")} className="mb-4 -ml-2">
-                Back
+            <motion.div {...slideUp} key="discovery-step">
+              <Button variant="ghost" onClick={() => setStep("purpose")} className="mb-6 -ml-3 font-semibold text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="w-4 h-4 mr-1" /> Back
               </Button>
 
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-600 text-xs font-medium mb-4">
-                <Sparkles className="w-3 h-3" />
-                Building a Business
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 text-green-600 text-sm font-bold tracking-wide uppercase mb-4">
+                <Sparkles className="w-4 h-4" />
+                Business Focus
               </div>
-              <h2 className="text-2xl font-display font-bold mb-2">Where do you want to start?</h2>
-              <p className="text-muted-foreground mb-6">
-                Choose your approach to finding product-market fit.
+              <h2 className="text-3xl md:text-4xl font-display font-black mb-3 tracking-tight">Your starting point?</h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                How are you approaching product-market fit?
               </p>
 
               <div className="space-y-4">
                 <button
                   onClick={() => handleDiscoverySelected("audience_first")}
-                  className="group w-full p-6 rounded-xl border-2 border-border bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-primary hover:shadow-xl hover:shadow-primary/10 hover:bg-primary/5 transition-all duration-300 text-left relative overflow-hidden"
                   data-testid="discovery-audience"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <Users className="w-6 h-6 text-primary" />
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shrink-0">
+                      <Users className="w-7 h-7 text-primary group-hover:text-primary-foreground" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">I have an existing audience</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Email list, social following, community, or existing customers. Let's build something they'll buy.
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Audience First</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        I already have access to an audience (email list, community, existing customers) and want to build what they need.
                       </p>
                     </div>
                   </div>
@@ -513,17 +534,20 @@ export default function NewIdea() {
 
                 <button
                   onClick={() => handleDiscoverySelected("idea_first")}
-                  className="group w-full p-6 rounded-xl border-2 border-border bg-card hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left"
+                  className="group w-full p-6 md:p-8 rounded-3xl border-2 border-border/60 bg-card hover:border-cyan-500 hover:shadow-xl hover:shadow-cyan-500/10 hover:bg-cyan-500/5 transition-all duration-300 text-left relative overflow-hidden"
                   data-testid="discovery-idea"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
-                      <Lightbulb className="w-6 h-6 text-cyan-500" />
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all">
+                    <ArrowRight className="w-6 h-6 text-cyan-600" />
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300 shrink-0">
+                      <Lightbulb className="w-7 h-7 text-cyan-600 group-hover:text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">I'm starting with the idea</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Let's figure out who would pay for this and how to position it for maximum impact.
+                    <div className="pr-8">
+                      <h3 className="text-xl font-display font-bold mb-2">Idea First</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        I have a specific concept or solution in mind, and need to figure out who needs it most and how to position it.
                       </p>
                     </div>
                   </div>
@@ -533,147 +557,115 @@ export default function NewIdea() {
           )}
 
           {step === "avatar" && (
-            <motion.div
-              key="avatar-step"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Button variant="ghost" onClick={() => setStep(ideaPurpose === "monetize" ? "discovery" : "purpose")} className="mb-4 -ml-2">
-                Back
+            <motion.div {...slideUp} key="avatar-step">
+              <Button variant="ghost" onClick={() => setStep(ideaPurpose === "monetize" ? "discovery" : "purpose")} className="mb-6 -ml-3 font-semibold text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="w-4 h-4 mr-1" /> Back
               </Button>
 
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-600 text-xs font-medium mb-4">
-                <Target className="w-3 h-3" />
-                Define Your Customer
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 text-purple-600 text-sm font-bold tracking-wide uppercase mb-4">
+                <Target className="w-4 h-4" />
+                Target Customer
               </div>
-              <h2 className="text-2xl font-display font-bold mb-2">Who are you building for?</h2>
-              <p className="text-muted-foreground mb-6">
-                The more specific your target customer, the better your MVP and marketing will be.
+              <h2 className="text-3xl md:text-4xl font-display font-black mb-3 tracking-tight">Who is this for?</h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                A sharp focus on the user makes the Forge much more accurate.
               </p>
 
-              <div className="space-y-6">
+              <div className="space-y-6 bg-card/50 backdrop-blur-sm border border-border/60 rounded-3xl p-6 md:p-8 shadow-sm">
                 <div>
-                  <label className="block text-sm font-medium mb-2">
-                    <Users className="w-4 h-4 inline mr-2" />
+                  <label className="block text-sm font-bold mb-2 tracking-tight">
+                    <Users className="w-4 h-4 inline mr-2 text-primary" />
                     Who is your ideal customer? <span className="text-destructive">*</span>
                   </label>
                   <Input
                     placeholder={isB2B 
                       ? "e.g., Marketing managers at mid-sized e-commerce companies" 
-                      : "e.g., Busy parents who meal prep on weekends"
+                      : "e.g., Busy parents looking for healthy dinner options"
                     }
                     value={avatar.role}
                     onChange={(e) => setAvatar({ ...avatar, role: e.target.value })}
+                    className="h-12 bg-background/50 border-border/60 text-base rounded-xl focus-visible:ring-primary/30"
                     data-testid="input-avatar-role"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Be specific: job title, life situation, or defining characteristic
-                  </p>
                 </div>
 
-                {isB2B && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        What industry are they in?
-                      </label>
-                      <Input
-                        placeholder="e.g., E-commerce, Healthcare, Construction"
-                        value={avatar.industry}
-                        onChange={(e) => setAvatar({ ...avatar, industry: e.target.value })}
-                        data-testid="input-avatar-industry"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Company size
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {COMPANY_SIZES.filter(s => s.id !== "consumer").map((size) => (
-                          <button
-                            key={size.id}
-                            onClick={() => setAvatar({ ...avatar, companySize: size.id })}
-                            className={`p-2 text-sm rounded-lg border transition-all ${
-                              avatar.companySize === size.id
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/50"
-                            }`}
-                            data-testid={`size-${size.id}`}
-                          >
-                            {size.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
                 <div>
-                  <label className="block text-sm font-medium mb-2">
-                    What's their biggest pain point? <span className="text-destructive">*</span>
+                  <label className="block text-sm font-bold mb-2 tracking-tight">
+                    <AlertCircle className="w-4 h-4 inline mr-2 text-primary" />
+                    What is their primary pain point? <span className="text-destructive">*</span>
                   </label>
                   <Textarea
-                    placeholder={isB2B 
-                      ? "e.g., They spend 10+ hours/week manually updating spreadsheets and can't get real-time data"
-                      : "e.g., They don't have time to plan healthy meals and end up ordering takeout"
-                    }
+                    placeholder="What problem are they struggling with that your idea solves?"
                     value={avatar.painPoints}
                     onChange={(e) => setAvatar({ ...avatar, painPoints: e.target.value })}
-                    className="min-h-[80px]"
+                    className="min-h-[100px] resize-none bg-background/50 border-border/60 text-base rounded-xl focus-visible:ring-primary/30"
                     data-testid="input-avatar-pain"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    What does success look like for them?
-                  </label>
-                  <Textarea
-                    placeholder={isB2B 
-                      ? "e.g., Save 5+ hours/week, reduce errors by 90%, impress their boss with real-time dashboards"
-                      : "e.g., Eat healthier, save money on food, spend more time with family"
-                    }
-                    value={avatar.goals}
-                    onChange={(e) => setAvatar({ ...avatar, goals: e.target.value })}
-                    className="min-h-[80px]"
-                    data-testid="input-avatar-goals"
-                  />
+                <div className="pt-4 border-t border-border/40">
+                  <p className="text-sm font-bold text-muted-foreground mb-4 uppercase tracking-wider">Optional Details</p>
+                  
+                  {isB2B && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div>
+                        <label className="block text-sm font-semibold mb-2 text-muted-foreground">Industry</label>
+                        <Input
+                          placeholder="e.g., Healthcare, E-commerce"
+                          value={avatar.industry}
+                          onChange={(e) => setAvatar({ ...avatar, industry: e.target.value })}
+                          className="bg-background/50 rounded-xl focus-visible:ring-primary/30"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-2 text-muted-foreground">Company Size</label>
+                        <select
+                          className="flex h-10 w-full items-center justify-between rounded-xl border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          value={avatar.companySize}
+                          onChange={(e) => setAvatar({ ...avatar, companySize: e.target.value })}
+                        >
+                          <option value="">Select size...</option>
+                          {COMPANY_SIZES.map(size => (
+                            <option key={size.id} value={size.id}>{size.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-muted-foreground">How do they solve this today?</label>
+                    <Input
+                      placeholder="e.g., Using messy Excel spreadsheets, hiring expensive agencies"
+                      value={avatar.currentSolution}
+                      onChange={(e) => setAvatar({ ...avatar, currentSolution: e.target.value })}
+                      className="bg-background/50 rounded-xl focus-visible:ring-primary/30"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    How do they solve this problem today?
-                  </label>
-                  <Input
-                    placeholder="e.g., Excel spreadsheets, a competitor product, or doing it manually"
-                    value={avatar.currentSolution}
-                    onChange={(e) => setAvatar({ ...avatar, currentSolution: e.target.value })}
-                    data-testid="input-avatar-current"
-                  />
+                <div className="pt-6">
+                  <Button
+                    onClick={handleStart}
+                    disabled={isCreating || !avatar.role || !avatar.painPoints}
+                    className="w-full h-14 text-lg rounded-2xl shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all font-semibold"
+                    size="lg"
+                    data-testid="button-start-forge"
+                  >
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Firing up the Forge...
+                      </>
+                    ) : (
+                      <>
+                        <Flame className="w-5 h-5 mr-2" />
+                        Enter the Forge
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
-
-              <Button
-                onClick={handleStart}
-                disabled={!avatar.role || !avatar.painPoints || isCreating}
-                className="w-full mt-8"
-                size="lg"
-              >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Start Exploring
-                  </>
-                )}
-              </Button>
             </motion.div>
           )}
         </AnimatePresence>

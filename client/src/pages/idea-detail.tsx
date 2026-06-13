@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, 
   Lightbulb, 
@@ -37,17 +38,18 @@ import {
   Shield,
   AlertTriangle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Bot
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
 const STATUS_CONFIG: Record<IdeaStatus, { label: string; icon: React.ComponentType<{className?: string}>; color: string }> = {
-  exploring: { label: "Exploring", icon: Lightbulb, color: "bg-yellow-500/10 text-yellow-600 border-yellow-200" },
-  active: { label: "Active", icon: Flame, color: "bg-green-500/10 text-green-600 border-green-200" },
-  backburner: { label: "Backburner", icon: Clock, color: "bg-blue-500/10 text-blue-600 border-blue-200" },
-  archived: { label: "Archived", icon: Archive, color: "bg-gray-500/10 text-gray-600 border-gray-200" },
+  exploring: { label: "Exploring", icon: Lightbulb, color: "bg-yellow-500/10 text-yellow-600 border-yellow-200 dark:border-yellow-900" },
+  active: { label: "Active", icon: Flame, color: "bg-green-500/10 text-green-600 border-green-200 dark:border-green-900" },
+  backburner: { label: "Backburner", icon: Clock, color: "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-900" },
+  archived: { label: "Archived", icon: Archive, color: "bg-gray-500/10 text-gray-600 border-gray-200 dark:border-gray-800" },
 };
 
 interface Competitor {
@@ -64,6 +66,19 @@ interface ViabilityBreakdown {
   effort: number;
   profitPotential: number;
 }
+
+const fadeIn = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 }
+  }
+};
 
 export default function IdeaDetail() {
   const params = useParams<{ id: string }>();
@@ -269,7 +284,7 @@ export default function IdeaDetail() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-screen">
+        <div className="flex items-center justify-center h-full min-h-[50vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </AppLayout>
@@ -297,85 +312,102 @@ export default function IdeaDetail() {
 
   return (
     <AppLayout>
-      <div className="container mx-auto p-6 md:p-8 max-w-5xl">
+      <div className="container mx-auto px-4 py-8 md:px-8 max-w-5xl">
         {/* Header */}
-        <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setLocation("/app")}
-            className="mb-4 -ml-2"
-            data-testid="button-back"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Ideas
-          </Button>
+        <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="mb-8">
+          <motion.div variants={fadeIn}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setLocation("/app")}
+              className="mb-6 -ml-2 text-muted-foreground hover:text-foreground"
+              data-testid="button-back"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back to Foundry
+            </Button>
+          </motion.div>
           
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="secondary">{project.type}</Badge>
-                <Badge variant="outline" className={`${statusConfig.color} gap-1`}>
-                  <StatusIcon className="w-3 h-3" />
+          <motion.div variants={fadeIn} className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <Badge variant="secondary" className="px-2.5 py-0.5 text-xs font-semibold">{project.type}</Badge>
+                <Badge variant="outline" className={`${statusConfig.color} gap-1.5 px-2.5 py-0.5 text-xs font-semibold`}>
+                  <StatusIcon className="w-3.5 h-3.5" />
                   {statusConfig.label}
                 </Badge>
               </div>
-              <h1 className="text-3xl font-display font-bold mb-2">{project.title}</h1>
-              <p className="text-muted-foreground">{project.description}</p>
+              <h1 className="text-4xl md:text-5xl font-display font-bold tracking-tight mb-3 text-foreground">{project.title}</h1>
+              <p className="text-lg text-muted-foreground leading-relaxed max-w-3xl">{project.description}</p>
             </div>
             
             {project.viabilityScore && (
-              <div className="text-center shrink-0">
-                <div className={`text-4xl font-bold ${
-                  project.viabilityScore >= 7 ? 'text-green-600' : 
-                  project.viabilityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
+              <div className="shrink-0 bg-card border shadow-sm rounded-2xl p-4 flex flex-col items-center justify-center min-w-[120px]">
+                <div className={`text-4xl font-display font-black tracking-tighter ${
+                  project.viabilityScore >= 7 ? 'text-green-500' : 
+                  project.viabilityScore >= 4 ? 'text-amber-500' : 'text-red-500'
                 }`}>
                   {project.viabilityScore}
                 </div>
-                <div className="text-xs text-muted-foreground">Viability Score</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-1">Viability</div>
               </div>
             )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="overview" className="gap-2" data-testid="tab-overview">
+          <TabsList className="grid w-full grid-cols-3 mb-8 h-12 bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm font-semibold gap-2 transition-all" data-testid="tab-overview">
               <Eye className="w-4 h-4" /> Overview
             </TabsTrigger>
-            <TabsTrigger value="think" className="gap-2" data-testid="tab-think">
+            <TabsTrigger value="think" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm font-semibold gap-2 transition-all" data-testid="tab-think">
               <MessageSquare className="w-4 h-4" /> Think
             </TabsTrigger>
-            <TabsTrigger value="make" className="gap-2" data-testid="tab-make">
+            <TabsTrigger value="make" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm font-semibold gap-2 transition-all" data-testid="tab-make">
               <Hammer className="w-4 h-4" /> Make
             </TabsTrigger>
           </TabsList>
 
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
           {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            {/* Viability Score */}
+          <TabsContent value="overview" className="space-y-6 m-0 focus-visible:outline-none">
+            {/* Viability Score Placeholder */}
             {!project.viabilityScore && (
-              <Card className="border-dashed">
-                <CardContent className="py-8 text-center">
-                  <Sparkles className="w-10 h-10 mx-auto mb-4 text-primary" />
-                  <h3 className="text-lg font-semibold mb-2">Get AI-Powered Research</h3>
-                  <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                    Let AI analyze your idea, find competitors, and calculate a viability score in under 60 seconds.
+              <Card className="border-dashed bg-primary/5 border-primary/20 overflow-hidden relative">
+                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                  <Sparkles className="w-32 h-32 text-primary" />
+                </div>
+                <CardContent className="py-12 text-center relative z-10">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                    <Sparkles className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="text-2xl font-display font-bold mb-3 tracking-tight">Generate Deep Research</h3>
+                  <p className="text-muted-foreground mb-8 max-w-lg mx-auto text-lg">
+                    Let the Foundry analyze your idea, scout competitors, extract insights, and calculate a realistic viability score in seconds.
                   </p>
                   <Button 
+                    size="lg"
                     onClick={generateResearch} 
                     disabled={isGeneratingResearch}
+                    className="gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all font-semibold rounded-xl h-12 px-8"
                     data-testid="button-generate-research"
                   >
                     {isGeneratingResearch ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Analyzing...
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Forging Research...
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate Research
+                        <Zap className="w-5 h-5" />
+                        Run AI Analysis
                       </>
                     )}
                   </Button>
@@ -384,34 +416,42 @@ export default function IdeaDetail() {
             )}
 
             {project.viabilityScore && viability && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+              <Card className="overflow-hidden border-border/50 shadow-md">
+                <CardHeader className="bg-muted/20 border-b pb-4">
+                  <CardTitle className="flex items-center gap-2 text-xl font-display">
                     <TrendingUp className="w-5 h-5 text-primary" />
-                    Viability Breakdown
+                    Market Viability Breakdown
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <Users className="w-6 h-6 mx-auto mb-2 text-blue-500" />
-                      <div className="text-2xl font-bold">{viability.marketSize}/10</div>
-                      <div className="text-xs text-muted-foreground">Market Size</div>
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                    <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-card border shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
+                        <Users className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <div className="text-3xl font-bold tracking-tight mb-1">{viability.marketSize}<span className="text-muted-foreground text-lg font-medium">/10</span></div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Market Size</div>
                     </div>
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <Target className="w-6 h-6 mx-auto mb-2 text-orange-500" />
-                      <div className="text-2xl font-bold">{viability.competition}/10</div>
-                      <div className="text-xs text-muted-foreground">Competition</div>
+                    <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-card border shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center mb-3">
+                        <Target className="w-5 h-5 text-orange-500" />
+                      </div>
+                      <div className="text-3xl font-bold tracking-tight mb-1">{viability.competition}<span className="text-muted-foreground text-lg font-medium">/10</span></div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Competition</div>
                     </div>
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <Clock className="w-6 h-6 mx-auto mb-2 text-purple-500" />
-                      <div className="text-2xl font-bold">{viability.effort}/10</div>
-                      <div className="text-xs text-muted-foreground">Build Effort</div>
+                    <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-card border shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center mb-3">
+                        <Clock className="w-5 h-5 text-purple-500" />
+                      </div>
+                      <div className="text-3xl font-bold tracking-tight mb-1">{viability.effort}<span className="text-muted-foreground text-lg font-medium">/10</span></div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Build Effort</div>
                     </div>
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <DollarSign className="w-6 h-6 mx-auto mb-2 text-green-500" />
-                      <div className="text-2xl font-bold">{viability.profitPotential}/10</div>
-                      <div className="text-xs text-muted-foreground">Profit Potential</div>
+                    <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-card border shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mb-3">
+                        <DollarSign className="w-5 h-5 text-green-500" />
+                      </div>
+                      <div className="text-3xl font-bold tracking-tight mb-1">{viability.profitPotential}<span className="text-muted-foreground text-lg font-medium">/10</span></div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Profit Potential</div>
                     </div>
                   </div>
                 </CardContent>
@@ -420,38 +460,43 @@ export default function IdeaDetail() {
 
             {/* Competitors */}
             {competitors && competitors.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Building className="w-5 h-5 text-primary" />
-                    Competitors ({competitors.length})
-                  </CardTitle>
-                  <CardDescription>Key players in this space</CardDescription>
+              <Card className="overflow-hidden border-border/50 shadow-md">
+                <CardHeader className="bg-muted/20 border-b pb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-xl font-display">
+                        <Building className="w-5 h-5 text-primary" />
+                        Competitor Landscape
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-sm font-medium">Key players identified in your space</CardDescription>
+                    </div>
+                    <Badge variant="secondary" className="px-2.5 py-0.5 text-sm">{competitors.length}</Badge>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
+                <CardContent className="p-6">
+                  <div className="grid gap-6 md:grid-cols-2">
                     {competitors.map((competitor, idx) => (
-                      <div key={idx} className="p-4 rounded-lg border bg-card">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-semibold">{competitor.name}</h4>
+                      <div key={idx} className="p-5 rounded-xl border bg-card shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-bold text-lg">{competitor.name}</h4>
                           {competitor.url && (
-                            <a href={competitor.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm flex items-center gap-1">
+                            <a href={competitor.url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md hover:bg-primary/20 transition-colors flex items-center gap-1">
                               Visit <ExternalLink className="w-3 h-3" />
                             </a>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground mb-3">{competitor.description}</p>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <p className="font-medium text-green-600 mb-1">Strengths</p>
-                            <ul className="list-disc list-inside text-muted-foreground">
-                              {competitor.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                        <p className="text-sm text-muted-foreground leading-relaxed mb-5 h-10 line-clamp-2">{competitor.description}</p>
+                        <div className="space-y-4">
+                          <div className="bg-green-500/5 p-3 rounded-lg border border-green-500/10">
+                            <p className="text-xs font-bold uppercase tracking-wider text-green-600 mb-2 flex items-center gap-1.5"><Plus className="w-3 h-3" /> Strengths</p>
+                            <ul className="text-sm text-foreground/80 space-y-1.5">
+                              {competitor.strengths.map((s, i) => <li key={i} className="flex items-start gap-2"><span className="text-green-500 mt-0.5 text-xs">•</span><span className="leading-snug">{s}</span></li>)}
                             </ul>
                           </div>
-                          <div>
-                            <p className="font-medium text-red-600 mb-1">Weaknesses</p>
-                            <ul className="list-disc list-inside text-muted-foreground">
-                              {competitor.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                          <div className="bg-red-500/5 p-3 rounded-lg border border-red-500/10">
+                            <p className="text-xs font-bold uppercase tracking-wider text-red-600 mb-2 flex items-center gap-1.5"><Trash2 className="w-3 h-3" /> Weaknesses</p>
+                            <ul className="text-sm text-foreground/80 space-y-1.5">
+                              {competitor.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-2"><span className="text-red-500 mt-0.5 text-xs">•</span><span className="leading-snug">{w}</span></li>)}
                             </ul>
                           </div>
                         </div>
@@ -464,512 +509,426 @@ export default function IdeaDetail() {
 
             {/* Key Insights */}
             {insights && insights.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+              <Card className="overflow-hidden border-border/50 shadow-md">
+                <CardHeader className="bg-muted/20 border-b pb-4">
+                  <CardTitle className="flex items-center gap-2 text-xl font-display">
                     <Lightbulb className="w-5 h-5 text-primary" />
-                    Key Insights
+                    Strategic Insights
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
+                <CardContent className="p-6">
+                  <div className="grid gap-3">
                     {insights.map((insight, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="text-primary mt-1">•</span>
-                        <span>{insight}</span>
-                      </li>
+                      <div key={idx} className="flex items-start gap-3 p-4 rounded-xl bg-card border hover:border-primary/30 transition-colors">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                        <p className="text-foreground leading-relaxed">{insight}</p>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </CardContent>
               </Card>
             )}
 
             {/* Notes */}
-            <Card>
+            <Card className="overflow-hidden border-border/50 shadow-md">
               <CardHeader 
-                className="cursor-pointer select-none" 
+                className="bg-muted/20 border-b pb-4 cursor-pointer select-none hover:bg-muted/30 transition-colors" 
                 onClick={() => setNotesExpanded(!notesExpanded)}
                 data-testid="button-toggle-notes"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-xl font-display">
                       <FileText className="w-5 h-5 text-primary" />
-                      Notes
+                      Scratchpad Notes
                       {notesList.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">{notesList.length}</Badge>
+                        <Badge variant="secondary" className="ml-2 font-mono">{notesList.length}</Badge>
                       )}
                     </CardTitle>
-                    <CardDescription>Jot down thoughts, questions, or next steps</CardDescription>
+                    <CardDescription className="mt-1 font-medium text-sm">Jot down thoughts, questions, or next steps</CardDescription>
                   </div>
-                  {notesExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                  )}
+                  <div className="w-8 h-8 rounded-full hover:bg-background/50 flex items-center justify-center transition-colors">
+                    {notesExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                    )}
+                  </div>
                 </div>
               </CardHeader>
-              {notesExpanded && (
-                <CardContent>
-                  <div className="flex gap-2 mb-4">
-                    <Textarea
-                      placeholder="Add a note..."
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                      className="min-h-[60px]"
-                      data-testid="input-new-note"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                          addNote();
-                        }
-                      }}
-                    />
-                    <Button 
-                      onClick={addNote} 
-                      disabled={isAddingNote || !newNote.trim()}
-                      size="sm"
-                      className="shrink-0"
-                      data-testid="button-add-note"
-                    >
-                      {isAddingNote ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                  
-                  {notesList.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No notes yet. Add your first note above.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {notesList.map((note) => {
-                        const isExpanded = expandedNotes.has(note.id);
-                        const isLongNote = note.content.length > 100 || note.content.includes('\n');
-                        const toggleNote = () => {
-                          setExpandedNotes(prev => {
-                            const next = new Set(prev);
-                            if (next.has(note.id)) {
-                              next.delete(note.id);
-                            } else {
-                              next.add(note.id);
+              <AnimatePresence>
+                {notesExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                        <Textarea
+                          placeholder="Type your thought here..."
+                          value={newNote}
+                          onChange={(e) => setNewNote(e.target.value)}
+                          className="min-h-[80px] rounded-xl resize-none focus-visible:ring-primary/20"
+                          data-testid="input-new-note"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                              addNote();
                             }
-                            return next;
-                          });
-                        };
-                        return (
-                          <div 
-                            key={note.id} 
-                            className="group p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                            data-testid={`note-${note.id}`}
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="flex-1 min-w-0">
-                                {isLongNote ? (
-                                  <button
-                                    onClick={toggleNote}
-                                    className="text-left w-full"
-                                    data-testid={`button-toggle-note-${note.id}`}
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      {isExpanded ? (
-                                        <ChevronUp className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
-                                      ) : (
-                                        <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
-                                      )}
-                                      <p className={`text-sm whitespace-pre-wrap ${!isExpanded ? 'line-clamp-1' : ''}`}>
-                                        {note.content}
-                                      </p>
-                                    </div>
-                                  </button>
-                                ) : (
-                                  <p className="text-sm whitespace-pre-wrap">{note.content}</p>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => deleteNote(note.id)}
-                                className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all shrink-0"
-                                data-testid={`button-delete-note-${note.id}`}
+                          }}
+                        />
+                        <Button 
+                          onClick={addNote} 
+                          disabled={isAddingNote || !newNote.trim()}
+                          className="shrink-0 sm:h-auto sm:self-stretch rounded-xl gap-2 font-semibold"
+                          data-testid="button-add-note"
+                        >
+                          {isAddingNote ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4" />
+                              Add Note
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      
+                      {notesList.length === 0 ? (
+                        <div className="text-center py-10 bg-muted/30 rounded-xl border border-dashed">
+                          <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                          <p className="text-sm font-medium text-muted-foreground">
+                            No notes yet. Capture your thoughts above.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {notesList.map((note) => {
+                            const isExpanded = expandedNotes.has(note.id);
+                            const isLongNote = note.content.length > 150 || note.content.includes('\n');
+                            const toggleNote = () => {
+                              setExpandedNotes(prev => {
+                                const next = new Set(prev);
+                                if (next.has(note.id)) {
+                                  next.delete(note.id);
+                                } else {
+                                  next.add(note.id);
+                                }
+                                return next;
+                              });
+                            };
+                            return (
+                              <div 
+                                key={note.id} 
+                                className="group p-4 rounded-xl border bg-card hover:border-primary/20 transition-colors shadow-sm"
+                                data-testid={`note-${note.id}`}
                               >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {new Date(note.createdAt).toLocaleDateString(undefined, { 
-                                month: 'short', 
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              )}
+                                <div className="flex justify-between items-start gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    {isLongNote ? (
+                                      <button
+                                        onClick={toggleNote}
+                                        className="text-left w-full block focus:outline-none"
+                                        data-testid={`button-toggle-note-${note.id}`}
+                                      >
+                                        <div className="flex items-start gap-2">
+                                          <p className={`text-sm text-foreground/90 whitespace-pre-wrap ${!isExpanded && "line-clamp-2"}`}>
+                                            {note.content}
+                                          </p>
+                                        </div>
+                                      </button>
+                                    ) : (
+                                      <p className="text-sm text-foreground/90 whitespace-pre-wrap">{note.content}</p>
+                                    )}
+                                    <div className="mt-2 text-xs font-medium text-muted-foreground">
+                                      {new Date(note.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                  </div>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all rounded-lg shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                                    data-testid={`button-delete-note-${note.id}`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </Card>
           </TabsContent>
 
           {/* Think Tab */}
-          <TabsContent value="think" className="space-y-6">
-            {conversation ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Conversation History</CardTitle>
-                  <CardDescription>Your AI exploration of this idea</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 max-h-[400px] overflow-y-auto mb-4">
-                    {messages.slice(-10).map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[80%] p-3 rounded-lg ${
-                          msg.role === "user" 
-                            ? "bg-primary text-primary-foreground" 
-                            : "bg-secondary"
-                        }`}>
-                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <Button 
-                    onClick={() => setLocation(`/app/conversation/${conversation.id}`)}
-                    className="w-full"
-                    data-testid="button-continue-conversation"
-                  >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Continue Conversation
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="py-8 text-center">
-                  <MessageSquare className="w-10 h-10 mx-auto mb-4 text-primary" />
-                  <h3 className="text-lg font-semibold mb-2">Start Exploring</h3>
-                  <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                    Have a conversation with AI to explore, refine, and challenge your idea.
-                  </p>
-                  <Button 
-                    onClick={startConversation}
-                    disabled={isStartingConversation}
-                    data-testid="button-start-conversation"
-                  >
-                    {isStartingConversation ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Starting...
-                      </>
-                    ) : (
-                      <>
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        Start Conversation
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Make Tab */}
-          <TabsContent value="make" className="space-y-6">
-            {/* PRD Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  Product Requirements Document
+          <TabsContent value="think" className="space-y-6 m-0 focus-visible:outline-none">
+            <Card className="overflow-hidden border-border/50 shadow-md">
+              <CardHeader className="bg-muted/20 border-b pb-4">
+                <CardTitle className="text-xl font-display flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-primary" />
+                  AI Interview
                 </CardTitle>
-                <CardDescription>Turn your idea into a dev-ready PRD that AI can implement</CardDescription>
+                <CardDescription className="text-sm font-medium">Refine your idea through guided questioning</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {project.prdContent ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-green-600">
-                      <CheckCircle2 className="w-5 h-5" />
-                      <p className="font-medium">Your PRD has been generated!</p>
+              <CardContent className="p-6">
+                {!conversation ? (
+                  <div className="text-center py-10 max-w-lg mx-auto">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                      <MessageSquare className="w-8 h-8 text-primary" />
                     </div>
-                    <div className="flex gap-3">
-                      <Button 
-                        onClick={() => setLocation(`/app/prd/${project.id}`)}
-                        data-testid="button-view-prd"
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        View PRD
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        onClick={async () => {
-                          await fetch(`/api/projects/${project.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ prdContent: null }),
-                          });
-                          setProject(prev => prev ? { ...prev, prdContent: null } : null);
-                        }}
-                        data-testid="button-regenerate-prd"
-                      >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate New PRD
-                      </Button>
-                    </div>
+                    <h3 className="text-2xl font-display font-bold mb-3">Start the Interview</h3>
+                    <p className="text-muted-foreground mb-8 text-lg">
+                      Have a dynamic conversation with our AI strategist to flesh out assumptions, target audience, and core features.
+                    </p>
+                    <Button 
+                      size="lg"
+                      onClick={startConversation} 
+                      disabled={isStartingConversation}
+                      className="gap-2 font-semibold px-8 h-12 rounded-xl shadow-lg shadow-primary/20"
+                      data-testid="button-start-conversation"
+                    >
+                      {isStartingConversation ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare className="w-5 h-5" />
+                          Start Conversation
+                        </>
+                      )}
+                    </Button>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {/* Track Selection */}
-                    <div>
-                      <h4 className="font-medium mb-3">Choose your PRD depth</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setPrdTrack("quick")}
-                          className={`p-4 rounded-lg border-2 text-left transition-all ${
-                            prdTrack === "quick" 
-                              ? "border-primary bg-primary/5" 
-                              : "border-border hover:border-primary/50"
-                          }`}
-                          data-testid="track-quick"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <Zap className="w-5 h-5 text-yellow-500" />
-                            <span className="font-semibold">Quick</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-2">20-30 minutes</p>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li>High-level features</li>
-                            <li>Basic user stories</li>
-                            <li>Tech stack suggestion</li>
-                          </ul>
-                          <p className="text-xs mt-2 text-primary">Good for: Claude Opus prototypes</p>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setPrdTrack("standard")}
-                          className={`p-4 rounded-lg border-2 text-left transition-all ${
-                            prdTrack === "standard" 
-                              ? "border-primary bg-primary/5" 
-                              : "border-border hover:border-primary/50"
-                          }`}
-                          data-testid="track-standard"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <Rocket className="w-5 h-5 text-blue-500" />
-                            <span className="font-semibold">Standard</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-2">1-2 hours</p>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li>Detailed features + acceptance</li>
-                            <li>API endpoint specs</li>
-                            <li>Database schema</li>
-                            <li>UI component breakdown</li>
-                          </ul>
-                          <p className="text-xs mt-2 text-primary">Good for: Mid-tier AI models</p>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setPrdTrack("production")}
-                          className={`p-4 rounded-lg border-2 text-left transition-all ${
-                            prdTrack === "production" 
-                              ? "border-primary bg-primary/5" 
-                              : "border-border hover:border-primary/50"
-                          }`}
-                          data-testid="track-production"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <Crown className="w-5 h-5 text-amber-500" />
-                            <span className="font-semibold">Production</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-2">3-4 hours</p>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li>Everything in Standard +</li>
-                            <li>Complete file structure</li>
-                            <li>Code patterns & examples</li>
-                            <li>Step-by-step guide</li>
-                          </ul>
-                          <p className="text-xs mt-2 text-primary">Good for: Free/cheap AI models</p>
-                        </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-6 bg-muted/30 border rounded-2xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
+                        <MessageSquare className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-lg">Interview in Progress</h4>
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {messages.length} messages exchanged
+                        </p>
                       </div>
                     </div>
+                    <Button 
+                      size="lg"
+                      onClick={() => setLocation(`/app/conversation/${conversation!.id}`)}
+                      className="w-full sm:w-auto gap-2 font-semibold rounded-xl"
+                      data-testid="button-continue-conversation"
+                    >
+                      Continue Interview
+                      <ArrowLeft className="w-4 h-4 rotate-180" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                    {/* User Requirements */}
-                    <div>
-                      <h4 className="font-medium mb-2">Your requirements (optional)</h4>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Add any preferences for tech stack, design style, constraints, or specific features you want emphasized.
-                      </p>
-                      <Textarea
-                        placeholder="e.g., Use React + Node.js, mobile-first design, integrate with Stripe for payments, keep it simple for MVP..."
+            <Card className="overflow-hidden border-border/50 shadow-md">
+              <CardHeader className="bg-muted/20 border-b pb-4">
+                <CardTitle className="text-xl font-display flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Product Requirements Document (PRD)
+                </CardTitle>
+                <CardDescription className="text-sm font-medium">Generate structured specs based on your interview</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {project.prdContent ? (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-6 bg-primary/5 border border-primary/20 rounded-2xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-lg">PRD Generated</h4>
+                        <p className="text-sm font-medium text-muted-foreground">Ready for development</p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="lg"
+                      onClick={() => setLocation(`/app/prd/${project.id}`)}
+                      className="w-full sm:w-auto gap-2 font-semibold rounded-xl"
+                      data-testid="button-view-prd"
+                    >
+                      View & Export PRD
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid gap-6">
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        onClick={() => setPrdTrack("quick")}
+                        className={`p-4 text-left rounded-xl border-2 transition-all ${prdTrack === "quick" ? "border-primary bg-primary/5 shadow-sm" : "border-transparent bg-muted/50 hover:bg-muted"}`}
+                      >
+                        <Zap className={`w-5 h-5 mb-2 ${prdTrack === "quick" ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className="font-bold mb-1">Quick</div>
+                        <div className="text-xs text-muted-foreground">Basic summary & features</div>
+                      </button>
+                      <button
+                        onClick={() => setPrdTrack("standard")}
+                        className={`p-4 text-left rounded-xl border-2 transition-all ${prdTrack === "standard" ? "border-primary bg-primary/5 shadow-sm" : "border-transparent bg-muted/50 hover:bg-muted"}`}
+                      >
+                        <FileText className={`w-5 h-5 mb-2 ${prdTrack === "standard" ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className="font-bold mb-1">Standard</div>
+                        <div className="text-xs text-muted-foreground">Full specs & technical details</div>
+                      </button>
+                      <button
+                        onClick={() => setPrdTrack("production")}
+                        className={`p-4 text-left rounded-xl border-2 transition-all ${prdTrack === "production" ? "border-primary bg-primary/5 shadow-sm" : "border-transparent bg-muted/50 hover:bg-muted"}`}
+                      >
+                        <Crown className={`w-5 h-5 mb-2 ${prdTrack === "production" ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className="font-bold mb-1">Production</div>
+                        <div className="text-xs text-muted-foreground">Investor-ready documentation</div>
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-sm font-bold text-foreground">Additional Requirements (Optional)</label>
+                      <Textarea 
+                        placeholder="E.g., Must use React and Node.js. Target audience is specifically enterprise..."
                         value={userRequirements}
                         onChange={(e) => setUserRequirements(e.target.value)}
-                        className="min-h-[100px]"
-                        data-testid="input-user-requirements"
+                        className="rounded-xl min-h-[100px] resize-none focus-visible:ring-primary/20"
+                        data-testid="input-prd-requirements"
                       />
                     </div>
 
-                    {/* Generate Button */}
                     <Button 
-                      onClick={generatePrd}
-                      disabled={isGeneratingPrd}
-                      className="w-full"
                       size="lg"
+                      onClick={generatePrd}
+                      disabled={isGeneratingPrd || (!conversation && !userRequirements)}
+                      className="w-full gap-2 font-semibold rounded-xl h-12 shadow-lg shadow-primary/20"
                       data-testid="button-generate-prd"
                     >
                       {isGeneratingPrd ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Generating {prdTrack === "quick" ? "Quick" : prdTrack === "standard" ? "Standard" : "Production"} PRD...
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Forging PRD...
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Generate {prdTrack === "quick" ? "Quick" : prdTrack === "standard" ? "Standard" : "Production"} PRD
+                          <FileText className="w-5 h-5" />
+                          Generate PRD
                         </>
                       )}
                     </Button>
-
-                    {!conversation && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        Tip: Start a conversation in the Think tab first to provide more context for a better PRD.
+                    {!conversation && !userRequirements && (
+                      <p className="text-xs text-center text-muted-foreground font-medium">
+                        Complete the interview or provide requirements first.
                       </p>
                     )}
                   </div>
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
 
-            {/* Tech Stack Advisor */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+          {/* Make Tab */}
+          <TabsContent value="make" className="space-y-6 m-0 focus-visible:outline-none">
+            {/* Tech Stack Generator */}
+            <Card className="overflow-hidden border-border/50 shadow-md">
+              <CardHeader className="bg-muted/20 border-b pb-4">
+                <CardTitle className="text-xl font-display flex items-center gap-2">
                   <Layers className="w-5 h-5 text-primary" />
-                  Tech Stack Advisor
+                  Tech Stack Recommendation
                 </CardTitle>
-                <CardDescription>Get AI-recommended technology stack optimized for your idea</CardDescription>
+                <CardDescription className="text-sm font-medium">Get the optimal architecture for your specific product</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 {!stackRecommendation ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Our AI will analyze your idea and recommend the best tech stack for speed to MVP, 
-                      AI coding assistant compatibility, and cost efficiency.
+                  <div className="text-center py-10">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                      <Server className="w-8 h-8 text-primary" />
+                    </div>
+                    <p className="text-muted-foreground mb-8 max-w-md mx-auto text-lg">
+                      Based on your idea's complexity, AI will recommend the fastest path to MVP.
                     </p>
                     <Button 
+                      size="lg"
                       onClick={generateStackRecommendation}
                       disabled={isGeneratingStack}
-                      className="w-full"
-                      data-testid="button-get-stack-recommendation"
+                      className="gap-2 font-semibold px-8 rounded-xl h-12 shadow-lg shadow-primary/20"
+                      data-testid="button-generate-stack"
                     >
                       {isGeneratingStack ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Analyzing your idea...
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Analyzing Architecture...
                         </>
                       ) : (
                         <>
-                          <Layers className="w-4 h-4 mr-2" />
-                          Get Stack Recommendation
+                          <Database className="w-5 h-5" />
+                          Generate Tech Stack
                         </>
                       )}
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-6" data-testid="stack-recommendation-results">
-                    {/* Recommended Stack */}
-                    {stackRecommendation.recommended && (
-                      <div data-testid="section-recommended-stack">
-                        <h4 className="font-medium mb-3 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Recommended Stack
+                  <div className="space-y-8" data-testid="stack-recommendation-results">
+                    {/* Primary Stack */}
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-3" data-testid="section-frontend">
+                        <h4 className="font-bold text-lg flex items-center gap-2 text-primary">
+                          <Eye className="w-5 h-5" />
+                          Frontend
                         </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {stackRecommendation.recommended.frontend && (
-                            <div className="p-3 border rounded-lg" data-testid="card-stack-frontend">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Building className="w-4 h-4 text-blue-500" />
-                                <span className="font-medium text-sm">Frontend</span>
-                              </div>
-                              <p className="text-sm font-semibold" data-testid="text-stack-frontend-name">{stackRecommendation.recommended.frontend.name}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.frontend.reason}</p>
-                            </div>
-                          )}
-                          {stackRecommendation.recommended.backend && (
-                            <div className="p-3 border rounded-lg" data-testid="card-stack-backend">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Server className="w-4 h-4 text-green-500" />
-                                <span className="font-medium text-sm">Backend</span>
-                              </div>
-                              <p className="text-sm font-semibold" data-testid="text-stack-backend-name">{stackRecommendation.recommended.backend.name}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.backend.reason}</p>
-                            </div>
-                          )}
-                          {stackRecommendation.recommended.database && (
-                            <div className="p-3 border rounded-lg" data-testid="card-stack-database">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Database className="w-4 h-4 text-purple-500" />
-                                <span className="font-medium text-sm">Database</span>
-                              </div>
-                              <p className="text-sm font-semibold" data-testid="text-stack-database-name">{stackRecommendation.recommended.database.name}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.database.reason}</p>
-                            </div>
-                          )}
-                          {stackRecommendation.recommended.hosting && (
-                            <div className="p-3 border rounded-lg" data-testid="card-stack-hosting">
-                              <div className="flex items-center gap-2 mb-1">
-                                <ExternalLink className="w-4 h-4 text-orange-500" />
-                                <span className="font-medium text-sm">Hosting</span>
-                              </div>
-                              <p className="text-sm font-semibold" data-testid="text-stack-hosting-name">{stackRecommendation.recommended.hosting.name}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.hosting.reason}</p>
-                            </div>
-                          )}
-                          {stackRecommendation.recommended.auth && (
-                            <div className="p-3 border rounded-lg" data-testid="card-stack-auth">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Shield className="w-4 h-4 text-cyan-500" />
-                                <span className="font-medium text-sm">Auth</span>
-                              </div>
-                              <p className="text-sm font-semibold" data-testid="text-stack-auth-name">{stackRecommendation.recommended.auth.name}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{stackRecommendation.recommended.auth.reason}</p>
-                            </div>
-                          )}
+                        <div className="p-5 border rounded-xl bg-card shadow-sm hover:border-primary/20 transition-colors">
+                          <p className="font-bold text-lg mb-2">{stackRecommendation.frontend.name}</p>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{stackRecommendation.frontend.reason}</p>
                         </div>
                       </div>
-                    )}
+                      
+                      <div className="space-y-3" data-testid="section-backend">
+                        <h4 className="font-bold text-lg flex items-center gap-2 text-blue-500">
+                          <Server className="w-5 h-5" />
+                          Backend / DB
+                        </h4>
+                        <div className="p-5 border rounded-xl bg-card shadow-sm hover:border-blue-500/20 transition-colors">
+                          <p className="font-bold text-lg mb-2">{stackRecommendation.backend.name}</p>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{stackRecommendation.backend.reason}</p>
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Full-Stack Option */}
-                    {stackRecommendation.fullStack?.name && (
-                      <div data-testid="section-fullstack-alternative">
-                        <h4 className="font-medium mb-2 flex items-center gap-2">
-                          <Rocket className="w-4 h-4 text-primary" />
+                    {stackRecommendation.fullStack && (
+                      <div className="space-y-3">
+                        <h4 className="font-bold text-lg flex items-center gap-2">
+                          <Rocket className="w-5 h-5 text-orange-500" />
                           Full-Stack Alternative
                         </h4>
-                        <div className="p-3 border rounded-lg bg-primary/5" data-testid="card-fullstack">
-                          <p className="font-semibold" data-testid="text-fullstack-name">{stackRecommendation.fullStack.name}</p>
-                          <p className="text-sm text-muted-foreground mt-1">{stackRecommendation.fullStack.reason}</p>
+                        <div className="p-6 border rounded-xl bg-orange-500/5 border-orange-500/20" data-testid="card-fullstack">
+                          <p className="font-bold text-lg text-orange-700 dark:text-orange-400 mb-2" data-testid="text-fullstack-name">{stackRecommendation.fullStack.name}</p>
+                          <p className="text-sm text-foreground/80 leading-relaxed" data-testid="text-fullstack-reason">{stackRecommendation.fullStack.reason}</p>
                         </div>
                       </div>
                     )}
 
                     {/* AI Assistants */}
                     {stackRecommendation.aiAssistants?.length > 0 && (
-                      <div data-testid="section-ai-assistants">
-                        <h4 className="font-medium mb-2 flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-yellow-500" />
+                      <div className="space-y-3" data-testid="section-ai-assistants">
+                        <h4 className="font-bold text-lg flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-yellow-500" />
                           AI Coding Assistants
                         </h4>
-                        <div className="space-y-2">
+                        <div className="grid gap-4 sm:grid-cols-2">
                           {stackRecommendation.aiAssistants.map((ai: any, idx: number) => (
-                            <div key={idx} className="p-2 border rounded-lg text-sm" data-testid={`card-ai-assistant-${idx}`}>
-                              <span className="font-medium">{ai.name}</span>
-                              <span className="text-muted-foreground"> - {ai.bestFor}</span>
-                              {ai.tip && <p className="text-xs text-muted-foreground mt-1">{ai.tip}</p>}
+                            <div key={idx} className="p-5 border rounded-xl bg-card shadow-sm" data-testid={`card-ai-assistant-${idx}`}>
+                              <p className="font-bold mb-1">{ai.name}</p>
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{ai.bestFor}</p>
+                              {ai.tip && <p className="text-sm text-muted-foreground leading-relaxed bg-muted/50 p-3 rounded-lg border">{ai.tip}</p>}
                             </div>
                           ))}
                         </div>
@@ -977,46 +936,56 @@ export default function IdeaDetail() {
                     )}
 
                     {/* Timeline & Cost */}
-                    <div className="grid grid-cols-2 gap-4" data-testid="section-timeline-cost">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="section-timeline-cost">
                       {stackRecommendation.mvpTimeline && (
-                        <div className="p-3 border rounded-lg text-center" data-testid="card-mvp-timeline">
-                          <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />
-                          <p className="text-xs text-muted-foreground">MVP Timeline</p>
-                          <p className="font-medium text-sm" data-testid="text-mvp-timeline">{stackRecommendation.mvpTimeline}</p>
+                        <div className="flex items-center gap-4 p-5 border rounded-xl bg-card shadow-sm" data-testid="card-mvp-timeline">
+                          <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
+                            <Clock className="w-6 h-6 text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">MVP Timeline</p>
+                            <p className="font-bold text-xl" data-testid="text-mvp-timeline">{stackRecommendation.mvpTimeline}</p>
+                          </div>
                         </div>
                       )}
                       {stackRecommendation.costEstimate && (
-                        <div className="p-3 border rounded-lg text-center" data-testid="card-cost-estimate">
-                          <DollarSign className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                          <p className="text-xs text-muted-foreground">Infrastructure Cost</p>
-                          <p className="font-medium text-sm" data-testid="text-cost-estimate">{stackRecommendation.costEstimate}</p>
+                        <div className="flex items-center gap-4 p-5 border rounded-xl bg-card shadow-sm" data-testid="card-cost-estimate">
+                          <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center shrink-0 border border-green-500/20">
+                            <DollarSign className="w-6 h-6 text-green-500" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Infrastructure Cost</p>
+                            <p className="font-bold text-xl" data-testid="text-cost-estimate">{stackRecommendation.costEstimate}</p>
+                          </div>
                         </div>
                       )}
                     </div>
 
                     {/* Warnings */}
                     {stackRecommendation.warnings?.length > 0 && (
-                      <div className="p-3 border border-yellow-200 rounded-lg bg-yellow-50" data-testid="section-warnings">
-                        <h4 className="font-medium mb-2 flex items-center gap-2 text-yellow-800">
-                          <AlertTriangle className="w-4 h-4" />
+                      <div className="p-5 border border-red-200 dark:border-red-900/50 rounded-xl bg-red-50 dark:bg-red-900/10" data-testid="section-warnings">
+                        <h4 className="font-bold text-lg mb-3 flex items-center gap-2 text-red-600 dark:text-red-400">
+                          <AlertTriangle className="w-5 h-5" />
                           Things to Watch Out For
                         </h4>
-                        <ul className="text-sm text-yellow-700 space-y-1">
+                        <ul className="text-sm text-red-800 dark:text-red-300 space-y-2">
                           {stackRecommendation.warnings.map((warning: string, idx: number) => (
-                            <li key={idx} data-testid={`text-warning-${idx}`}>• {warning}</li>
+                            <li key={idx} className="flex items-start gap-2" data-testid={`text-warning-${idx}`}>
+                              <span className="text-red-500 mt-0.5 font-bold">•</span>
+                              <span className="leading-relaxed">{warning}</span>
+                            </li>
                           ))}
                         </ul>
                       </div>
                     )}
 
-                    {/* Regenerate Button */}
                     <Button 
                       variant="outline" 
                       onClick={() => setStackRecommendation(null)}
-                      className="w-full"
+                      className="w-full gap-2 font-semibold h-12 rounded-xl border-2 hover:bg-muted/50"
                       data-testid="button-reset-stack"
                     >
-                      <Layers className="w-4 h-4 mr-2" />
+                      <Layers className="w-5 h-5" />
                       Get New Recommendation
                     </Button>
                   </div>
@@ -1025,27 +994,46 @@ export default function IdeaDetail() {
             </Card>
 
             {/* Validation Tools */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Validation Tools</CardTitle>
-                <CardDescription>Test your idea before building</CardDescription>
+            <Card className="overflow-hidden border-border/50 shadow-md">
+              <CardHeader className="bg-muted/20 border-b pb-4">
+                <CardTitle className="text-xl font-display flex items-center gap-2">
+                  <Target className="w-5 h-5 text-primary" />
+                  Validation Tools
+                </CardTitle>
+                <CardDescription className="text-sm font-medium">Quick ways to test market interest before building</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button variant="outline" className="h-auto py-4 flex-col gap-2" data-testid="button-landing-page">
-                    <ExternalLink className="w-5 h-5" />
-                    <span className="font-medium">Landing Page Generator</span>
-                    <span className="text-xs text-muted-foreground">Create a quick landing page to test interest</span>
+                  <Button 
+                    variant="outline" 
+                    className="h-auto py-6 flex-col gap-3 rounded-xl border-2 hover:border-primary/50 hover:bg-primary/5 transition-all" 
+                    onClick={() => setLocation(`/app/prd/${project.id}`)}
+                    data-testid="button-landing-page"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-1">
+                      <ExternalLink className="w-6 h-6 text-primary" />
+                    </div>
+                    <span className="font-bold text-lg">Landing Page Generator</span>
+                    <span className="text-sm text-muted-foreground whitespace-normal text-center max-w-[250px]">Create a quick "Coming Soon" page to capture emails and test interest</span>
                   </Button>
-                  <Button variant="outline" className="h-auto py-4 flex-col gap-2" data-testid="button-communities">
-                    <Users className="w-5 h-5" />
-                    <span className="font-medium">Find Communities</span>
-                    <span className="text-xs text-muted-foreground">Discover where your users hang out</span>
+                  <Button 
+                    variant="outline" 
+                    className="h-auto py-6 flex-col gap-3 rounded-xl border-2 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all" 
+                    onClick={() => setLocation(`/app/prd/${project.id}`)}
+                    data-testid="button-communities"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-1">
+                      <Users className="w-6 h-6 text-blue-500" />
+                    </div>
+                    <span className="font-bold text-lg">Find Communities</span>
+                    <span className="text-sm text-muted-foreground whitespace-normal text-center max-w-[250px]">Discover niche Reddit, Discord, and Twitter communities for your product</span>
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
+            </motion.div>
+          </AnimatePresence>
         </Tabs>
       </div>
 

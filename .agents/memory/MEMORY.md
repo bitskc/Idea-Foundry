@@ -1,0 +1,2 @@
+- [framer-motion ease typing](framer-motion-ease-typing.md) — standalone variant/transition consts widen `ease` to `string` and fail typecheck at the usage site; fix with `ease: "..." as const`.
+- [Idea Foundry typecheck baseline](idea-foundry-typecheck.md) — pre-existing TS errors live only in server/replit_integrations/**; filter app-code errors with `rg -v replit_integrations`.

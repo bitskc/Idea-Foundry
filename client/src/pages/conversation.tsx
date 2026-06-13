@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Send, Mic, MicOff, Sparkles, Loader2, Volume2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { Send, Mic, MicOff, Sparkles, Loader2, Volume2, ArrowLeft, FileText } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import type { Message, Conversation } from "@shared/schema";
@@ -36,9 +36,22 @@ export default function ConversationPage() {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
+      const preferredTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      const supportedType = preferredTypes.find(
+        (type) =>
+          typeof MediaRecorder !== "undefined" &&
+          typeof MediaRecorder.isTypeSupported === "function" &&
+          MediaRecorder.isTypeSupported(type),
+      );
+      const recorder = supportedType
+        ? new MediaRecorder(stream, { mimeType: supportedType })
+        : new MediaRecorder(stream);
 
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
@@ -68,7 +81,9 @@ export default function ConversationPage() {
       }
 
       recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
         recorder.stream.getTracks().forEach((t) => t.stop());
         setIsRecording(false);
         resolve(blob);
@@ -319,7 +334,7 @@ export default function ConversationPage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-screen">
+        <div className="flex items-center justify-center h-full min-h-[50vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </AppLayout>
@@ -329,7 +344,7 @@ export default function ConversationPage() {
   if (!conversation) {
     return (
       <AppLayout>
-        <div className="flex flex-col items-center justify-center h-screen">
+        <div className="flex flex-col items-center justify-center h-full min-h-[50vh]">
           <p className="text-muted-foreground mb-4">Conversation not found</p>
           <Button onClick={() => setLocation("/app")}>Go to Dashboard</Button>
         </div>
@@ -339,15 +354,25 @@ export default function ConversationPage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-screen md:h-[calc(100vh-theme(spacing.0))] bg-background">
+      <div className="flex flex-col h-[calc(100vh-64px)] md:h-screen bg-background">
         {/* Header / Progress */}
-        <div className="border-b bg-card/50 backdrop-blur p-4 flex items-center justify-between sticky top-0 z-10">
-          <div className="flex flex-col gap-1 w-full max-w-md">
-            <div className="flex justify-between text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <span>{currentSection}</span>
-              <span>{progress}% Complete</span>
+        <div className="border-b bg-background/80 backdrop-blur-xl p-4 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setLocation(`/app/ideas/${conversation.projectId}`)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex flex-col gap-1 w-[200px] sm:w-[300px] md:w-[400px]">
+              <div className="flex justify-between text-[10px] sm:text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                <span className="truncate mr-2">{currentSection}</span>
+                <span className="shrink-0 text-primary">{progress}%</span>
+              </div>
+              <Progress value={progress} className="h-2 bg-muted overflow-hidden" />
             </div>
-            <Progress value={progress} className="h-2" />
           </div>
           <div className="flex gap-2 ml-4">
              <Button 
@@ -366,94 +391,123 @@ export default function ConversationPage() {
                    console.error("Error generating PRD:", error);
                  }
                }}
+               className="font-semibold border-primary/20 hover:bg-primary/5 text-primary transition-all hidden sm:flex"
                data-testid="button-view-draft"
              >
-                View Draft
+                <FileText className="w-4 h-4 mr-2" />
+                View PRD Draft
+             </Button>
+             <Button 
+               variant="outline" 
+               size="icon" 
+               onClick={async () => {
+                 try {
+                   const response = await fetch(`/api/projects/${conversation.projectId}/generate-prd`, { method: "POST" });
+                   if (response.ok) setLocation(`/app/prd/${conversation.projectId}`);
+                 } catch (error) {
+                   console.error("Error generating PRD:", error);
+                 }
+               }}
+               className="sm:hidden border-primary/20 text-primary"
+             >
+               <FileText className="w-4 h-4" />
              </Button>
           </div>
         </div>
 
         {/* Chat Area */}
         <ScrollArea className="flex-1 p-4 md:p-8" ref={scrollRef}>
-          <div className="max-w-3xl mx-auto space-y-6 pb-4">
-            {messages.map((msg) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
-                data-testid={`message-${msg.id}`}
-              >
-                <Avatar className={`w-8 h-8 md:w-10 md:h-10 border ${msg.role === "ai" ? "bg-primary/10 border-primary/20" : "bg-muted"}`}>
-                  {msg.role === "ai" ? (
-                    <AvatarFallback className="text-primary"><Sparkles className="w-4 h-4" /></AvatarFallback>
-                  ) : (
-                    <AvatarFallback>You</AvatarFallback>
-                  )}
-                </Avatar>
-
-                <div className={`flex flex-col gap-1 max-w-[80%] md:max-w-[70%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
-                  <div className={`
-                    p-4 rounded-2xl text-sm md:text-base leading-relaxed shadow-sm
-                    ${msg.role === "user" 
-                      ? "bg-primary text-primary-foreground rounded-tr-sm" 
-                      : "bg-card border border-border rounded-tl-sm"}
-                  `}>
-                    {msg.content ? (
-                      msg.role === "ai" ? (
-                        <ReactMarkdown
-                          components={{
-                            p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-                            ul: ({ ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
-                            ol: ({ ...props }) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
-                            li: ({ ...props }) => <li {...props} />,
-                            strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
-                            em: ({ ...props }) => <em className="italic" {...props} />,
-                            code: ({ ...props }) => <code className="bg-muted px-1 py-0.5 rounded text-sm" {...props} />,
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      ) : (
-                        msg.content
-                      )
+          <div className="max-w-3xl mx-auto space-y-8 pb-4 pt-4">
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                  data-testid={`message-${msg.id}`}
+                >
+                  <Avatar className={`w-8 h-8 md:w-10 md:h-10 border shadow-sm ${msg.role === "ai" ? "bg-gradient-to-br from-primary to-orange-400 border-primary/20" : "bg-muted border-border"}`}>
+                    {msg.role === "ai" ? (
+                      <AvatarFallback className="bg-transparent text-white"><Sparkles className="w-4 h-4" /></AvatarFallback>
                     ) : (
-                      <div className="flex gap-1 items-center h-6">
-                        <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                        <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                        <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                      </div>
+                      <AvatarFallback className="font-semibold">You</AvatarFallback>
                     )}
+                  </Avatar>
+
+                  <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                    <div className={`
+                      p-4 md:p-5 rounded-2xl text-sm md:text-base leading-relaxed shadow-sm
+                      ${msg.role === "user" 
+                        ? "bg-primary text-primary-foreground rounded-tr-sm" 
+                        : "bg-card border border-border rounded-tl-sm text-card-foreground"}
+                    `}>
+                      {msg.content ? (
+                        msg.role === "ai" ? (
+                          <div className="prose prose-sm md:prose-base dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:text-foreground max-w-none">
+                            <ReactMarkdown
+                              components={{
+                                p: ({ ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+                                ul: ({ ...props }) => <ul className="list-disc pl-4 mb-4 space-y-1.5" {...props} />,
+                                ol: ({ ...props }) => <ol className="list-decimal pl-4 mb-4 space-y-1.5" {...props} />,
+                                li: ({ ...props }) => <li {...props} />,
+                                strong: ({ ...props }) => <strong className="font-bold text-foreground" {...props} />,
+                                em: ({ ...props }) => <em className="italic" {...props} />,
+                                code: ({ className, children, ...props }: any) => {
+                                  const match = /language-(\w+)/.exec(className || '');
+                                  return match ? (
+                                    <code className="block bg-muted/50 p-3 rounded-lg text-sm border font-mono whitespace-pre-wrap" {...props}>{children}</code>
+                                  ) : (
+                                    <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono border" {...props}>{children}</code>
+                                  );
+                                },
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap">{msg.content}</div>
+                        )
+                      ) : (
+                        <div className="flex gap-1.5 items-center h-6 px-2">
+                          <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 px-1">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {msg.role === "ai" && msg.content && (
+                        <button
+                          onClick={() => playMessageAudio(msg.id, msg.content || "")}
+                          className={`text-muted-foreground hover:text-primary transition-colors p-1 rounded-md hover:bg-muted ${isPlayingAudio === msg.id ? "text-primary animate-pulse bg-primary/5" : ""}`}
+                          disabled={isPlayingAudio !== null}
+                          data-testid={`button-play-${msg.id}`}
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground px-1">
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    {msg.role === "ai" && msg.content && (
-                      <button
-                        onClick={() => playMessageAudio(msg.id, msg.content || "")}
-                        className={`text-muted-foreground hover:text-primary transition-colors ${isPlayingAudio === msg.id ? "text-primary animate-pulse" : ""}`}
-                        disabled={isPlayingAudio !== null}
-                        data-testid={`button-play-${msg.id}`}
-                      >
-                        <Volume2 className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="p-4 bg-background border-t">
+        <div className="p-4 md:p-6 bg-background/80 backdrop-blur-xl border-t">
           <div className="max-w-3xl mx-auto relative">
-            <div className="relative flex items-end gap-2 bg-card border rounded-xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+            <div className="relative flex items-end gap-2 bg-card border-2 rounded-2xl p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 transition-all">
                <Button 
                 variant="ghost" 
                 size="icon" 
-                className={`rounded-lg h-10 w-10 shrink-0 ${isRecording ? "text-red-500 bg-red-500/10 animate-pulse" : isTranscribing ? "text-primary" : "text-muted-foreground"}`}
+                className={`rounded-xl h-12 w-12 shrink-0 transition-colors ${isRecording ? "text-red-500 bg-red-500/10 animate-pulse hover:bg-red-500/20" : isTranscribing ? "text-primary bg-primary/5" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                 onClick={handleVoiceInput}
                 disabled={isSending || isTranscribing}
                 data-testid="button-voice"
@@ -471,8 +525,8 @@ export default function ConversationPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type your answer..."
-                className="flex-1 bg-transparent border-none resize-none focus:ring-0 max-h-32 min-h-[44px] py-2.5 text-sm md:text-base outline-none"
+                placeholder="Type your answer... (Ctrl+Enter to send)"
+                className="flex-1 bg-transparent border-none resize-none focus:ring-0 max-h-32 min-h-[48px] py-3 px-2 text-base outline-none text-foreground placeholder:text-muted-foreground"
                 rows={1}
                 disabled={isSending}
                 data-testid="input-message"
@@ -480,20 +534,20 @@ export default function ConversationPage() {
               
               <Button 
                 size="icon" 
-                className="rounded-lg h-10 w-10 shrink-0"
+                className="rounded-xl h-12 w-12 shrink-0 shadow-sm"
                 onClick={handleSend}
                 disabled={!input.trim() || isSending}
                 data-testid="button-send"
               >
                 {isSending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <Send className="w-4 h-4" />
+                  <Send className="w-5 h-5" />
                 )}
               </Button>
             </div>
-            <p className="text-[10px] text-center text-muted-foreground mt-2">
-              Idea Foundry can make mistakes. Review generated PRDs.
+            <p className="text-xs text-center text-muted-foreground mt-3 font-medium">
+              Idea Foundry can make mistakes. Review generated specs carefully.
             </p>
           </div>
         </div>

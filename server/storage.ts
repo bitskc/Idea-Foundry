@@ -28,6 +28,11 @@ export interface IStorage {
   getAllProjects(): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
+  createProjectWithConversation(
+    project: InsertProject,
+    conversationData: Omit<InsertConversation, "projectId">,
+    initialMessages: Array<Pick<InsertMessage, "role" | "content">>,
+  ): Promise<{ project: Project; conversation: Conversation }>;
   updateProject(id: number, updates: Partial<InsertProject>): Promise<Project | undefined>;
   deleteProject(id: number): Promise<void>;
 
@@ -77,6 +82,26 @@ export class DatabaseStorage implements IStorage {
   async createProject(project: InsertProject): Promise<Project> {
     const [newProject] = await db.insert(projects).values(project).returning();
     return newProject;
+  }
+
+  async createProjectWithConversation(
+    project: InsertProject,
+    conversationData: Omit<InsertConversation, "projectId">,
+    initialMessages: Array<Pick<InsertMessage, "role" | "content">>,
+  ): Promise<{ project: Project; conversation: Conversation }> {
+    return db.transaction(async (tx) => {
+      const [newProject] = await tx.insert(projects).values(project).returning();
+      const [newConversation] = await tx
+        .insert(conversations)
+        .values({ ...conversationData, projectId: newProject.id })
+        .returning();
+      if (initialMessages.length > 0) {
+        await tx.insert(messages).values(
+          initialMessages.map((m) => ({ ...m, conversationId: newConversation.id })),
+        );
+      }
+      return { project: newProject, conversation: newConversation };
+    });
   }
 
   async updateProject(id: number, updates: Partial<InsertProject>): Promise<Project | undefined> {

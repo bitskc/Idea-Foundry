@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,11 +24,19 @@ function Router() {
       <Route path="/app/conversation/:id" component={Conversation} />
       <Route path="/app/prd/:id" component={PrdView} />
       
-      {/* Legacy routes - redirect support */}
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/idea/:id" component={IdeaDetail} />
-      <Route path="/conversation/:id" component={Conversation} />
-      <Route path="/prd/:id" component={PrdView} />
+      {/* Legacy routes - redirect to canonical /app/* paths */}
+      <Route path="/dashboard">
+        <Redirect to="/app" />
+      </Route>
+      <Route path="/idea/:id">
+        {(params) => <Redirect to={`/app/ideas/${params.id}`} />}
+      </Route>
+      <Route path="/conversation/:id">
+        {(params) => <Redirect to={`/app/conversation/${params.id}`} />}
+      </Route>
+      <Route path="/prd/:id">
+        {(params) => <Redirect to={`/app/prd/${params.id}`} />}
+      </Route>
       
       <Route component={NotFound} />
     </Switch>

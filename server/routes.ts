@@ -1,13 +1,26 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import OpenAI from "openai";
 import { speechToText, textToSpeech, ensureCompatibleFormat } from "./replit_integrations/audio/client";
+import { insertProjectSchema } from "@shared/schema";
+import { AI_MODELS, parseAiJson, stripCodeFences, AiResponseError } from "./ai";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+// Parse a positive-integer route param, responding 400 on invalid input.
+// Returns null (after sending the response) when the id is not usable.
+function getId(req: Request, res: Response): number | null {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid ID" });
+    return null;
+  }
+  return id;
+}
 
 // Audience-specific question emphasis
 const AUDIENCE_PROMPTS: Record<string, string> = {
@@ -191,7 +204,7 @@ export async function registerRoutes(
       const typeContext = type ? `Product type: ${type}` : "";
       
       const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: AI_MODELS.primary,
         messages: [
           {
             role: "system",
@@ -223,13 +236,14 @@ Return only the JSON array, no other text.`
 
       const content = response.choices[0]?.message?.content || "[]";
       
-      // Parse JSON from response
-      let names = [];
+      // Robustly parse JSON; keep the fallback names below if it's malformed
+      let names: Array<{ name: string; tagline: string; style: string }> = [];
       try {
-        const jsonMatch = content.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          names = JSON.parse(jsonMatch[0]);
-        }
+        const parsed = parseAiJson<Array<{ name: string; tagline: string; style: string }>>(
+          content,
+          { label: "name suggestions" },
+        );
+        if (Array.isArray(parsed)) names = parsed;
       } catch (parseError) {
         console.error("Error parsing names:", parseError);
       }
@@ -308,7 +322,8 @@ Return only the JSON array, no other text.`
   // Get single project with conversation
   app.get("/api/projects/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = getId(req, res);
+      if (id === null) return;
       const project = await storage.getProject(id);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
@@ -363,32 +378,7 @@ Return only the JSON array, no other text.`
         return res.status(400).json({ error: `Please provide at least 10 characters describing your ${startMode}` });
       }
 
-      // Create project
-      const project = await storage.createProject({
-        title: rawIdea.substring(0, 50) + (rawIdea.length > 50 ? "..." : ""),
-        description: rawIdea,
-        type,
-        status: "draft",
-        ideaStatus: "exploring",
-        progress: 0,
-        rawIdea,
-        startMode,
-        conversationMode,
-        discoveryPath,
-        ideaPurpose,
-        prdContent: null,
-        targetAvatar,
-      });
-
-      // Create associated conversation with appropriate starting section
-      const conversation = await storage.createConversation({
-        projectId: project.id,
-        currentSection: startMode === "problem" ? "Problem Deep-Dive" : "Problem Statement",
-        currentStep: 0,
-        answers: {},
-      });
-
-      // Add initial AI greeting message based on start mode and conversation mode
+      // Determine the opening AI greeting based on start mode and conversation mode
       let greetingMessage: string;
       if (conversationMode === "challenger") {
         greetingMessage = "Hey. I'm Idea Foundry in Challenger Mode - think of me as your brutally honest friend who won't let you waste months building something that won't work. I'll push back, point out competition, and stress-test your thinking. Don't worry, I'm on your side - I just want your idea to be bulletproof. So... what are you thinking about building?";
@@ -398,23 +388,38 @@ Return only the JSON array, no other text.`
         greetingMessage = "Hi there! I'm here to help you flesh out this idea. Share your thoughts and let's explore it together!";
       }
       
-      await storage.createMessage({
-        conversationId: conversation.id,
-        role: "ai",
-        content: greetingMessage,
-      });
-
-      // Add user's idea as their first message
-      await storage.createMessage({
-        conversationId: conversation.id,
-        role: "user",
-        content: rawIdea,
-      });
+      // Atomically create the project, its conversation, and the opening messages
+      const { project, conversation } = await storage.createProjectWithConversation(
+        {
+          title: rawIdea.substring(0, 50) + (rawIdea.length > 50 ? "..." : ""),
+          description: rawIdea,
+          type,
+          status: "draft",
+          ideaStatus: "exploring",
+          progress: 0,
+          rawIdea,
+          startMode,
+          conversationMode,
+          discoveryPath,
+          ideaPurpose,
+          prdContent: null,
+          targetAvatar,
+        },
+        {
+          currentSection: startMode === "problem" ? "Problem Deep-Dive" : "Problem Statement",
+          currentStep: 0,
+          answers: {},
+        },
+        [
+          { role: "ai", content: greetingMessage },
+          { role: "user", content: rawIdea },
+        ],
+      );
 
       // Generate AI response to the input
       try {
         const aiResponse = await openai.chat.completions.create({
-          model: "gpt-5.1",
+          model: AI_MODELS.primary,
           messages: [
             { role: "system", content: getPRDSystemPrompt(type, startMode, conversationMode, discoveryPath, ideaPurpose) },
             { role: "assistant", content: greetingMessage },
@@ -470,9 +475,13 @@ Return only the JSON array, no other text.`
   // Update project (PATCH)
   app.patch("/api/projects/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      const updates = req.body;
-      const project = await storage.updateProject(id, updates);
+      const id = getId(req, res);
+      if (id === null) return;
+      const parsed = insertProjectSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid project update" });
+      }
+      const project = await storage.updateProject(id, parsed.data);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
@@ -486,7 +495,8 @@ Return only the JSON array, no other text.`
   // Delete project
   app.delete("/api/projects/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = getId(req, res);
+      if (id === null) return;
       await storage.deleteProject(id);
       res.status(204).send();
     } catch (error) {
@@ -498,7 +508,8 @@ Return only the JSON array, no other text.`
   // Generate competitor research and viability score for a project
   app.post("/api/projects/:id/research", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = getId(req, res);
+      if (id === null) return;
       const project = await storage.getProject(id);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
@@ -522,7 +533,7 @@ Be realistic and honest in your assessment. Consider market size, competition in
 IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.fast,
         messages: [
           { role: "system", content: "You are a business analyst providing competitor research and viability assessments. Always respond with valid JSON only." },
           { role: "user", content: prompt }
@@ -532,13 +543,12 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
       });
 
       const content = response.choices[0]?.message?.content || "{}";
-      let researchData;
-      try {
-        researchData = JSON.parse(content);
-      } catch (parseError) {
-        console.error("Failed to parse research response:", content);
-        throw new Error("Invalid research response format");
-      }
+      const researchData = parseAiJson<{
+        viabilityScore?: number;
+        viabilityBreakdown?: any;
+        competitors?: any;
+        keyInsights?: any;
+      }>(content, { label: "research report" });
 
       // Update project with research data
       const updatedProject = await storage.updateProject(id, {
@@ -550,6 +560,9 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
 
       res.json(updatedProject);
     } catch (error) {
+      if (error instanceof AiResponseError) {
+        return res.status(502).json({ error: error.message });
+      }
       console.error("Error generating research:", error);
       res.status(500).json({ error: "Failed to generate research" });
     }
@@ -558,7 +571,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
   // Start conversation for an existing project (for quick-capture projects)
   app.post("/api/projects/:id/start-conversation", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = getId(req, res);
+      if (id === null) return;
       const { conversationMode = "supportive" } = req.body;
       
       const project = await storage.getProject(id);
@@ -581,13 +595,13 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
       });
 
       // Add initial AI greeting
-      const greeting = conversationMode === "challenging" 
+      const greeting = conversationMode === "challenger" 
         ? `Welcome! I'm here to challenge your idea and help you think critically about it.\n\nYou shared: "${project.rawIdea?.substring(0, 100)}..."\n\nLet me ask you some tough questions. What specific problem are you trying to solve, and why do you think people will pay for this solution?`
         : `Hi! I'm excited to help you explore and develop your idea.\n\nYou shared: "${project.rawIdea?.substring(0, 100)}..."\n\nLet's start by understanding the problem. What specific pain point or need does your idea address?`;
 
       await storage.createMessage({
         conversationId: conversation.id,
-        role: "assistant",
+        role: "ai",
         content: greeting,
       });
 
@@ -607,7 +621,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
   // Get conversation with messages
   app.get("/api/conversations/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = getId(req, res);
+      if (id === null) return;
       const conversation = await storage.getConversation(id);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -624,7 +639,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
   // Send message and get AI response (streaming)
   app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
-      const conversationId = parseInt(req.params.id);
+      const conversationId = getId(req, res);
+      if (conversationId === null) return;
       const { content } = req.body;
 
       if (!content || content.trim().length === 0) {
@@ -666,7 +682,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
 
       // Stream AI response
       const stream = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: AI_MODELS.primary,
         messages: [
           { role: "system", content: getPRDSystemPrompt(audienceType, projectStartMode, projectConversationMode, projectDiscoveryPath, projectIdeaPurpose) },
           ...chatHistory,
@@ -749,7 +765,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
   // Notes API
   app.get("/api/projects/:id/notes", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
+      const projectId = getId(req, res);
+      if (projectId === null) return;
       const notesList = await storage.getNotesByProject(projectId);
       res.json(notesList);
     } catch (error) {
@@ -760,7 +777,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
 
   app.post("/api/projects/:id/notes", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
+      const projectId = getId(req, res);
+      if (projectId === null) return;
       const { content } = req.body;
       
       if (!content || content.trim().length === 0) {
@@ -780,7 +798,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
 
   app.delete("/api/notes/:id", async (req, res) => {
     try {
-      const noteId = parseInt(req.params.id);
+      const noteId = getId(req, res);
+      if (noteId === null) return;
       await storage.deleteNote(noteId);
       res.json({ success: true });
     } catch (error) {
@@ -792,7 +811,8 @@ IMPORTANT: Return ONLY valid JSON, no markdown or explanation.`;
   // Generate PRD from project with tiered depth options
   app.post("/api/projects/:id/generate-prd", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
+      const projectId = getId(req, res);
+      if (projectId === null) return;
       const project = await storage.getProject(projectId);
       
       if (!project) {
@@ -1197,7 +1217,7 @@ This PRD should be detailed enough that even a basic AI model can follow the ste
       }
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: AI_MODELS.document,
         messages: [{ role: "user", content: prdPrompt }],
         max_completion_tokens: maxTokens,
       });
@@ -1221,7 +1241,8 @@ This PRD should be detailed enough that even a basic AI model can follow the ste
   // Tech stack advisor
   app.post("/api/projects/:id/recommend-stack", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
+      const projectId = getId(req, res);
+      if (projectId === null) return;
       const project = await storage.getProject(projectId);
       
       if (!project) {
@@ -1280,25 +1301,23 @@ Consider:
 Return ONLY valid JSON, no explanation.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: AI_MODELS.primary,
         messages: [
           { role: "system", content: "You are a senior technical architect helping founders choose the right tech stack. Always respond with valid JSON only." },
           { role: "user", content: stackPrompt }
         ],
+        response_format: { type: "json_object" },
         max_completion_tokens: 4000,
       });
 
       const content = response.choices[0]?.message?.content || "{}";
-      let stackData;
-      try {
-        stackData = JSON.parse(content);
-      } catch (parseError) {
-        console.error("Failed to parse stack response:", content);
-        throw new Error("Invalid stack response format");
-      }
+      const stackData = parseAiJson(content, { label: "tech stack recommendation" });
 
       res.json(stackData);
     } catch (error) {
+      if (error instanceof AiResponseError) {
+        return res.status(502).json({ error: error.message });
+      }
       console.error("Error recommending tech stack:", error);
       res.status(500).json({ error: "Failed to generate tech stack recommendation" });
     }
@@ -1307,7 +1326,8 @@ Return ONLY valid JSON, no explanation.`;
   // Generate landing page for idea validation
   app.post("/api/projects/:id/generate-landing-page", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
+      const projectId = getId(req, res);
+      if (projectId === null) return;
       const project = await storage.getProject(projectId);
       
       if (!project) {
@@ -1355,7 +1375,7 @@ Requirements:
 Return ONLY the complete HTML code, no explanation.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: AI_MODELS.primary,
         messages: [{ role: "user", content: landingPagePrompt }],
         max_completion_tokens: 8000,
       });
@@ -1363,10 +1383,7 @@ Return ONLY the complete HTML code, no explanation.`;
       const htmlContent = response.choices[0]?.message?.content || "<!DOCTYPE html><html><body>Failed to generate</body></html>";
       
       // Clean up the response - remove markdown code blocks if present
-      const cleanHtml = htmlContent
-        .replace(/^```html?\n?/i, "")
-        .replace(/\n?```$/i, "")
-        .trim();
+      const cleanHtml = stripCodeFences(htmlContent);
 
       res.json({ html: cleanHtml });
     } catch (error) {
@@ -1378,7 +1395,8 @@ Return ONLY the complete HTML code, no explanation.`;
   // Find communities for idea validation
   app.post("/api/projects/:id/find-communities", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
+      const projectId = getId(req, res);
+      if (projectId === null) return;
       const project = await storage.getProject(projectId);
       
       if (!project) {
@@ -1411,8 +1429,9 @@ Include 3-5 suggestions per category. Focus on active communities that would be 
 Return ONLY valid JSON, no explanation.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: AI_MODELS.primary,
         messages: [{ role: "user", content: communityPrompt }],
+        response_format: { type: "json_object" },
         max_completion_tokens: 2000,
       });
 
@@ -1420,7 +1439,7 @@ Return ONLY valid JSON, no explanation.`;
       
       // Parse and validate JSON
       try {
-        const communities = JSON.parse(content.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim());
+        const communities = parseAiJson(content, { label: "community suggestions" });
         res.json(communities);
       } catch {
         res.json({ 
@@ -1440,7 +1459,8 @@ Return ONLY valid JSON, no explanation.`;
   // Reality Check - estimate time/effort for an idea
   app.post("/api/projects/:id/reality-check", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id);
+      const projectId = getId(req, res);
+      if (projectId === null) return;
       const project = await storage.getProject(projectId);
       
       if (!project) {
@@ -1509,15 +1529,16 @@ Be honest and direct. Don't sugarcoat. Founders with this feature enabled WANT t
 Return ONLY valid JSON, no explanation.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: AI_MODELS.primary,
         messages: [{ role: "user", content: realityCheckPrompt }],
+        response_format: { type: "json_object" },
         max_completion_tokens: 3000,
       });
 
       const content = response.choices[0]?.message?.content || "{}";
       
       try {
-        const realityCheck = JSON.parse(content.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim());
+        const realityCheck = parseAiJson(content, { label: "reality check" });
         res.json(realityCheck);
       } catch {
         res.json({ 
