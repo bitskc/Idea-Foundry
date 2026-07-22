@@ -27,6 +27,19 @@ export async function getAIServiceForUser(
     }
   }
 
+  // No BYOK key for preferred provider — check the other provider
+  // (user might have only an Anthropic key when Gemini is preferred, or vice versa)
+  const otherProvider = preferredProvider === "gemini" ? "anthropic" : "gemini";
+  const otherKey = await storage.getUserApiKey(userId, otherProvider);
+  if (otherKey) {
+    if (otherProvider === "gemini") {
+      return new GeminiAdapter(otherKey);
+    }
+    if (otherProvider === "anthropic") {
+      return new AnthropicAdapter(otherKey);
+    }
+  }
+
   // Fall back to server defaults
   if (preferredProvider === "anthropic" && process.env.ANTHROPIC_API_KEY) {
     return new AnthropicAdapter();

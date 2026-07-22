@@ -1249,19 +1249,35 @@ Be practical and opinionated. Choose technologies that work well together and ar
           return;
         }
 
-        // No partial response — try falling back to server default key
+        // No partial response — try falling back to server default keys
         console.log("Falling back to server default AI key...");
-        const fallbackService = new GeminiAdapter();
-        try {
-          for await (const chunk of fallbackService.generateTextStream(content.trim(), chatHistory, {
-            systemPrompt,
-            maxTokens: 1500
-          })) {
-            aiResponse += chunk;
-            res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+        const fallbacks: { name: string; service: AIService }[] = [];
+        if (process.env.GEMINI_API_KEY) {
+          fallbacks.push({ name: "Gemini", service: new GeminiAdapter() });
+        }
+        if (process.env.ANTHROPIC_API_KEY) {
+          fallbacks.push({ name: "Anthropic", service: new AnthropicAdapter() });
+        }
+
+        let fallbackSucceeded = false;
+        for (const { name, service: fallbackService } of fallbacks) {
+          try {
+            console.log(`Trying ${name} fallback...`);
+            for await (const chunk of fallbackService.generateTextStream(content.trim(), chatHistory, {
+              systemPrompt,
+              maxTokens: 1500
+            })) {
+              aiResponse += chunk;
+              res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+            }
+            fallbackSucceeded = true;
+            break;
+          } catch (fallbackError) {
+            console.error(`${name} fallback failed:`, fallbackError);
           }
-        } catch (fallbackError) {
-          console.error("Fallback streaming also failed:", fallbackError);
+        }
+
+        if (!fallbackSucceeded) {
           res.write(`data: ${JSON.stringify({ error: "Failed to generate response. Please check your API key in Settings." })}\n\n`);
           res.end();
           return;
