@@ -1,11 +1,15 @@
 import express from "express";
 import { createServer } from "http";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 
 export async function setupApp() {
     const app = express();
     const httpServer = createServer(app);
+
+    // Security headers
+    app.use(helmet());
 
     // Stripe webhook needs raw body
     app.use("/api/webhook/stripe", express.raw({ type: "application/json" }));

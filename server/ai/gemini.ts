@@ -5,7 +5,7 @@ export class GeminiAdapter implements AIService {
     provider = "gemini" as const;
     private client: GoogleGenerativeAI;
     private apiKey: string;
-    private defaultModel = "gemini-1.5-flash";
+    private defaultModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
     constructor(apiKey?: string) {
         this.apiKey = apiKey || process.env.GEMINI_API_KEY || "";
@@ -50,6 +50,35 @@ export class GeminiAdapter implements AIService {
         } catch (error) {
             console.error("Gemini Text Generation Error:", error);
             throw error;
+        }
+    }
+
+    async *generateTextStream(
+        prompt: string,
+        history: AIMessage[] = [],
+        options: GenerateTextOptions
+    ): AsyncGenerator<string, void, unknown> {
+        const modelName = options.model || this.defaultModel;
+        const model = this.client.getGenerativeModel({
+            model: modelName,
+            systemInstruction: options.systemPrompt
+        });
+
+        const chat = model.startChat({
+            history: history.map(msg => ({
+                role: this.mapRole(msg.role),
+                parts: [{ text: msg.content }]
+            })),
+            generationConfig: {
+                maxOutputTokens: options.maxTokens,
+                temperature: options.temperature,
+            }
+        });
+
+        const result = await chat.sendMessageStream(prompt);
+        for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) yield text;
         }
     }
 

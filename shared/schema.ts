@@ -7,7 +7,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey(), // Matches Supabase auth.users.id
   email: text("email").notNull().unique(),
   username: text("username"),
-  password: text("password"), // Legacy - unused with Supabase Auth
+  password: text("password"), // bcrypt hash (JWT auth)
   subscriptionStatus: text("subscription_status").notNull().default("free"), // 'free' | 'pro'
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
@@ -77,6 +77,15 @@ export const apiTokens = pgTable("api_tokens", {
   expiresAt: timestamp("expires_at"),
 });
 
+export const userApiKeys = pgTable("user_api_keys", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(), // 'gemini' | 'anthropic' | 'openai'
+  encryptedKey: text("encrypted_key").notNull(), // AES-256-GCM encrypted
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   id: true,
@@ -110,6 +119,10 @@ export const insertNoteSchema = createInsertSchema(notes).omit({
   createdAt: true,
 });
 
+export const insertUserApiKeySchema = createInsertSchema(userApiKeys).omit({
+  id: true,
+  createdAt: true,
+});
 export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({
   id: true,
   createdAt: true,
@@ -134,6 +147,8 @@ export type InsertNote = z.infer<typeof insertNoteSchema>;
 
 export type ApiToken = typeof apiTokens.$inferSelect;
 export type InsertApiToken = z.infer<typeof insertApiTokenSchema>;
+export type UserApiKey = typeof userApiKeys.$inferSelect;
+export type InsertUserApiKey = z.infer<typeof insertUserApiKeySchema>;
 
 // Tech Stack Types
 export interface TechStackItem {

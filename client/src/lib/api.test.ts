@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getAuthHeaders, apiRequest, api } from "./api";
 
 // Mock the JWT auth client
-vi.mock("./supabase", () => ({
+vi.mock("./auth", () => ({
   getToken: vi.fn(),
   isDevMode: false,
 }));
 
-import { getToken } from "./supabase";
+import { getToken } from "./auth";
 
 describe("api helper", () => {
   const mockFetch = vi.fn();

@@ -1,11 +1,27 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
 
 const app = express();
 
-app.use(express.json());
+// Security headers
+app.use(helmet());
+
+
+// Stripe webhook needs raw body
+app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }));
+
+// Use JSON parser for all other routes
+app.use((req, res, next) => {
+  if (req.path === '/api/webhook/stripe') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
 app.use(express.urlencoded({ extended: false }));
 
 // CORS configuration

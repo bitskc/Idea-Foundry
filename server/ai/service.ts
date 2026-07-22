@@ -30,6 +30,12 @@ export interface AIService {
         options?: GenerateTextOptions
     ): Promise<string>;
 
+    generateTextStream(
+        prompt: string,
+        history: AIMessage[],
+        options: GenerateTextOptions
+    ): AsyncGenerator<string, void, unknown>;
+
     generateJSON<T>(
         prompt: string,
         history: AIMessage[] | undefined,

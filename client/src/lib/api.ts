@@ -1,4 +1,4 @@
-import { getToken, isDevMode } from "./supabase";
+import { getToken, isDevMode } from "./auth";
 
 export async function getAuthHeaders(): Promise<HeadersInit> {
   const token = getToken();

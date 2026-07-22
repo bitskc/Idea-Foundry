@@ -15,6 +15,7 @@ import PrdView from "@/pages/prd-view";
 import IdeaDetail from "@/pages/idea-detail";
 import AuthPage from "@/pages/auth";
 import UpgradePage from "@/pages/upgrade";
+import SettingsPage from "@/pages/settings";
 import { useEffect } from "react";
 
 function SubdomainRouter() {
@@ -81,6 +82,9 @@ function SubdomainRouter() {
         <Route path="/app/upgrade">
           {() => <ProtectedRoute><UpgradePage /></ProtectedRoute>}
         </Route>
+        <Route path="/app/settings">
+          {() => <ProtectedRoute><SettingsPage /></ProtectedRoute>}
+        </Route>
 
         {/* Legacy routes - also protected */}
         <Route path="/dashboard">
@@ -126,6 +130,9 @@ function SubdomainRouter() {
       </Route>
       <Route path="/app/upgrade">
         {() => <ProtectedRoute><UpgradePage /></ProtectedRoute>}
+      </Route>
+      <Route path="/app/settings">
+        {() => <ProtectedRoute><SettingsPage /></ProtectedRoute>}
       </Route>
 
       {/* Legacy routes - also protected */}

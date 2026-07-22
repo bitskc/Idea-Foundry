@@ -11,12 +11,14 @@ import {
   type InsertNote,
   type ApiToken,
   type InsertApiToken,
+  type UserApiKey,
   users,
   projects,
   conversations,
   messages,
   notes,
-  apiTokens
+  apiTokens,
+  userApiKeys,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -62,6 +64,11 @@ export interface IStorage {
   createApiToken(token: InsertApiToken): Promise<{ token: string; metadata: Omit<ApiToken, 'tokenHash'> }>;
   updateApiTokenLastUsed(id: number): Promise<void>;
   deleteApiToken(id: number): Promise<void>;
+  // User API Key methods (BYOK)
+  getUserApiKeys(userId: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }[]>;
+  getUserApiKey(userId: string, provider: string): Promise<string | null>;
+  createUserApiKey(userId: string, provider: string, encryptedKey: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }>;
+  deleteUserApiKey(id: number, userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -256,6 +263,74 @@ export class DatabaseStorage implements IStorage {
   async deleteApiToken(id: number): Promise<void> {
     await db.delete(apiTokens).where(eq(apiTokens.id, id));
   }
+
+  // User API Key methods (BYOK)
+  async getUserApiKeys(userId: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }[]> {
+    const keys = await db.select().from(userApiKeys).where(eq(userApiKeys.userId, userId));
+    // Decrypt each key to mask it (we need the plaintext to show the first/last chars)
+    const { decrypt, maskKey } = await import("./crypto");
+    return keys.map(k => {
+      let masked = "****";
+      try {
+        const plaintext = decrypt(k.encryptedKey);
+        masked = maskKey(plaintext);
+      } catch {
+        masked = "****";
+      }
+      return {
+        id: k.id,
+        provider: k.provider,
+        maskedKey: masked,
+        createdAt: k.createdAt,
+        lastUsedAt: k.lastUsedAt,
+      };
+    });
+  }
+
+  async getUserApiKey(userId: string, provider: string): Promise<string | null> {
+    const [key] = await db.select().from(userApiKeys)
+      .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
+    if (!key) return null;
+    const { decrypt } = await import("./crypto");
+    return decrypt(key.encryptedKey);
+  }
+
+  async createUserApiKey(userId: string, provider: string, encryptedKey: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }> {
+    // Delete existing key for this provider first (one key per provider per user)
+    await db.delete(userApiKeys).where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
+    const [created] = await db.insert(userApiKeys).values({
+      userId,
+      provider,
+      encryptedKey,
+    }).returning();
+    const { decrypt, maskKey } = await import("./crypto");
+    let masked = "****";
+    try {
+      masked = maskKey(decrypt(encryptedKey));
+    } catch { /* */ }
+    return {
+      id: created.id,
+      provider: created.provider,
+      maskedKey: masked,
+      createdAt: created.createdAt,
+      lastUsedAt: created.lastUsedAt,
+    };
+  }
+
+  async deleteUserApiKey(id: number, userId: string): Promise<void> {
+    await db.delete(userApiKeys).where(and(eq(userApiKeys.id, id), eq(userApiKeys.userId, userId)));
+  }
 }
 
 export const storage = new DatabaseStorage();
+
+import { isDevMode } from "./middleware/auth";
+import { mockStorage } from "./storage-mock";
+
+/**
+ * Shared storage selection — used by routes.ts, mcp/index.ts, mcp/auth.ts.
+ * Dev mode (no DATABASE_URL) uses in-memory mock; production uses Drizzle/Postgres.
+ */
+export function getStorage(): IStorage {
+  return isDevMode ? mockStorage : storage;
+}

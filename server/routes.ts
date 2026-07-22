@@ -4,6 +4,7 @@ import { isDevMode } from "./middleware/auth";
 import { GeminiAdapter } from "./ai/gemini";
 import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
+import { getAIServiceForUser } from "./ai/factory";
 import { z } from "zod";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
 import { TechStackRecommendationSchema } from "../shared/schema";
@@ -12,27 +13,12 @@ import Stripe from "stripe";
 import rateLimit from "express-rate-limit";
 import { MCP_TOOLS, executeMcpTool } from "./mcp/index";
 import { validateApiToken } from "./mcp/auth";
-import { mockStorage } from "./storage-mock";
-import { storage as dbStorage } from "./storage";
+import { getStorage } from "./storage";
 import type { IStorage } from "./storage";
 import { registerUser, loginUser } from "./auth";
 
-// Select storage: dev mode uses in-memory mock, production uses Drizzle/Postgres
-let storage: IStorage;
-if (isDevMode) {
-  storage = mockStorage;
-} else {
-  storage = dbStorage;
-}
-
-// Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
-// Ideally this would be configurable per-user or feature
-const aiService: AIService = new GeminiAdapter(process.env.GEMINI_API_KEY);
-
-// Optional: Anthropic for complex reasoning tasks if configured
-const anthropicService = process.env.ANTHROPIC_API_KEY
-  ? new AnthropicAdapter(process.env.ANTHROPIC_API_KEY)
-  : null;
+const storage: IStorage = getStorage();
+// AI service is now created per-request via getAIServiceForUser (supports BYOK)
 
 // Audience-specific question emphasis
 const AUDIENCE_PROMPTS: Record<string, string> = {
@@ -236,8 +222,8 @@ export async function registerRoutes(
         res.json({ status: "ok", mode: "dev", timestamp: new Date().toISOString() });
         return;
       }
-      // Test database connection via storage
-      const user = await storage.getUser("health-check-nonexistent");
+      // Test database connection — user not existing is fine, we just need the query to succeed
+      await storage.getUser("health-check-nonexistent");
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     } catch (error) {
       res.status(500).json({ status: "error", message: "Database connection failed" });
@@ -312,6 +298,127 @@ export async function registerRoutes(
     }
   });
 
+  // Change password (requires auth)
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const { password } = req.body;
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      const user = await storage.getUser(authReq.user.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await storage.updateUser(authReq.user.id, { password: hashedPassword });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error changing password:", error);
+      res.status(500).json({ error: "Failed to change password" });
+    }
+  });
+
+  // BYOK: List user API keys (masked)
+  app.get("/api/user/keys", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const keys = await storage.getUserApiKeys(authReq.user.id);
+      res.json(keys);
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+      res.status(500).json({ error: "Failed to fetch API keys" });
+    }
+  });
+
+  // BYOK: Save/update user API key
+  app.post("/api/user/keys", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const { provider, apiKey } = req.body;
+      if (!provider || !apiKey) {
+        return res.status(400).json({ error: "Provider and apiKey are required" });
+      }
+      const validProviders = ["gemini", "anthropic", "openai"];
+      if (!validProviders.includes(provider)) {
+        return res.status(400).json({ error: "Invalid provider" });
+      }
+      const { encrypt } = await import("./crypto");
+      const encryptedKey = encrypt(apiKey.trim());
+      const result = await storage.createUserApiKey(authReq.user.id, provider, encryptedKey);
+      res.json(result);
+    } catch (error) {
+      console.error("Error saving API key:", error);
+      res.status(500).json({ error: "Failed to save API key" });
+    }
+  });
+
+  // BYOK: Delete user API key
+  app.delete("/api/user/keys/:id", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+      await storage.deleteUserApiKey(id, authReq.user.id);
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error deleting API key:", error);
+      res.status(500).json({ error: "Failed to delete API key" });
+    }
+  });
+
+  // Stripe webhook - registered before requireAuth because it uses its own
+  // signature verification and must receive the raw request body.
+  app.post("/api/webhook/stripe", async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
+      console.error("Webhook Error: Missing signature or secret");
+      return res.status(400).send("Webhook Error: Missing signature or secret");
+    }
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, Array.isArray(sig) ? sig[0] : sig, process.env.STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      console.error(`Webhook signature verification failed: ${errMessage}`);
+      return res.status(400).send(`Webhook Error: ${errMessage}`);
+    }
+
+    try {
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = session.client_reference_id;
+        const subscriptionId = session.subscription as string | null;
+
+        if (userId && subscriptionId) {
+            await storage.updateUser(userId, {
+                subscriptionStatus: 'pro',
+                stripeSubscriptionId: subscriptionId
+            });
+            console.log(`User ${userId} upgraded to Pro`);
+        }
+      } else if (event.type === 'customer.subscription.deleted') {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+
+        const user = await storage.getUserByStripeCustomerId(customerId);
+        if (user) {
+             await storage.updateUser(user.id, {
+                 subscriptionStatus: 'free',
+                 stripeSubscriptionId: null
+             });
+             console.log(`User ${user.id} subscription deleted`);
+         }
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error("Webhook handler error:", error);
+      res.status(500).send("Webhook handler failed");
+    }
+  });
+
   // Apply auth to all API routes below
   app.use("/api", requireAuth);
 
@@ -319,6 +426,7 @@ export async function registerRoutes(
   app.post("/api/generate-names", async (req, res) => {
     try {
       const { idea, type } = req.body;
+      const authReq = req as unknown as AuthenticatedRequest;
 
       if (!idea || idea.length < 10) {
         return res.status(400).json({ error: "Please provide a product idea" });
@@ -341,8 +449,8 @@ Rules for good names:
 
 Return ONLY a JSON array of 6 name suggestions with this exact format:
 [{"name": "AppName", "tagline": "Short catchy tagline", "style": "playful|professional|abstract|descriptive"}]`;
-
-      const names = await aiService.generateJSON(prompt, [], {
+      const userAiService = await getAIServiceForUser(authReq.user.id, storage);
+      const names = await userAiService.generateJSON(prompt, [], {
         schema: NameSuggestionSchema,
         maxTokens: 500
       });
@@ -519,8 +627,8 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
           { role: "assistant", content: greetingMessage },
           { role: "user", content: rawIdea },
         ];
-
-        const aiResponse = await aiService.generateText(rawIdea, history, {
+        const userAiService = await getAIServiceForUser(authReq.user.id, storage);
+        const aiResponse = await userAiService.generateText(rawIdea, history, {
           systemPrompt,
           maxTokens: 1500
         });
@@ -577,8 +685,19 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const updates = req.body;
-      const project = await storage.updateProject(id, updates);
+      const updateProjectSchema = z.object({
+        title: z.string().optional(),
+        description: z.string().optional(),
+        status: z.string().optional(),
+        ideaStatus: z.string().optional(),
+        progress: z.number().optional(),
+      }).strict();
+
+      const result = updateProjectSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: "Invalid update data", details: result.error.flatten() });
+      }
+      const project = await storage.updateProject(id, result.data);
       res.json(project);
     } catch (error) {
       console.error("Error updating project:", error);
@@ -637,8 +756,8 @@ Respond with a JSON object containing:
 
 Be realistic and honest in your assessment. Consider market size, competition intensity, required effort to build, and profit potential.`;
 
-      // Use Anthropic if available for better reasoning, otherwise Gemini
-      const service = anthropicService || aiService;
+      // Use BYOK if available, prefer Anthropic for reasoning tasks
+      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
 
       const researchData = await service.generateJSON(prompt, [], {
         schema: ResearchSchema,
@@ -949,8 +1068,8 @@ Return a JSON object with this exact structure:
 
 Be practical and opinionated. Choose technologies that work well together and are widely supported by AI coding assistants.`;
 
-      // Use Anthropic if available for better reasoning, otherwise Gemini
-      const service = anthropicService || aiService;
+      // Use BYOK if available, prefer Anthropic for reasoning tasks
+      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
 
       const recommendation = await service.generateJSON(prompt, [], {
         schema: TechStackRecommendationSchema,
@@ -1097,10 +1216,39 @@ Be practical and opinionated. Choose technologies that work well together and ar
 
       const systemPrompt = getPRDSystemPrompt(audienceType, projectStartMode, projectConversationMode, projectDiscoveryPath, projectIdeaPurpose);
 
-      const aiResponse = await aiService.generateText(content.trim(), chatHistory, {
-        systemPrompt,
-        maxTokens: 1500
+      // Set SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
       });
+      // Stream AI response chunks — use BYOK key if user has one
+      const userAiService = await getAIServiceForUser(authReq.user.id, storage);
+      let aiResponse = "";
+      try {
+        for await (const chunk of userAiService.generateTextStream(content.trim(), chatHistory, {
+          systemPrompt,
+          maxTokens: 1500
+        })) {
+          aiResponse += chunk;
+          res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+        }
+      } catch (streamError) {
+        console.error("Streaming error:", streamError);
+        // Save partial AI response if we got one
+        if (aiResponse) {
+          await storage.createMessage({
+            conversationId,
+            role: "ai",
+            content: aiResponse + "\n\n*[Response was interrupted]*",
+          });
+          res.write(`data: ${JSON.stringify({ error: "Stream interrupted", partial: true })}\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ error: "Failed to generate response" })}\n\n`);
+        }
+        res.end();
+        return;
+      }
 
       // Save AI message
       await storage.createMessage({
@@ -1150,17 +1298,23 @@ Be practical and opinionated. Choose technologies that work well together and ar
         });
       }
 
-      res.json({
-        content: aiResponse,
-        done: true,
-        step: newStep,
-        section: currentPhase.section,
-        progress: currentPhase.progress
-      });
+      // Send final event with metadata
+      res.write(`data: ${JSON.stringify({ done: true, step: newStep, section: currentPhase.section, progress: currentPhase.progress })}\n\n`);
+      res.end();
 
     } catch (error) {
       console.error("Error processing message:", error);
-      res.status(500).json({ error: "Failed to process message" });
+      // If SSE headers already sent, send error as SSE event then close
+      if (res.headersSent) {
+        try {
+          res.write(`data: ${JSON.stringify({ error: "Failed to process message" })}\n\n`);
+          res.end();
+        } catch {
+          // Connection already closed
+        }
+      } else {
+        res.status(500).json({ error: "Failed to process message" });
+      }
     }
   });
 
@@ -1698,12 +1852,11 @@ List ALL tables required for the MVP features described above.
 ---
 
 IMPORTANT: In the "Implementation Status" section, replace the placeholder feature names in the Feature Implementation Status table with the actual features you defined in "Feature Specifications" above, each marked as "[ ] Not Started". Also update the "Overall Progress" checklist to reflect the actual phases from your Implementation Guide.
-
 This PRD should be detailed enough that even a basic AI model can follow the step-by-step implementation guide and build a working application. Include actual code patterns and specific technology recommendations.`;
       }
 
-      // Use Anthropic for complex PRD generation if available, otherwise Gemini
-      const service = anthropicService || aiService;
+      // Use BYOK if available, prefer Anthropic for PRD generation
+      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
       const prdContent = await service.generateText(prdPrompt, [], {
         systemPrompt: "You are an expert product manager and technical architect. Generate comprehensive, actionable PRDs that AI coding agents can use to implement complete applications. Always fill in the Implementation Status section with the actual features from the PRD.",
         maxTokens,
@@ -1785,9 +1938,8 @@ Return a JSON object with this structure:
     }
   ]
 }`;
-
-      // Use Anthropic for complex relationship analysis if available
-      const service = anthropicService || aiService;
+      // Use BYOK if available, prefer Anthropic for analysis
+      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
 
       const SynergySchema = z.object({
         summary: z.string(),
@@ -1861,56 +2013,6 @@ Return a JSON object with this structure:
     } catch (error) {
       console.error("Stripe Portal error:", error);
       res.status(500).json({ error: "Failed to create portal session" });
-    }
-  });
-
-  app.post("/api/webhook/stripe", async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
-      console.error("Webhook Error: Missing signature or secret");
-      return res.status(400).send("Webhook Error: Missing signature or secret");
-    }
-
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      console.error(`Webhook signature verification failed: ${errMessage}`);
-      return res.status(400).send(`Webhook Error: ${errMessage}`);
-    }
-
-    try {
-      if (event.type === 'checkout.session.completed') {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.client_reference_id;
-        const subscriptionId = session.subscription as string | null;
-        
-        if (userId && subscriptionId) {
-            await storage.updateUser(userId, { 
-                subscriptionStatus: 'pro',
-                stripeSubscriptionId: subscriptionId
-            });
-            console.log(`User ${userId} upgraded to Pro`);
-        }
-      } else if (event.type === 'customer.subscription.deleted') {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
-        
-        const user = await storage.getUserByStripeCustomerId(customerId);
-        if (user) {
-             await storage.updateUser(user.id, { 
-                 subscriptionStatus: 'free',
-                 stripeSubscriptionId: null
-             });
-             console.log(`User ${user.id} subscription deleted`);
-         }
-      }
-      
-      res.json({ received: true });
-    } catch (error) {
-      console.error("Webhook handler error:", error);
-      res.status(500).send("Webhook handler failed");
     }
   });
 

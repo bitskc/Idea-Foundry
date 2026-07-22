@@ -317,6 +317,20 @@ export class MockStorage implements IStorage {
   async deleteApiToken(id: number): Promise<void> {
     apiTokens.delete(id);
   }
+
+  // User API Key methods (BYOK) — mock returns empty/null
+  async getUserApiKeys(_userId: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }[]> {
+    return [];
+  }
+  async getUserApiKey(_userId: string, _provider: string): Promise<string | null> {
+    return null;
+  }
+  async createUserApiKey(_userId: string, provider: string, _encryptedKey: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }> {
+    return { id: 1, provider, maskedKey: "****", createdAt: new Date(), lastUsedAt: null };
+  }
+  async deleteUserApiKey(_id: number, _userId: string): Promise<void> {
+    // no-op
+  }
 }
 
 export const mockStorage = new MockStorage();

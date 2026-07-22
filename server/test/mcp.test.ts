@@ -1,15 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the storage module before importing MCP modules
-vi.mock('../storage-supabase', () => ({
-  storage: {
+vi.mock('../storage', () => {
+  const mockStorage = {
     getProjectsByUserId: vi.fn().mockResolvedValue([]),
     getProject: vi.fn().mockResolvedValue(null),
     updateProject: vi.fn().mockResolvedValue({}),
     getApiTokenByHash: vi.fn().mockResolvedValue(null),
     updateApiTokenLastUsed: vi.fn().mockResolvedValue(undefined),
-  }
-}));
+  };
+  return {
+    storage: mockStorage,
+    getStorage: () => mockStorage,
+  };
+});
 
 // Now import the modules that depend on storage
 import { validateApiToken, extractBearerToken } from '../mcp/auth';

@@ -3,27 +3,20 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { register, login } from "@/lib/supabase";
+import { register, login } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const authSchema = z.object({
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
 });
-
-const resetSchema = z.object({
-    email: z.string().email("Invalid email address"),
-});
-
 type AuthFormValues = z.infer<typeof authSchema>;
-type ResetFormValues = z.infer<typeof resetSchema>;
-
-type AuthMode = "login" | "signup" | "reset";
+type AuthMode = "login" | "signup";
 
 export default function AuthPage() {
     const [mode, setMode] = useState<AuthMode>("login");
@@ -38,17 +31,9 @@ export default function AuthPage() {
         },
     });
 
-    const resetForm = useForm<ResetFormValues>({
-        resolver: zodResolver(resetSchema),
-        defaultValues: {
-            email: "",
-        },
-    });
-
     const switchMode = (newMode: AuthMode) => {
         setMode(newMode);
         form.reset();
-        resetForm.reset();
     };
 
     async function onSubmit(data: AuthFormValues) {
@@ -70,24 +55,10 @@ export default function AuthPage() {
         }
     }
 
-    async function onResetSubmit(data: ResetFormValues) {
-        setIsLoading(true);
-        try {
-            // Password reset not implemented with JWT auth — would need email service
-            toast.info("Password reset is not available yet. Contact support if you've lost your password.");
-            switchMode("login");
-        } catch (error: unknown) {
-            toast.error(error instanceof Error ? error.message : "Failed to send reset email");
-        } finally {
-            setIsLoading(false);
-        }
-    }
-
     const getTitle = () => {
         switch (mode) {
             case "login": return "Welcome back";
             case "signup": return "Create an account";
-            case "reset": return "Reset password";
         }
     };
 
@@ -95,7 +66,6 @@ export default function AuthPage() {
         switch (mode) {
             case "login": return "Enter your credentials to access your workspace";
             case "signup": return "Enter your email to create a new workspace";
-            case "reset": return "Enter your email and we'll send you a reset link";
         }
     };
 
@@ -108,33 +78,6 @@ export default function AuthPage() {
                         <CardDescription>{getDescription()}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {mode === "reset" ? (
-                            <Form {...resetForm}>
-                                <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
-                                    <FormField
-                                        control={resetForm.control}
-                                        name="email"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Email</FormLabel>
-                                                <FormControl>
-                                                    <Input 
-                                                        placeholder="name@example.com" 
-                                                        autoComplete="email"
-                                                        {...field} 
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <Button type="submit" className="w-full" disabled={isLoading}>
-                                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        Send Reset Link
-                                    </Button>
-                                </form>
-                            </Form>
-                        ) : (
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                                     <FormField
@@ -172,45 +115,23 @@ export default function AuthPage() {
                                             </FormItem>
                                         )}
                                     />
-                                    {mode === "login" && (
-                                        <Button
-                                            type="button"
-                                            variant="link"
-                                            className="px-0 text-sm text-muted-foreground"
-                                            onClick={() => switchMode("reset")}
-                                        >
-                                            Forgot password?
-                                        </Button>
-                                    )}
                                     <Button type="submit" className="w-full" disabled={isLoading}>
                                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                         {mode === "login" ? "Sign In" : "Sign Up"}
                                     </Button>
                                 </form>
                             </Form>
-                        )}
                     </CardContent>
                     <CardFooter className="flex flex-col gap-2">
-                        {mode === "reset" ? (
-                            <Button
-                                variant="link"
-                                className="w-full"
-                                onClick={() => switchMode("login")}
-                            >
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Back to Sign In
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="link"
-                                className="w-full"
-                                onClick={() => switchMode(mode === "login" ? "signup" : "login")}
-                            >
-                                {mode === "login"
-                                    ? "Don't have an account? Sign Up"
-                                    : "Already have an account? Sign In"}
-                            </Button>
-                        )}
+                        <Button
+                            variant="link"
+                            className="w-full"
+                            onClick={() => switchMode(mode === "login" ? "signup" : "login")}
+                        >
+                            {mode === "login"
+                                ? "Don't have an account? Sign Up"
+                                : "Already have an account? Sign In"}
+                        </Button>
                     </CardFooter>
                 </Card>
             </div>

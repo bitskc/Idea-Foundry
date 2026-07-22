@@ -4,7 +4,7 @@ import { AIService, AIMessage, GenerateTextOptions, GenerateJSONOptions } from "
 export class AnthropicAdapter implements AIService {
     provider = "anthropic" as const;
     private client: Anthropic;
-    private defaultModel = "claude-3-5-sonnet-20241022";
+    private defaultModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
 
     constructor(apiKey?: string) {
         const key = apiKey || process.env.ANTHROPIC_API_KEY;
@@ -43,6 +43,32 @@ export class AnthropicAdapter implements AIService {
         } catch (error) {
             console.error("Anthropic Text Generation Error:", error);
             throw error;
+        }
+    }
+
+    async *generateTextStream(
+        prompt: string,
+        history: AIMessage[] = [],
+        options: GenerateTextOptions
+    ): AsyncGenerator<string, void, unknown> {
+        const messages = history.map(msg => ({
+            role: msg.role === "user" ? "user" as const : "assistant" as const,
+            content: msg.content
+        }));
+        messages.push({ role: "user", content: prompt });
+
+        const stream = await this.client.messages.stream({
+            model: options.model || this.defaultModel,
+            system: options.systemPrompt,
+            max_tokens: options.maxTokens || 1024,
+            temperature: options.temperature,
+            messages: messages,
+        });
+
+        for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                yield event.delta.text;
+            }
         }
     }
 

@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Send, Mic, MicOff, Sparkles, Loader2, Volume2 } from "lucide-react";
+import { Send, Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
@@ -18,143 +18,15 @@ export default function ConversationPage() {
   const params = paramsApp || paramsLegacy;
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPlayingAudio, setIsPlayingAudio] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [progress, setProgress] = useState(10);
   const [currentSection, setCurrentSection] = useState("Problem Statement");
-
-  // Voice recording functions
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
-
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      recorder.start(100);
-      setIsRecording(true);
-    } catch (error) {
-      console.error("Error starting recording:", error);
-      toast({
-        variant: "destructive",
-        title: "Microphone Error",
-        description: "Could not access microphone. Please allow microphone access.",
-      });
-    }
-  }, [toast]);
-
-  const stopRecording = useCallback(async () => {
-    return new Promise<Blob>((resolve) => {
-      const recorder = mediaRecorderRef.current;
-      if (!recorder || recorder.state !== "recording") {
-        resolve(new Blob());
-        return;
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        recorder.stream.getTracks().forEach((t) => t.stop());
-        setIsRecording(false);
-        resolve(blob);
-      };
-
-      recorder.stop();
-    });
-  }, []);
-
-  const handleVoiceInput = async () => {
-    if (isRecording) {
-      const audioBlob = await stopRecording();
-      if (audioBlob.size === 0) return;
-
-      setIsTranscribing(true);
-      try {
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
-        
-        const response = await fetch("/api/speech-to-text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: base64 }),
-        });
-
-        if (!response.ok) throw new Error("Failed to transcribe");
-
-        const data = await response.json();
-        setInput(data.transcript);
-      } catch (error) {
-        console.error("Error transcribing:", error);
-        toast({
-          variant: "destructive",
-          title: "Transcription Error",
-          description: "Could not transcribe audio. Please try again.",
-        });
-      } finally {
-        setIsTranscribing(false);
-      }
-    } else {
-      await startRecording();
-    }
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
-      }
-    };
-  }, []);
-
-  const playMessageAudio = async (messageId: number, text: string) => {
-    if (isPlayingAudio === messageId) return;
-    
-    setIsPlayingAudio(messageId);
-    try {
-      const response = await fetch("/api/text-to-speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.substring(0, 500), voice: "nova" }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate speech");
-
-      const data = await response.json();
-      const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
-      audio.onended = () => setIsPlayingAudio(null);
-      audio.onerror = () => {
-        console.error("Audio playback error");
-        setIsPlayingAudio(null);
-      };
-      audio.play().catch(() => setIsPlayingAudio(null));
-    } catch (error) {
-      console.error("Error playing audio:", error);
-      setIsPlayingAudio(null);
-    }
-  };
 
   const conversationId = params?.id ? parseInt(params.id) : null;
 
@@ -434,16 +306,6 @@ export default function ConversationPage() {
                     <span className="text-[10px] text-muted-foreground px-1">
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
-                    {msg.role === "ai" && msg.content && (
-                      <button
-                        onClick={() => playMessageAudio(msg.id, msg.content || "")}
-                        className={`text-muted-foreground hover:text-primary transition-colors ${isPlayingAudio === msg.id ? "text-primary animate-pulse" : ""}`}
-                        disabled={isPlayingAudio !== null}
-                        data-testid={`button-play-${msg.id}`}
-                      >
-                        <Volume2 className="w-3 h-3" />
-                      </button>
-                    )}
                   </div>
                 </div>
               </motion.div>
@@ -455,23 +317,6 @@ export default function ConversationPage() {
         <div className="p-4 bg-background border-t">
           <div className="max-w-3xl mx-auto relative">
             <div className="relative flex items-end gap-2 bg-card border rounded-xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-               <Button 
-                variant="ghost" 
-                size="icon" 
-                className={`rounded-lg h-10 w-10 shrink-0 ${isRecording ? "text-red-500 bg-red-500/10 animate-pulse" : isTranscribing ? "text-primary" : "text-muted-foreground"}`}
-                onClick={handleVoiceInput}
-                disabled={isSending || isTranscribing}
-                data-testid="button-voice"
-              >
-                {isTranscribing ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : isRecording ? (
-                  <MicOff className="w-5 h-5" />
-                ) : (
-                  <Mic className="w-5 h-5" />
-                )}
-              </Button>
-              
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}

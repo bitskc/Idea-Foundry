@@ -9,6 +9,7 @@ import {
   LogOut,
   ChevronLeft
 } from "lucide-react";
+import { signOut } from "@/lib/auth";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -63,13 +64,21 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
         
         <div className="p-4 border-t border-border space-y-1">
           <button
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            onClick={() => setLocation("/app/settings")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              location === "/app/settings"
+                ? "text-foreground bg-muted"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
           >
             <Settings className="w-4 h-4" />
             Settings
           </button>
           <button
-            onClick={() => setLocation("/")}
+            onClick={() => {
+              signOut();
+              setLocation("/auth");
+            }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <LogOut className="w-4 h-4" />

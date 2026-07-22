@@ -123,7 +123,7 @@ export default function UpgradePage() {
               </CardTitle>
               <CardDescription>For serious founders</CardDescription>
               <div className="text-3xl font-bold mt-2">
-                $19<span className="text-lg font-normal text-muted-foreground">/mo</span>
+                $15<span className="text-lg font-normal text-muted-foreground">/mo</span>
               </div>
             </CardHeader>
             <CardContent>

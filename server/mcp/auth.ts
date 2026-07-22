@@ -1,15 +1,9 @@
 import { isDevMode } from "../middleware/auth";
-import { mockStorage } from "../storage-mock";
-import { storage as dbStorage } from "../storage";
+import { getStorage } from "../storage";
 import type { IStorage } from "../storage";
 import crypto from "crypto";
-// Select storage: dev mode uses in-memory mock, production uses Drizzle/Postgres
-let storage: IStorage;
-if (isDevMode) {
-  storage = mockStorage;
-} else {
-  storage = dbStorage;
-}
+
+const storage: IStorage = getStorage();
 
 // Dev mode user ID
 const DEV_USER_ID = "dev-user-00000000-0000-0000-0000-000000000001";

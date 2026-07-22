@@ -1,15 +1,8 @@
-import { isDevMode } from "../middleware/auth";
-import { mockStorage } from "../storage-mock";
-import { storage as dbStorage } from "../storage";
+import { getStorage } from "../storage";
 import type { IStorage } from "../storage";
 import { validateApiToken } from "./auth";
-// Select storage: dev mode uses in-memory mock, production uses Drizzle/Postgres
-let storage: IStorage;
-if (isDevMode) {
-  storage = mockStorage;
-} else {
-  storage = dbStorage;
-}
+
+const storage: IStorage = getStorage();
 
 /**
  * Define MCP tools available for the Idea Foundry API

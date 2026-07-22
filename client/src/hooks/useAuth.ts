@@ -5,7 +5,7 @@ import {
   getStoredUser,
   signOut as signOutFn,
   type AuthUser,
-} from "@/lib/supabase";
+} from "@/lib/auth";
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(isDevMode ? getStoredUser() : getStoredUser());
