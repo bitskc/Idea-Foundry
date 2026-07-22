@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { isDevMode } from "./supabase";
+import { isDevMode } from "./middleware/auth";
 import { GeminiAdapter } from "./ai/gemini";
 import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
@@ -13,16 +13,16 @@ import rateLimit from "express-rate-limit";
 import { MCP_TOOLS, executeMcpTool } from "./mcp/index";
 import { validateApiToken } from "./mcp/auth";
 import { mockStorage } from "./storage-mock";
+import { storage as dbStorage } from "./storage";
 import type { IStorage } from "./storage";
+import { registerUser, loginUser } from "./auth";
 
-// Conditionally import storage - avoid loading supabase storage in dev mode
+// Select storage: dev mode uses in-memory mock, production uses Drizzle/Postgres
 let storage: IStorage;
 if (isDevMode) {
   storage = mockStorage;
 } else {
-  // Dynamic import to avoid loading supabaseAdmin when not needed
-  const { storage: supabaseStorage } = await import("./storage-supabase");
-  storage = supabaseStorage;
+  storage = dbStorage;
 }
 
 // Initialize AI Service - Defaulting to Gemini 3.0 Flash for speed/cost
@@ -241,6 +241,51 @@ export async function registerRoutes(
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     } catch (error) {
       res.status(500).json({ status: "error", message: "Database connection failed" });
+    }
+  });
+
+  // Auth routes (email/password with JWT — no Supabase)
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        res.status(400).json({ error: "Email and password are required" });
+        return;
+      }
+      if (password.length < 6) {
+        res.status(400).json({ error: "Password must be at least 6 characters" });
+        return;
+      }
+      const { token, user } = await registerUser(email, password);
+      res.json({ token, user });
+    } catch (error) {
+      const message = (error as Error).message;
+      if (message.includes("already exists")) {
+        res.status(409).json({ error: message });
+      } else {
+        console.error("Registration error:", error);
+        res.status(500).json({ error: "Registration failed" });
+      }
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        res.status(400).json({ error: "Email and password are required" });
+        return;
+      }
+      const { token, user } = await loginUser(email, password);
+      res.json({ token, user });
+    } catch (error) {
+      const message = (error as Error).message;
+      if (message.includes("Invalid") || message.includes("reset")) {
+        res.status(401).json({ error: message });
+      } else {
+        console.error("Login error:", error);
+        res.status(500).json({ error: "Login failed" });
+      }
     }
   });
 

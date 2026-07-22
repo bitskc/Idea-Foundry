@@ -82,6 +82,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   id: true,
   email: true,
   username: true,
+  password: true,
   subscriptionStatus: true,
   stripeCustomerId: true,
   stripeSubscriptionId: true,

@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { supabase } from "@/lib/supabase";
+import { register, login } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,36 +55,16 @@ export default function AuthPage() {
         setIsLoading(true);
         try {
             if (mode === "login") {
-                const { error } = await supabase.auth.signInWithPassword({
-                    email: data.email,
-                    password: data.password,
-                });
-                if (error) throw error;
+                await login(data.email, data.password);
                 toast.success("Welcome back!");
                 setLocation("/app");
             } else if (mode === "signup") {
-                const { data: signUpData, error } = await supabase.auth.signUp({
-                    email: data.email,
-                    password: data.password,
-                });
-                if (error) throw error;
-                
-                // Check if email confirmation is required
-                if (signUpData?.user && !signUpData.session) {
-                    toast.success("Account created! Please check your email to verify your account.", {
-                        duration: 10000,
-                        description: "We sent a confirmation link to " + data.email
-                    });
-                } else if (signUpData?.session) {
-                    // Auto-login enabled (no email confirmation required)
-                    toast.success("Account created successfully!");
-                    setLocation("/app");
-                } else {
-                    toast.success("Account created! Please check your email to verify.");
-                }
+                await register(data.email, data.password);
+                toast.success("Account created successfully!");
+                setLocation("/app");
             }
-        } catch (error: any) {
-            toast.error(error.message || "Authentication failed");
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : "Authentication failed");
         } finally {
             setIsLoading(false);
         }
@@ -93,17 +73,11 @@ export default function AuthPage() {
     async function onResetSubmit(data: ResetFormValues) {
         setIsLoading(true);
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-                redirectTo: `${window.location.origin}/auth?mode=update-password`,
-            });
-            if (error) throw error;
-            toast.success("Password reset email sent!", {
-                duration: 10000,
-                description: "Check your inbox for a link to reset your password."
-            });
+            // Password reset not implemented with JWT auth — would need email service
+            toast.info("Password reset is not available yet. Contact support if you've lost your password.");
             switchMode("login");
-        } catch (error: any) {
-            toast.error(error.message || "Failed to send reset email");
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : "Failed to send reset email");
         } finally {
             setIsLoading(false);
         }

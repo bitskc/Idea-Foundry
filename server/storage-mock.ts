@@ -234,11 +234,18 @@ export class MockStorage implements IStorage {
     return newMessage;
   }
 
-  // Note methods
-  async getNotesByProjectId(projectId: number): Promise<Note[]> {
+  async getNotesByProject(projectId: number): Promise<Note[]> {
     return Array.from(notes.values())
       .filter(n => n.projectId === projectId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getNote(id: number): Promise<Note | undefined> {
+    return notes.get(id);
+  }
+
+  async deleteNote(id: number): Promise<void> {
+    notes.delete(id);
   }
 
   async createNote(note: InsertNote): Promise<Note> {
@@ -260,9 +267,6 @@ export class MockStorage implements IStorage {
     return updated;
   }
 
-  async deleteNote(id: number): Promise<void> {
-    notes.delete(id);
-  }
 
   // API Token methods
   async getApiTokensByUserId(userId: string): Promise<Omit<ApiToken, 'tokenHash'>[]> {
@@ -310,14 +314,8 @@ export class MockStorage implements IStorage {
       token.lastUsedAt = new Date();
     }
   }
-
-  async deleteApiToken(id: number, userId: string): Promise<boolean> {
-    const token = apiTokens.get(id);
-    if (token && token.userId === userId) {
-      apiTokens.delete(id);
-      return true;
-    }
-    return false;
+  async deleteApiToken(id: number): Promise<void> {
+    apiTokens.delete(id);
   }
 }
 

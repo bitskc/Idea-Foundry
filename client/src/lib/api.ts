@@ -1,20 +1,11 @@
-import { supabase, isDevMode } from "./supabase";
+import { getToken, isDevMode } from "./supabase";
 
 export async function getAuthHeaders(): Promise<HeadersInit> {
-  // In dev mode, return a dev token
-  if (isDevMode) {
-    return { Authorization: "Bearer dev_token_for_local_testing" };
-  }
-
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    console.error("[API] Error getting session:", error);
-  }
-  const token = data.session?.access_token;
+  const token = getToken();
   if (!token) {
-    console.warn("[API] No auth token available - user may not be logged in");
+    return {};
   }
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return { Authorization: `Bearer ${token}` };
 }
 
 export type ApiError = {
@@ -41,7 +32,6 @@ export async function apiRequest<T = unknown>(
 
   // Handle auth errors globally
   if (response.status === 401) {
-    // Session expired - redirect to auth
     window.location.href = "/auth?expired=true";
     throw new Error("Session expired");
   }

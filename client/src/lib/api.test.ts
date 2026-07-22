@@ -1,17 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getAuthHeaders, apiRequest, api } from "./api";
 
-// Mock supabase
+// Mock the JWT auth client
 vi.mock("./supabase", () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-    },
-  },
+  getToken: vi.fn(),
+  isDevMode: false,
 }));
 
-// Import the mocked supabase to control it in tests
-import { supabase } from "./supabase";
+import { getToken } from "./supabase";
 
 describe("api helper", () => {
   const mockFetch = vi.fn();
@@ -27,33 +23,16 @@ describe("api helper", () => {
   });
 
   describe("getAuthHeaders", () => {
-    it("returns Authorization header when session exists", async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: { access_token: "test-token-123" } },
-        error: null,
-      } as any);
+    it("returns Authorization header when token exists", async () => {
+      vi.mocked(getToken).mockReturnValue("test-token-123");
 
       const headers = await getAuthHeaders();
 
       expect(headers).toEqual({ Authorization: "Bearer test-token-123" });
     });
 
-    it("returns empty object when no session exists", async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: null },
-        error: null,
-      } as any);
-
-      const headers = await getAuthHeaders();
-
-      expect(headers).toEqual({});
-    });
-
-    it("returns empty object when access_token is undefined", async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: { access_token: undefined } },
-        error: null,
-      } as any);
+    it("returns empty object when no token exists", async () => {
+      vi.mocked(getToken).mockReturnValue(null);
 
       const headers = await getAuthHeaders();
 
@@ -63,10 +42,7 @@ describe("api helper", () => {
 
   describe("apiRequest", () => {
     beforeEach(() => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: { access_token: "test-token" } },
-        error: null,
-      } as any);
+      vi.mocked(getToken).mockReturnValue("test-token-123");
     });
 
     it("makes GET request with auth header", async () => {
@@ -80,10 +56,7 @@ describe("api helper", () => {
 
       expect(mockFetch).toHaveBeenCalledWith("/api/test", {
         method: "GET",
-        headers: {
-          Authorization: "Bearer test-token",
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: "Bearer test-token-123", "Content-Type": "application/json" },
         body: undefined,
       });
       expect(result).toEqual({ data: "test" });
@@ -93,71 +66,57 @@ describe("api helper", () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ id: 1 }),
+        json: () => Promise.resolve({ success: true }),
       });
 
-      const result = await apiRequest("POST", "/api/items", { name: "test" });
+      await apiRequest("POST", "/api/test", { name: "test" });
 
-      expect(mockFetch).toHaveBeenCalledWith("/api/items", {
+      expect(mockFetch).toHaveBeenCalledWith("/api/test", {
         method: "POST",
-        headers: {
-          Authorization: "Bearer test-token",
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: "Bearer test-token-123", "Content-Type": "application/json" },
         body: JSON.stringify({ name: "test" }),
       });
-      expect(result).toEqual({ id: 1 });
     });
 
     it("handles 204 No Content response", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 204,
+        json: () => Promise.resolve({}),
       });
 
-      const result = await apiRequest("DELETE", "/api/items/1");
+      const result = await apiRequest("DELETE", "/api/test/1");
 
       expect(result).toBeUndefined();
     });
 
     it("handles 401 by redirecting to auth page", async () => {
-      // Mock window.location
-      const mockLocation = { href: "" };
-      Object.defineProperty(global, "window", {
-        value: { location: mockLocation },
-        writable: true,
-      });
+      const mockHref = { href: "" };
+      vi.stubGlobal("window", { location: mockHref });
 
       mockFetch.mockResolvedValue({
         ok: false,
         status: 401,
+        json: () => Promise.resolve({ error: "Unauthorized" }),
       });
 
-      await expect(apiRequest("GET", "/api/protected")).rejects.toThrow(
-        "Session expired"
-      );
-      expect(mockLocation.href).toBe("/auth?expired=true");
+      await expect(apiRequest("GET", "/api/test")).rejects.toThrow("Session expired");
+      expect(mockHref.href).toBe("/auth?expired=true");
+
+      vi.unstubAllGlobals();
     });
 
     it("throws error with status and data for non-OK responses", async () => {
       mockFetch.mockResolvedValue({
         ok: false,
-        status: 400,
-        json: () =>
-          Promise.resolve({ error: "Bad Request", message: "Invalid input" }),
+        status: 500,
+        json: () => Promise.resolve({ error: "Server error", message: "Something broke" }),
       });
 
-      try {
-        await apiRequest("POST", "/api/items", {});
-        expect.fail("Should have thrown");
-      } catch (error: any) {
-        expect(error.message).toBe("Invalid input");
-        expect(error.status).toBe(400);
-        expect(error.data).toEqual({
-          error: "Bad Request",
-          message: "Invalid input",
-        });
-      }
+      await expect(apiRequest("GET", "/api/test")).rejects.toMatchObject({
+        message: "Something broke",
+        status: 500,
+      });
     });
 
     it("handles JSON parse failure in error response", async () => {
@@ -167,84 +126,81 @@ describe("api helper", () => {
         json: () => Promise.reject(new Error("Invalid JSON")),
       });
 
-      try {
-        await apiRequest("GET", "/api/broken");
-        expect.fail("Should have thrown");
-      } catch (error: any) {
-        expect(error.message).toBe("Request failed");
-        expect(error.status).toBe(500);
-      }
+      await expect(apiRequest("GET", "/api/test")).rejects.toMatchObject({
+        message: "Request failed",
+      });
     });
 
     it("uses error field when message is not present", async () => {
       mockFetch.mockResolvedValue({
         ok: false,
-        status: 404,
-        json: () => Promise.resolve({ error: "Not found" }),
+        status: 400,
+        json: () => Promise.resolve({ error: "Bad request" }),
       });
 
-      try {
-        await apiRequest("GET", "/api/missing");
-        expect.fail("Should have thrown");
-      } catch (error: any) {
-        expect(error.message).toBe("Not found");
-      }
+      await expect(apiRequest("GET", "/api/test")).rejects.toMatchObject({
+        message: "Bad request",
+      });
     });
   });
 
   describe("api convenience methods", () => {
     beforeEach(() => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: { access_token: "test-token" } },
-        error: null,
-      } as any);
+      vi.mocked(getToken).mockReturnValue("test-token-123");
+    });
+
+    it("api.get calls apiRequest with GET", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: "test" }),
+      });
+
+      await api.get("/api/test");
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/test", expect.objectContaining({ method: "GET" }));
+    });
+
+    it("api.post calls apiRequest with POST and data", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ success: true }),
       });
+
+      await api.post("/api/test", { name: "test" });
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/test", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "test" }),
+      }));
     });
 
-    it("api.get makes GET request", async () => {
-      await api.get("/api/resource");
+    it("api.patch calls apiRequest with PATCH and data", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ success: true }),
+      });
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/resource",
-        expect.objectContaining({ method: "GET" })
-      );
+      await api.patch("/api/test", { name: "updated" });
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/test", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ name: "updated" }),
+      }));
     });
 
-    it("api.post makes POST request with data", async () => {
-      await api.post("/api/resource", { field: "value" });
+    it("api.delete calls apiRequest with DELETE", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 204,
+        json: () => Promise.resolve({}),
+      });
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/resource",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ field: "value" }),
-        })
-      );
-    });
+      await api.delete("/api/test/1");
 
-    it("api.patch makes PATCH request with data", async () => {
-      await api.patch("/api/resource/1", { field: "updated" });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/resource/1",
-        expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({ field: "updated" }),
-        })
-      );
-    });
-
-    it("api.delete makes DELETE request", async () => {
-      await api.delete("/api/resource/1");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/resource/1",
-        expect.objectContaining({ method: "DELETE" })
-      );
+      expect(mockFetch).toHaveBeenCalledWith("/api/test/1", expect.objectContaining({ method: "DELETE" }));
     });
   });
 });

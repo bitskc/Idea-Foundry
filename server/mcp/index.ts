@@ -1,15 +1,14 @@
-import { isDevMode } from "../supabase";
+import { isDevMode } from "../middleware/auth";
 import { mockStorage } from "../storage-mock";
+import { storage as dbStorage } from "../storage";
 import type { IStorage } from "../storage";
 import { validateApiToken } from "./auth";
-
-// Conditionally load storage
+// Select storage: dev mode uses in-memory mock, production uses Drizzle/Postgres
 let storage: IStorage;
 if (isDevMode) {
   storage = mockStorage;
 } else {
-  const { storage: supabaseStorage } = await import("../storage-supabase");
-  storage = supabaseStorage;
+  storage = dbStorage;
 }
 
 /**
