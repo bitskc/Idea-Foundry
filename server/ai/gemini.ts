@@ -21,6 +21,23 @@ export class GeminiAdapter implements AIService {
         return "user"; // System prompts are handled separately in Gemini
     }
 
+    /**
+     * Gemini requires chat history to start with a 'user' role message.
+     * Conversations in this app start with an assistant greeting, so we
+     * drop leading 'model' messages to satisfy Gemini's constraint.
+     */
+    private sanitizeHistory(history: AIMessage[]): { role: string; parts: { text: string }[] }[] {
+        const mapped = history.map(msg => ({
+            role: this.mapRole(msg.role),
+            parts: [{ text: msg.content }]
+        }));
+        // Drop leading 'model' messages — Gemini requires first role to be 'user'
+        while (mapped.length > 0 && mapped[0].role === "model") {
+            mapped.shift();
+        }
+        return mapped;
+    }
+
     async generateText(
         prompt: string,
         history: AIMessage[] = [],
@@ -32,12 +49,8 @@ export class GeminiAdapter implements AIService {
                 model: modelName,
                 systemInstruction: options.systemPrompt
             });
-
             const chat = model.startChat({
-                history: history.map(msg => ({
-                    role: this.mapRole(msg.role),
-                    parts: [{ text: msg.content }]
-                })),
+                history: this.sanitizeHistory(history),
                 generationConfig: {
                     maxOutputTokens: options.maxTokens,
                     temperature: options.temperature,
@@ -65,10 +78,7 @@ export class GeminiAdapter implements AIService {
         });
 
         const chat = model.startChat({
-            history: history.map(msg => ({
-                role: this.mapRole(msg.role),
-                parts: [{ text: msg.content }]
-            })),
+            history: this.sanitizeHistory(history),
             generationConfig: {
                 maxOutputTokens: options.maxTokens,
                 temperature: options.temperature,
@@ -95,10 +105,7 @@ export class GeminiAdapter implements AIService {
             });
 
             const chat = model.startChat({
-                history: history.map(msg => ({
-                    role: this.mapRole(msg.role),
-                    parts: [{ text: msg.content }]
-                })),
+                history: this.sanitizeHistory(history),
                 generationConfig: {
                     maxOutputTokens: options.maxTokens,
                     temperature: options.temperature,
