@@ -45,7 +45,18 @@ async function buildAll() {
     logLevel: "info",
   });
 
-  console.log("build complete!");
+  // Run database migrations on Vercel (where DATABASE_URL / ideas_DATABASE_URL is set)
+  if (process.env.DATABASE_URL || process.env.ideas_DATABASE_URL || process.env.POSTGRES_URL) {
+    console.log("running drizzle-kit push...");
+    const { execSync } = await import("child_process");
+    try {
+      execSync("npx drizzle-kit push", { stdio: "inherit", env: process.env });
+      console.log("database schema pushed");
+    } catch (e) {
+      console.error("drizzle-kit push failed (non-fatal):", e);
+      // Don't fail the build — the app can still deploy, migrations can be run separately
+    }
+  }
 }
 
 buildAll().catch((err) => {

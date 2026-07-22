@@ -11,7 +11,7 @@ const DEV_USER = {
   email: "dev@example.com",
 };
 
-export const isDevMode = !process.env.DATABASE_URL;
+export const isDevMode = !(process.env.DATABASE_URL || process.env.ideas_DATABASE_URL || process.env.POSTGRES_URL);
 
 export async function requireAuth(
   req: Request,

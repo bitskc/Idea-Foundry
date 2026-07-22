@@ -4,7 +4,7 @@ import * as schema from "../shared/schema";
 
 // In dev mode (no DATABASE_URL), export a proxy that throws if accessed.
 // routes.ts/mcp use mockStorage instead, so this path is never hit in dev.
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.DATABASE_URL || process.env.ideas_DATABASE_URL || process.env.POSTGRES_URL;
 
 type DB = ReturnType<typeof drizzle<typeof schema>>;
 
