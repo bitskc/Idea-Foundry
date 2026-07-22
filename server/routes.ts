@@ -223,7 +223,7 @@ export async function registerRoutes(
         return;
       }
       // Test database connection — user not existing is fine, we just need the query to succeed
-      await storage.getUser("health-check-nonexistent");
+      await storage.getUser("00000000-0000-0000-0000-000000000000");
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     } catch (error) {
       res.status(500).json({ status: "error", message: "Database connection failed" });
