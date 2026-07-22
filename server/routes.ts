@@ -1225,6 +1225,7 @@ Be practical and opinionated. Choose technologies that work well together and ar
       // Stream AI response chunks — use BYOK key if user has one
       const userAiService = await getAIServiceForUser(authReq.user.id, storage);
       let aiResponse = "";
+
       try {
         for await (const chunk of userAiService.generateTextStream(content.trim(), chatHistory, {
           systemPrompt,
@@ -1234,8 +1235,9 @@ Be practical and opinionated. Choose technologies that work well together and ar
           res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
         }
       } catch (streamError) {
-        console.error("Streaming error:", streamError);
-        // Save partial AI response if we got one
+        console.error("Streaming error (BYOK key may be invalid):", streamError);
+
+        // If we got partial response, save it and end
         if (aiResponse) {
           await storage.createMessage({
             conversationId,
@@ -1243,11 +1245,27 @@ Be practical and opinionated. Choose technologies that work well together and ar
             content: aiResponse + "\n\n*[Response was interrupted]*",
           });
           res.write(`data: ${JSON.stringify({ error: "Stream interrupted", partial: true })}\n\n`);
-        } else {
-          res.write(`data: ${JSON.stringify({ error: "Failed to generate response" })}\n\n`);
+          res.end();
+          return;
         }
-        res.end();
-        return;
+
+        // No partial response — try falling back to server default key
+        console.log("Falling back to server default AI key...");
+        const fallbackService = new GeminiAdapter();
+        try {
+          for await (const chunk of fallbackService.generateTextStream(content.trim(), chatHistory, {
+            systemPrompt,
+            maxTokens: 1500
+          })) {
+            aiResponse += chunk;
+            res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+          }
+        } catch (fallbackError) {
+          console.error("Fallback streaming also failed:", fallbackError);
+          res.write(`data: ${JSON.stringify({ error: "Failed to generate response. Please check your API key in Settings." })}\n\n`);
+          res.end();
+          return;
+        }
       }
 
       // Save AI message
@@ -1257,7 +1275,6 @@ Be practical and opinionated. Choose technologies that work well together and ar
         content: aiResponse,
       });
 
-      // Update conversation step based on start mode
       const newStep = conversation.currentStep + 1;
 
       // Different section flows for idea vs problem mode
