@@ -169,9 +169,11 @@ export default function ConversationPage() {
               throw new Error(data.error);
             }
           } catch (e) {
-            if (!(e instanceof SyntaxError)) {
-              console.error("Stream error:", e);
+            if (e instanceof SyntaxError) {
+              continue; // incomplete JSON chunk, keep buffering
             }
+            // Re-throw non-SyntaxError to outer catch so toast shows the message
+            throw e;
           }
         }
       }
@@ -180,7 +182,7 @@ export default function ConversationPage() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to send message",
+        description: error instanceof Error ? error.message : "Failed to send message",
       });
       // Remove typing indicator on error
       setMessages(prev => prev.filter(m => m.content !== ""));
