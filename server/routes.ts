@@ -4,7 +4,7 @@ import { isDevMode } from "./middleware/auth";
 import { GeminiAdapter } from "./ai/gemini";
 import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
-import { getAIServiceForUser } from "./ai/factory";
+import { getAIServiceForUser, getFallbackService, getProviderName } from "./ai/factory";
 import { z } from "zod";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
 import { TechStackRecommendationSchema } from "../shared/schema";
@@ -554,13 +554,25 @@ Rules for good names:
 - Evokes the product's purpose or feeling
 - Mix of styles: playful, professional, abstract, descriptive
 
-Return ONLY a JSON array of 6 name suggestions with this exact format:
 [{"name": "AppName", "tagline": "Short catchy tagline", "style": "playful|professional|abstract|descriptive"}]`;
       const userAiService = await getAIServiceForUser(authReq.user.id, storage, "name-generation");
-      const names = await userAiService.generateJSON(prompt, [], {
-        schema: NameSuggestionSchema,
-        maxTokens: 500
-      });
+      const providerName = getProviderName(userAiService);
+
+      let names;
+      try {
+        names = await userAiService.generateJSON(prompt, [], {
+          schema: NameSuggestionSchema,
+          maxTokens: 500
+        });
+      } catch (primaryError) {
+        console.error(`Name-gen with ${providerName} failed, trying fallback:`, primaryError);
+        const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+        if (!fallback) throw primaryError;
+        names = await fallback.generateJSON(prompt, [], {
+          schema: NameSuggestionSchema,
+          maxTokens: 500
+        });
+      }
 
       res.json({ names });
     } catch (error) {
@@ -735,11 +747,22 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
           { role: "user", content: rawIdea },
         ];
         const userAiService = await getAIServiceForUser(authReq.user.id, storage, "idea-analysis");
-        const aiResponse = await userAiService.generateText(rawIdea, history, {
-          systemPrompt,
-          maxTokens: 1500
-        });
-
+        const providerName = getProviderName(userAiService);
+        let aiResponse: string;
+        try {
+          aiResponse = await userAiService.generateText(rawIdea, history, {
+            systemPrompt,
+            maxTokens: 1500
+          });
+        } catch (primaryError) {
+          console.error(`Idea-analysis with ${providerName} failed, trying fallback:`, primaryError);
+          const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+          if (!fallback) throw primaryError;
+          aiResponse = await fallback.generateText(rawIdea, history, {
+            systemPrompt,
+            maxTokens: 1500
+          });
+        }
         await storage.createMessage({
           conversationId: conversation.id,
           role: "ai",
@@ -869,11 +892,24 @@ Be realistic and honest in your assessment. Consider market size, competition in
 
       // Use per-task model preference (defaults to Anthropic for reasoning)
       const service = await getAIServiceForUser(authReq.user.id, storage, "research");
+      const providerName = getProviderName(service);
 
-      const researchData = await service.generateJSON(prompt, [], {
-        schema: ResearchSchema,
-        systemPrompt: "You are a business analyst providing competitor research and viability assessments."
-      });
+      let researchData;
+      try {
+        researchData = await service.generateJSON(prompt, [], {
+          schema: ResearchSchema,
+          systemPrompt: "You are a business analyst providing competitor research and viability assessments."
+        });
+      } catch (primaryError) {
+        // Primary provider failed (e.g. credits exhausted) — try the other provider
+        console.error(`Research with ${providerName} failed, trying fallback:`, primaryError);
+        const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+        if (!fallback) throw primaryError;
+        researchData = await fallback.generateJSON(prompt, [], {
+          schema: ResearchSchema,
+          systemPrompt: "You are a business analyst providing competitor research and viability assessments."
+        });
+      }
 
       // Update project with research data
       const updatedProject = await storage.updateProject(id, {
@@ -1181,12 +1217,25 @@ Be practical and opinionated. Choose technologies that work well together and ar
 
       // Use per-task model preference (defaults to Anthropic for reasoning)
       const service = await getAIServiceForUser(authReq.user.id, storage, "tech-stack");
+      const providerName = getProviderName(service);
 
-      const recommendation = await service.generateJSON(prompt, [], {
-        schema: TechStackRecommendationSchema,
-        systemPrompt: "You are a senior full-stack architect helping founders choose the right tech stack for their projects. Be practical, opinionated, and focused on speed to MVP.",
-        maxTokens: 1500
-      });
+      let recommendation;
+      try {
+        recommendation = await service.generateJSON(prompt, [], {
+          schema: TechStackRecommendationSchema,
+          systemPrompt: "You are a senior full-stack architect helping founders choose the right tech stack for their projects. Be practical, opinionated, and focused on speed to MVP.",
+          maxTokens: 1500
+        });
+      } catch (primaryError) {
+        console.error(`Tech-stack with ${providerName} failed, trying fallback:`, primaryError);
+        const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+        if (!fallback) throw primaryError;
+        recommendation = await fallback.generateJSON(prompt, [], {
+          schema: TechStackRecommendationSchema,
+          systemPrompt: "You are a senior full-stack architect helping founders choose the right tech stack for their projects. Be practical, opinionated, and focused on speed to MVP.",
+          maxTokens: 1500
+        });
+      }
 
       // Cache the recommendation
       await storage.updateProject(id, {
@@ -2001,13 +2050,25 @@ List ALL tables required for the MVP features described above.
 IMPORTANT: In the "Implementation Status" section, replace the placeholder feature names in the Feature Implementation Status table with the actual features you defined in "Feature Specifications" above, each marked as "[ ] Not Started". Also update the "Overall Progress" checklist to reflect the actual phases from your Implementation Guide.
 This PRD should be detailed enough that even a basic AI model can follow the step-by-step implementation guide and build a working application. Include actual code patterns and specific technology recommendations.`;
       }
-
       // Use per-task model preference (defaults to Anthropic for PRD generation)
       const service = await getAIServiceForUser(authReq.user.id, storage, "prd-generation");
-      const prdContent = await service.generateText(prdPrompt, [], {
-        systemPrompt: "You are an expert product manager and technical architect. Generate comprehensive, actionable PRDs that AI coding agents can use to implement complete applications. Always fill in the Implementation Status section with the actual features from the PRD.",
-        maxTokens,
-      });
+      const providerName = getProviderName(service);
+
+      let prdContent;
+      try {
+        prdContent = await service.generateText(prdPrompt, [], {
+          systemPrompt: "You are an expert product manager and technical architect. Generate comprehensive, actionable PRDs that AI coding agents can use to implement complete applications. Always fill in the Implementation Status section with the actual features from the PRD.",
+          maxTokens,
+        });
+      } catch (primaryError) {
+        console.error(`PRD with ${providerName} failed, trying fallback:`, primaryError);
+        const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+        if (!fallback) throw primaryError;
+        prdContent = await fallback.generateText(prdPrompt, [], {
+          systemPrompt: "You are an expert product manager and technical architect. Generate comprehensive, actionable PRDs that AI coding agents can use to implement complete applications. Always fill in the Implementation Status section with the actual features from the PRD.",
+          maxTokens,
+        });
+      }
 
       // Save PRD to project
       await storage.updateProject(projectId, {
@@ -2080,18 +2141,16 @@ Return a JSON object with this structure:
       "projectId": number (ID of the related project),
       "projectTitle": "Title of related project",
       "synergyType": "Cross-promotion" | "Integration" | "Shared Tech",
-      "description": "Specific actionable suggestion",
       "potentialValue": "High" | "Medium" | "Low"
-    }
-  ]
-}`;
+}]`;
       // Use per-task model preference (defaults to Anthropic for analysis)
       const service = await getAIServiceForUser(authReq.user.id, storage, "synergy-analysis");
+      const providerName = getProviderName(service);
 
       const SynergySchema = z.object({
         summary: z.string(),
         opportunities: z.array(z.object({
-          projectId: z.number().optional(), // AI might not map ID perfectly from text list, handle with care in UI
+          projectId: z.number().optional(),
           projectTitle: z.string(),
           synergyType: z.enum(["Cross-promotion", "Integration", "Shared Technology", "Shared Tech"]).transform(val => val === "Shared Technology" ? "Shared Tech" : val),
           description: z.string(),
@@ -2099,10 +2158,21 @@ Return a JSON object with this structure:
         }))
       });
 
-      const synergyData = await service.generateJSON(prompt, [], {
-        schema: SynergySchema,
-        maxTokens: 1000
-      });
+      let synergyData;
+      try {
+        synergyData = await service.generateJSON(prompt, [], {
+          schema: SynergySchema,
+          maxTokens: 1000
+        });
+      } catch (primaryError) {
+        console.error(`Synergy with ${providerName} failed, trying fallback:`, primaryError);
+        const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+        if (!fallback) throw primaryError;
+        synergyData = await fallback.generateJSON(prompt, [], {
+          schema: SynergySchema,
+          maxTokens: 1000
+        });
+      }
 
       // Cache the result
       await storage.updateProject(id, {

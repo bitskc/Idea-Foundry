@@ -88,3 +88,34 @@ export async function getAIServiceForUser(
   // Should never reach here since we checked at least one has a key above
   throw new Error("No AI provider API key available.");
 }
+
+/**
+ * Get a fallback AI service using the OTHER provider (the one not already tried).
+ * Used when the primary service fails (e.g. Anthropic credits exhausted).
+ *
+ * Returns null if the other provider has no key available.
+ */
+export async function getFallbackService(
+  userId: string,
+  storage: IStorage,
+  triedProvider: "gemini" | "anthropic"
+): Promise<AIService | null> {
+  const otherProvider = triedProvider === "gemini" ? "anthropic" : "gemini";
+  const byok = await storage.getUserApiKey(userId, otherProvider);
+  const hasServerKey = otherProvider === "gemini" ? !!process.env.GEMINI_API_KEY : !!process.env.ANTHROPIC_API_KEY;
+
+  if (!byok && !hasServerKey) return null;
+
+  if (otherProvider === "gemini") {
+    return new GeminiAdapter(byok?.key, byok?.model || undefined);
+  } else {
+    return new AnthropicAdapter(byok?.key, byok?.model || undefined);
+  }
+}
+
+/**
+ * Get the provider name from an AIService instance.
+ */
+export function getProviderName(service: AIService): "gemini" | "anthropic" {
+  return service.provider as "gemini" | "anthropic";
+}
