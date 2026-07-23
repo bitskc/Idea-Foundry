@@ -23,11 +23,15 @@ export { db };
 
 // Auto-migrate: add assessment columns if missing (idempotent)
 if (databaseUrl) {
-  postgres(databaseUrl, { ssl: 'require', max: 1 })`
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS idea_classification JSONB;
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS development_difficulty JSONB;
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS difficulty_roi_ratio JSONB;
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS pivot_suggestions JSONB;
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS specialist_assessments JSONB;
-  `.then(() => console.log('[db] Assessment columns migrated')).catch(e => console.error('[db] Migration error:', e.message));
+  const migSql = postgres(databaseUrl, { ssl: 'require', max: 1 });
+  const migrations = [
+    'ALTER TABLE projects ADD COLUMN IF NOT EXISTS idea_classification JSONB',
+    'ALTER TABLE projects ADD COLUMN IF NOT EXISTS development_difficulty JSONB',
+    'ALTER TABLE projects ADD COLUMN IF NOT EXISTS difficulty_roi_ratio JSONB',
+    'ALTER TABLE projects ADD COLUMN IF NOT EXISTS pivot_suggestions JSONB',
+    'ALTER TABLE projects ADD COLUMN IF NOT EXISTS specialist_assessments JSONB',
+  ];
+  Promise.all(migrations.map(stmt => migSql.unsafe(stmt)))
+    .then(() => { console.log('[db] Assessment columns migrated'); return migSql.end(); })
+    .catch(e => { console.error('[db] Migration error:', e.message); migSql.end(); });
 }
