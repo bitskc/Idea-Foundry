@@ -1,6 +1,6 @@
 {
   "name": "Idea Foundry",
-  "short_name": "Foundry",
+  "short_name": "Idea Foundry",
   "description": "AI-powered idea validation, competitor research, and PRD generation for founders.",
   "start_url": "/app",
   "scope": "/",
