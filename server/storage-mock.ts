@@ -334,6 +334,12 @@ export class MockStorage implements IStorage {
   async deleteUserApiKey(_id: number, _userId: string): Promise<void> {
     // no-op
   }
+  async getUserModelPreferences(_userId: string): Promise<{ id: number; task: string; provider: string; model: string | null }[]> {
+    return [];
+  }
+  async upsertUserModelPreference(_userId: string, task: string, provider: string, model: string | null): Promise<{ id: number; task: string; provider: string; model: string | null }> {
+    return { id: 1, task, provider, model };
+  }
 }
 
 export const mockStorage = new MockStorage();

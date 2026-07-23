@@ -56,6 +56,7 @@ export async function apiRequest<T = unknown>(
 export const api = {
   get: <T>(url: string) => apiRequest<T>("GET", url),
   post: <T>(url: string, data?: unknown) => apiRequest<T>("POST", url, data),
+  put: <T>(url: string, data?: unknown) => apiRequest<T>("PUT", url, data),
   patch: <T>(url: string, data?: unknown) => apiRequest<T>("PATCH", url, data),
   delete: <T>(url: string) => apiRequest<T>("DELETE", url),
 };

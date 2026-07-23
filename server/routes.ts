@@ -441,6 +441,38 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to list models" });
     }
   });
+
+  // BYOK: Get user's per-task model preferences
+  app.get("/api/user/model-preferences", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const prefs = await storage.getUserModelPreferences(authReq.user.id);
+      res.json(prefs);
+    } catch (error) {
+      console.error("Error fetching model preferences:", error);
+      res.status(500).json({ error: "Failed to fetch model preferences" });
+    }
+  });
+
+  // BYOK: Set/update a per-task model preference
+  app.put("/api/user/model-preferences", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const { task, provider, model } = req.body;
+      if (!task || !provider) {
+        return res.status(400).json({ error: "task and provider are required" });
+      }
+      const validProviders = ["gemini", "anthropic"];
+      if (!validProviders.includes(provider)) {
+        return res.status(400).json({ error: "Invalid provider" });
+      }
+      const result = await storage.upsertUserModelPreference(authReq.user.id, task, provider, model || null);
+      res.json(result);
+    } catch (error) {
+      console.error("Error saving model preference:", error);
+      res.status(500).json({ error: "Failed to save model preference" });
+    }
+  });
   // Stripe webhook - registered before requireAuth because it uses its own
   // signature verification and must receive the raw request body.
   app.post("/api/webhook/stripe", async (req, res) => {
@@ -523,7 +555,7 @@ Rules for good names:
 
 Return ONLY a JSON array of 6 name suggestions with this exact format:
 [{"name": "AppName", "tagline": "Short catchy tagline", "style": "playful|professional|abstract|descriptive"}]`;
-      const userAiService = await getAIServiceForUser(authReq.user.id, storage);
+      const userAiService = await getAIServiceForUser(authReq.user.id, storage, "name-generation");
       const names = await userAiService.generateJSON(prompt, [], {
         schema: NameSuggestionSchema,
         maxTokens: 500
@@ -701,7 +733,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
           { role: "assistant", content: greetingMessage },
           { role: "user", content: rawIdea },
         ];
-        const userAiService = await getAIServiceForUser(authReq.user.id, storage);
+        const userAiService = await getAIServiceForUser(authReq.user.id, storage, "idea-analysis");
         const aiResponse = await userAiService.generateText(rawIdea, history, {
           systemPrompt,
           maxTokens: 1500
@@ -830,8 +862,8 @@ Respond with a JSON object containing:
 
 Be realistic and honest in your assessment. Consider market size, competition intensity, required effort to build, and profit potential.`;
 
-      // Use BYOK if available, prefer Anthropic for reasoning tasks
-      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
+      // Use per-task model preference (defaults to Anthropic for reasoning)
+      const service = await getAIServiceForUser(authReq.user.id, storage, "research");
 
       const researchData = await service.generateJSON(prompt, [], {
         schema: ResearchSchema,
@@ -1142,8 +1174,8 @@ Return a JSON object with this exact structure:
 
 Be practical and opinionated. Choose technologies that work well together and are widely supported by AI coding assistants.`;
 
-      // Use BYOK if available, prefer Anthropic for reasoning tasks
-      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
+      // Use per-task model preference (defaults to Anthropic for reasoning)
+      const service = await getAIServiceForUser(authReq.user.id, storage, "tech-stack");
 
       const recommendation = await service.generateJSON(prompt, [], {
         schema: TechStackRecommendationSchema,
@@ -1296,8 +1328,8 @@ Be practical and opinionated. Choose technologies that work well together and ar
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       });
-      // Stream AI response chunks — use BYOK key if user has one
-      const userAiService = await getAIServiceForUser(authReq.user.id, storage);
+      // Stream AI response chunks — use per-task model preference
+      const userAiService = await getAIServiceForUser(authReq.user.id, storage, "brainstorming");
       let aiResponse = "";
 
       try {
@@ -1962,8 +1994,8 @@ IMPORTANT: In the "Implementation Status" section, replace the placeholder featu
 This PRD should be detailed enough that even a basic AI model can follow the step-by-step implementation guide and build a working application. Include actual code patterns and specific technology recommendations.`;
       }
 
-      // Use BYOK if available, prefer Anthropic for PRD generation
-      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
+      // Use per-task model preference (defaults to Anthropic for PRD generation)
+      const service = await getAIServiceForUser(authReq.user.id, storage, "prd-generation");
       const prdContent = await service.generateText(prdPrompt, [], {
         systemPrompt: "You are an expert product manager and technical architect. Generate comprehensive, actionable PRDs that AI coding agents can use to implement complete applications. Always fill in the Implementation Status section with the actual features from the PRD.",
         maxTokens,
@@ -2045,8 +2077,8 @@ Return a JSON object with this structure:
     }
   ]
 }`;
-      // Use BYOK if available, prefer Anthropic for analysis
-      const service = await getAIServiceForUser(authReq.user.id, storage, "anthropic");
+      // Use per-task model preference (defaults to Anthropic for analysis)
+      const service = await getAIServiceForUser(authReq.user.id, storage, "synergy-analysis");
 
       const SynergySchema = z.object({
         summary: z.string(),

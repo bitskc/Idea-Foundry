@@ -87,6 +87,15 @@ export const userApiKeys = pgTable("user_api_keys", {
   lastUsedAt: timestamp("last_used_at"),
 });
 
+export const userModelPreferences = pgTable("user_model_preferences", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  task: text("task").notNull(), // AI task key (see AI_TASKS)
+  provider: text("provider").notNull(), // 'gemini' | 'anthropic'
+  model: text("model"), // Specific model (null = provider default)
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   id: true,
@@ -124,6 +133,11 @@ export const insertUserApiKeySchema = createInsertSchema(userApiKeys).omit({
   id: true,
   createdAt: true,
 });
+
+export const insertUserModelPreferenceSchema = createInsertSchema(userModelPreferences).omit({
+  id: true,
+  updatedAt: true,
+});
 export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({
   id: true,
   createdAt: true,
@@ -150,6 +164,8 @@ export type ApiToken = typeof apiTokens.$inferSelect;
 export type InsertApiToken = z.infer<typeof insertApiTokenSchema>;
 export type UserApiKey = typeof userApiKeys.$inferSelect;
 export type InsertUserApiKey = z.infer<typeof insertUserApiKeySchema>;
+export type UserModelPreference = typeof userModelPreferences.$inferSelect;
+export type InsertUserModelPreference = z.infer<typeof insertUserModelPreferenceSchema>;
 
 // Tech Stack Types
 export interface TechStackItem {

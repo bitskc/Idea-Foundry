@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
-import { Loader2, Key, User as UserIcon, CreditCard, Trash2, Plus, Eye, EyeOff } from "lucide-react";
+import { Loader2, Key, User as UserIcon, CreditCard, Trash2, Plus, Eye, EyeOff, Sliders } from "lucide-react";
+import { AI_TASKS } from "@shared/ai-tasks";
 
 // BYOK key type returned by the API (key is masked)
 interface ApiKeyInfo {
@@ -26,6 +27,13 @@ interface ModelInfo {
   name: string;
 }
 
+interface ModelPreference {
+  id: number;
+  task: string;
+  provider: string;
+  model: string | null;
+}
+
 const PROVIDERS = [
   { id: "gemini", label: "Google Gemini", placeholder: "AIza..." },
   { id: "anthropic", label: "Anthropic (Claude)", placeholder: "sk-ant-..." },
@@ -36,6 +44,7 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   // BYOK state
   const [selectedProvider, setSelectedProvider] = useState("gemini");
   const [apiKeyInput, setApiKeyInput] = useState("");
@@ -47,6 +56,10 @@ export default function SettingsPage() {
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [updatingModelId, setUpdatingModelId] = useState<number | null>(null);
+
+  // Per-task model preference state
+  const [taskPrefs, setTaskPrefs] = useState<Record<string, ModelPreference>>({});
+  const [savingTask, setSavingTask] = useState<string | null>(null);
 
   // Fetch available models for a provider (uses user's BYOK key or server default)
   const fetchModels = useCallback(async (provider: string) => {
@@ -69,8 +82,6 @@ export default function SettingsPage() {
     }
   }, [selectedProvider, fetchModels]);
 
-
-
   // Fetch user profile
   const { data: user, isLoading: isLoadingUser } = useQuery<User>({
     queryKey: ["/api/me"],
@@ -83,6 +94,12 @@ export default function SettingsPage() {
     queryFn: () => api.get("/api/user/keys"),
   });
 
+  // Fetch per-task model preferences
+  const { data: modelPrefs, refetch: refetchPrefs } = useQuery<ModelPreference[]>({
+    queryKey: ["/api/user/model-preferences"],
+    queryFn: () => api.get("/api/user/model-preferences"),
+  });
+
   // When keys load, fetch models for each saved provider
   useEffect(() => {
     if (apiKeys) {
@@ -93,6 +110,29 @@ export default function SettingsPage() {
       }
     }
   }, [apiKeys, fetchModels, modelsByProvider]);
+
+  // When model prefs load, index them by task and fetch models for those providers
+  useEffect(() => {
+    if (modelPrefs) {
+      const indexed: Record<string, ModelPreference> = {};
+      for (const p of modelPrefs) {
+        indexed[p.task] = p;
+      }
+      setTaskPrefs(indexed);
+      // Fetch models for any provider that has a preference but no model list yet
+      for (const p of modelPrefs) {
+        if (!modelsByProvider[p.provider]) {
+          fetchModels(p.provider);
+        }
+      }
+    }
+  }, [modelPrefs, fetchModels, modelsByProvider]);
+
+  // Fetch models for both providers on mount (for the Model Preferences tab)
+  useEffect(() => {
+    fetchModels("gemini");
+    fetchModels("anthropic");
+  }, [fetchModels]);
 
   const handleChangePassword = async () => {
     if (newPassword.length < 6) {
@@ -181,6 +221,23 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveTaskPref = async (task: string, provider: string, model: string) => {
+    setSavingTask(task);
+    try {
+      await api.put("/api/user/model-preferences", { task, provider, model: model || null });
+      toast({ title: "Model preference saved", description: `${AI_TASKS.find(t => t.key === task)?.label}: ${provider}` });
+      refetchPrefs();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to save preference",
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setSavingTask(null);
+    }
+  };
+
   const handleManageBilling = async () => {
     try {
       const data = await api.post<{ url: string }>("/api/create-portal-session", {});
@@ -212,7 +269,7 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
         <Tabs defaultValue="profile">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Profile</span>
@@ -220,6 +277,10 @@ export default function SettingsPage() {
             <TabsTrigger value="api-keys" className="flex items-center gap-2">
               <Key className="w-4 h-4" />
               <span className="hidden sm:inline">API Keys</span>
+            </TabsTrigger>
+            <TabsTrigger value="models" className="flex items-center gap-2">
+              <Sliders className="w-4 h-4" />
+              <span className="hidden sm:inline">Models</span>
             </TabsTrigger>
             <TabsTrigger value="billing" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4" />
@@ -278,6 +339,7 @@ export default function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Add new key */}
                 <div className="space-y-3">
                   <Label>Add a new API key</Label>
                   <div className="flex gap-2">
@@ -396,6 +458,78 @@ export default function SettingsPage() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Model Preferences Tab */}
+          <TabsContent value="models">
+            <Card>
+              <CardHeader>
+                <CardTitle>Model Preferences</CardTitle>
+                <CardDescription>
+                  Choose which AI model to use for each part of the app.
+                  Defaults are sensible — override only if you want different behavior.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {AI_TASKS.map((task) => {
+                  const pref = taskPrefs[task.key];
+                  const currentProvider = pref?.provider || task.defaultProvider;
+                  const currentModel = pref?.model || "";
+                  const models = modelsByProvider[currentProvider];
+                  const isLoading = loadingModels[currentProvider];
+
+                  return (
+                    <div key={task.key} className="p-3 rounded-lg border border-border bg-card space-y-2">
+                      <div>
+                        <p className="text-sm font-medium">{task.label}</p>
+                        <p className="text-xs text-muted-foreground">{task.description}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        {/* Provider selector */}
+                        <select
+                          className="flex h-8 w-[130px] rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm"
+                          value={currentProvider}
+                          disabled={savingTask === task.key}
+                          onChange={(e) => {
+                            const newProvider = e.target.value;
+                            // Save immediately with default model for new provider
+                            handleSaveTaskPref(task.key, newProvider, "");
+                          }}
+                        >
+                          <option value="gemini">Gemini</option>
+                          <option value="anthropic">Anthropic</option>
+                        </select>
+                        {/* Model selector */}
+                        {isLoading ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="w-3 h-3 animate-spin" /> Loading...
+                          </div>
+                        ) : models?.length ? (
+                          <select
+                            className="flex h-8 flex-1 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm"
+                            value={currentModel}
+                            disabled={savingTask === task.key}
+                            onChange={(e) => handleSaveTaskPref(task.key, currentProvider, e.target.value)}
+                          >
+                            <option value="">Default ({task.defaultProvider === "gemini" ? "Flash Lite Latest" : "Claude Sonnet 5"})</option>
+                            {models.map((m) => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No models available — add an API key for this provider</span>
+                        )}
+                      </div>
+                      {!pref && (
+                        <p className="text-xs text-muted-foreground italic">
+                          Using default: {task.defaultProvider} / {task.defaultModel}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
           </TabsContent>

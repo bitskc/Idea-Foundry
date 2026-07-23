@@ -1,6 +1,6 @@
-import { 
-  type User, 
-  type InsertUser, 
+import {
+  type User,
+  type InsertUser,
   type Project,
   type InsertProject,
   type Conversation,
@@ -12,6 +12,7 @@ import {
   type ApiToken,
   type InsertApiToken,
   type UserApiKey,
+  type UserModelPreference,
   users,
   projects,
   conversations,
@@ -19,6 +20,7 @@ import {
   notes,
   apiTokens,
   userApiKeys,
+  userModelPreferences,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -69,6 +71,9 @@ export interface IStorage {
   getUserApiKey(userId: string, provider: string): Promise<{ key: string; model: string | null } | null>;
   createUserApiKey(userId: string, provider: string, encryptedKey: string, model?: string | null): Promise<{ id: number; provider: string; maskedKey: string; model: string | null; createdAt: Date; lastUsedAt: Date | null }>;
   updateUserApiKeyModel(id: number, userId: string, model: string | null): Promise<void>;
+  // User model preference methods
+  getUserModelPreferences(userId: string): Promise<{ id: number; task: string; provider: string; model: string | null }[]>;
+  upsertUserModelPreference(userId: string, task: string, provider: string, model: string | null): Promise<{ id: number; task: string; provider: string; model: string | null }>;
   deleteUserApiKey(id: number, userId: string): Promise<void>;
 }
 
@@ -322,6 +327,34 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserApiKeyModel(id: number, userId: string, model: string | null): Promise<void> {
     await db.update(userApiKeys).set({ model }).where(and(eq(userApiKeys.id, id), eq(userApiKeys.userId, userId)));
+  }
+
+  // User model preference methods
+  async getUserModelPreferences(userId: string): Promise<{ id: number; task: string; provider: string; model: string | null }[]> {
+    const prefs = await db.select().from(userModelPreferences).where(eq(userModelPreferences.userId, userId));
+    return prefs.map(p => ({
+      id: p.id,
+      task: p.task,
+      provider: p.provider,
+      model: p.model,
+    }));
+  }
+
+  async upsertUserModelPreference(userId: string, task: string, provider: string, model: string | null): Promise<{ id: number; task: string; provider: string; model: string | null }> {
+    // Delete existing preference for this task, then insert
+    await db.delete(userModelPreferences).where(and(eq(userModelPreferences.userId, userId), eq(userModelPreferences.task, task)));
+    const [created] = await db.insert(userModelPreferences).values({
+      userId,
+      task,
+      provider,
+      model,
+    }).returning();
+    return {
+      id: created.id,
+      task: created.task,
+      provider: created.provider,
+      model: created.model,
+    };
   }
 
   async deleteUserApiKey(id: number, userId: string): Promise<void> {
