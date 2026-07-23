@@ -135,7 +135,7 @@ export default function NewIdea() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save your idea. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save your idea. Please try again.",
       });
     } finally {
       setIsCreating(false);
@@ -169,7 +169,7 @@ export default function NewIdea() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create your idea. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create your idea. Please try again.",
       });
     } finally {
       setIsCreating(false);

@@ -181,8 +181,8 @@ export default function IdeaDetail() {
       console.error("Error generating research:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to generate research",
+        title: "AI Error",
+        description: error instanceof Error ? error.message : "Failed to generate research",
       });
     } finally {
       setIsGeneratingResearch(false);
@@ -224,8 +224,8 @@ export default function IdeaDetail() {
       console.error("Error generating PRD:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to generate PRD",
+        title: "AI Error",
+        description: error instanceof Error ? error.message : "Failed to generate PRD",
       });
     } finally {
       setIsGeneratingPrd(false);
@@ -243,8 +243,8 @@ export default function IdeaDetail() {
       console.error("Error getting stack recommendation:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to generate tech stack recommendation",
+        title: "AI Error",
+        description: error instanceof Error ? error.message : "Failed to generate tech stack recommendation",
       });
     } finally {
       setIsGeneratingStack(false);

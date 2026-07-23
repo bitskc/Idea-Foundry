@@ -758,11 +758,11 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
         });
       } catch (aiError) {
         console.error("Error generating AI response:", aiError);
-        // Add fallback message if AI fails
+        // Add fallback message if AI fails, but include the error reason
+        const aiErrorMsg = aiError instanceof Error ? aiError.message : String(aiError);
         const fallbackMessage = startMode === "problem"
-          ? "That's a real pain point! Let's understand it better. Who specifically experiences this problem, and how often do they encounter it?"
-          : "That's an interesting idea! Let's explore it further. What specific problem are you trying to solve with this product?";
-
+          ? `That's a real pain point! Let's understand it better. Who specifically experiences this problem, and how often do they encounter it?\n\n*⚠️ AI analysis failed: ${aiErrorMsg}. You can continue the conversation, or check your API key in Settings.*`
+          : `That's an interesting idea! Let's explore it further. What specific problem are you trying to solve with this product?\n\n*⚠️ AI analysis failed: ${aiErrorMsg}. You can continue the conversation, or check your API key in Settings.*`;
         await storage.createMessage({
           conversationId: conversation.id,
           role: "ai",
@@ -790,15 +790,19 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
       if (existingProject.userId !== authReq.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
-
       const updateProjectSchema = z.object({
-        title: z.string().optional(),
-        description: z.string().optional(),
-        status: z.string().optional(),
-        ideaStatus: z.string().optional(),
-        progress: z.number().optional(),
-      }).strict();
-
+        title: z.string().min(3).max(200).optional(),
+        description: z.string().max(2000).optional(),
+        status: z.enum(["draft", "in_progress", "completed", "archived"]).optional(),
+        ideaStatus: z.string().max(100).optional(),
+        progress: z.number().min(0).max(100).optional(),
+        prdContent: z.string().optional(),
+        viabilityScore: z.number().min(0).max(10).optional(),
+        viabilityBreakdown: z.any().optional(),
+        competitors: z.any().optional(),
+        keyInsights: z.any().optional(),
+        techStack: z.any().optional(),
+      });
       const result = updateProjectSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: "Invalid update data", details: result.error.flatten() });
@@ -881,7 +885,7 @@ Be realistic and honest in your assessment. Consider market size, competition in
       res.json(updatedProject);
     } catch (error) {
       console.error("Error generating research:", error);
-      res.status(500).json({ error: "Failed to generate research" });
+      res.status(500).json({ error: "Failed to generate research", message: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1191,7 +1195,7 @@ Be practical and opinionated. Choose technologies that work well together and ar
       res.json(recommendation);
     } catch (error) {
       console.error("Error generating tech stack recommendation:", error);
-      res.status(500).json({ error: "Failed to generate tech stack recommendation" });
+      res.status(500).json({ error: "Failed to generate tech stack recommendation", message: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -2011,7 +2015,7 @@ This PRD should be detailed enough that even a basic AI model can follow the ste
       res.json({ prdContent });
     } catch (error) {
       console.error("Error generating PRD:", error);
-      res.status(500).json({ error: "Failed to generate PRD" });
+      res.status(500).json({ error: "Failed to generate PRD", message: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -2104,7 +2108,7 @@ Return a JSON object with this structure:
       res.json(synergyData);
     } catch (error) {
       console.error("Error generating synergies:", error);
-      res.status(500).json({ error: "Failed to generate synergy analysis" });
+      res.status(500).json({ error: "Failed to generate synergy analysis", message: error instanceof Error ? error.message : String(error) });
     }
   });
 
