@@ -5,14 +5,13 @@ export class AnthropicAdapter implements AIService {
     provider = "anthropic" as const;
     private client: Anthropic;
     private defaultModel: string;
-
     constructor(apiKey?: string, model?: string) {
         const key = apiKey || process.env.ANTHROPIC_API_KEY;
         this.defaultModel = model || process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
         if (!key) {
             console.warn("ANTHROPIC_API_KEY is missing. Anthropic adapter will fail if used.");
         }
-        this.client = new Anthropic({ apiKey: key });
+        this.client = new Anthropic({ apiKey: key, timeout: 55000 });
     }
 
     async generateText(
