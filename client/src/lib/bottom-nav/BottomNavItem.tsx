@@ -123,8 +123,8 @@ export const BottomNavItem = forwardRef<
     active ? activeClass : `${inactiveClass} hover:text-foreground`
   } ${className}`;
 
-  // Link mode
-  if (href && navigate) {
+  // Link mode: only when href + navigate are provided AND no custom onClick
+  if (href && navigate && !onClick) {
     return (
       <a
         ref={ref as React.Ref<HTMLAnchorElement>}

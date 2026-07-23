@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,11 +8,15 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
+  MoreHorizontal,
+  MessageSquare,
+  Hammer,
   Crown,
 } from "lucide-react";
 import { signOut } from "@/lib/auth";
-
+import { api } from "@/lib/api";
 import { BottomNav } from "@/lib/bottom-nav";
+import type { Project } from "@shared/schema";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -22,6 +26,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, showBackButton, backTo }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const navItems = [
     { path: "/app", label: "Dashboard", icon: LayoutDashboard },
@@ -32,6 +37,26 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
     e.preventDefault();
     setLocation(href);
   };
+
+  // Navigate to the most recent idea's Think or Make tab
+  const goToRecentIdeaTab = useCallback(
+    async (tab: "think" | "make") => {
+      try {
+        const projects = await api.get<Project[]>("/api/projects");
+        if (projects.length === 0) {
+          // No ideas yet — send to new idea wizard
+          setLocation("/app/new");
+          return;
+        }
+        // Most recent first (API returns sorted by updatedAt desc)
+        const recent = projects[0];
+        setLocation(`/app/ideas/${recent.id}?tab=${tab}`);
+      } catch {
+        setLocation("/app");
+      }
+    },
+    []
+  );
 
   const handleSignOut = () => {
     signOut();
@@ -102,7 +127,7 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        {/* Mobile Header — simplified, no hamburger */}
+        {/* Mobile Header */}
         <header className="md:hidden border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 bg-background z-30">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
@@ -133,7 +158,7 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
           {children}
         </main>
 
-        {/* Mobile Bottom Navigation — reusable library */}
+        {/* Mobile Bottom Navigation */}
         <BottomNav
           currentPath={location}
           navigate={navigate}
@@ -150,24 +175,78 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
               href: "/app/new",
             },
             {
-              label: "Settings",
-              icon: <Settings className="w-5 h-5" />,
-              href: "/app/settings",
+              label: "Think",
+              icon: <MessageSquare className="w-5 h-5" />,
+              href: "#think",
+              onClick: () => goToRecentIdeaTab("think"),
             },
             {
-              label: "Pro",
-              icon: <Crown className="w-5 h-5" />,
-              href: "/app/upgrade",
+              label: "Make",
+              icon: <Hammer className="w-5 h-5" />,
+              href: "#make",
+              onClick: () => goToRecentIdeaTab("make"),
             },
           ]}
           actions={[
             {
-              label: "Sign Out",
-              icon: <LogOut className="w-5 h-5" />,
-              onClick: handleSignOut,
+              label: "More",
+              icon: <MoreHorizontal className="w-5 h-5" />,
+              onClick: () => setMoreOpen(!moreOpen),
+              ariaExpanded: moreOpen,
+              ariaControls: "more-sheet",
             },
           ]}
         />
+
+        {/* More Sheet — slide-up panel with secondary actions */}
+        {moreOpen && (
+          <>
+            <div
+              className="md:hidden fixed inset-0 bottom-0 z-30 bg-black/50"
+              onClick={() => setMoreOpen(false)}
+            />
+            <div
+              id="more-sheet"
+              className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border rounded-t-2xl shadow-xl pb-20 safe-area-pb"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}
+            >
+              <div className="p-4 space-y-1">
+                <div className="w-10 h-1 rounded-full bg-muted mx-auto mb-3" />
+                <button
+                  onClick={() => {
+                    setLocation("/app/settings");
+                    setMoreOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                >
+                  <Settings className="w-5 h-5 text-muted-foreground" />
+                  Settings
+                </button>
+                <button
+                  onClick={() => {
+                    setLocation("/app/upgrade");
+                    setMoreOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                >
+                  <Crown className="w-5 h-5 text-muted-foreground" />
+                  Upgrade to Pro
+                </button>
+                <div className="h-px bg-border my-2" />
+                <button
+                  onClick={() => {
+                    handleSignOut();
+                    setMoreOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <LogOut className="w-5 h-5" />
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

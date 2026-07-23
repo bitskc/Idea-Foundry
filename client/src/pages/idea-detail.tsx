@@ -123,7 +123,12 @@ export default function IdeaDetail() {
   const [conversation, setConversation] = useState<ConversationType | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    const search = window.location.search;
+    const params = new URLSearchParams(search);
+    const tab = params.get("tab");
+    return tab === "think" || tab === "make" ? tab : "overview";
+  });
   const [notesList, setNotesList] = useState<Array<{ id: number; content: string; createdAt: string }>>([]);
   const [newNote, setNewNote] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
