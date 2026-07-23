@@ -50,12 +50,14 @@ import {
   Image as ImageIcon,
   Presentation,
   Download,
+  Share2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import PptxGenJS from "pptxgenjs";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 import { GitHubRepoLink } from "@/components/github-repo-link";
 import { CompetitorRadar } from "@/components/competitor-radar";
+import { ShareDialog } from "@/components/share-dialog";
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
@@ -216,6 +218,7 @@ export default function IdeaDetail() {
   const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
   const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     loadProjectData();
@@ -598,16 +601,28 @@ ${sections}
               <p className="text-muted-foreground">{project.description}</p>
             </div>
 
-            {project.viabilityScore && (
-              <div className="text-center shrink-0">
-                <div className={`text-3xl md:text-4xl font-bold ${project.viabilityScore >= 7 ? 'text-green-600' :
-                  project.viabilityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
-                  {project.viabilityScore}
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              {project.viabilityScore && (
+                <div className="text-center">
+                  <div className={`text-3xl md:text-4xl font-bold ${project.viabilityScore >= 7 ? 'text-green-600' :
+                    project.viabilityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                    {project.viabilityScore}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Viability Score</div>
                 </div>
-                <div className="text-xs text-muted-foreground">Viability Score</div>
-              </div>
-            )}
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShareOpen(true)}
+                className="gap-1.5"
+                data-testid="button-share"
+              >
+                <Share2 className="w-4 h-4" />
+                Share
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -1721,6 +1736,7 @@ ${sections}
         </Tabs>
       </div>
 
+      <ShareDialog projectId={project.id} open={shareOpen} onOpenChange={setShareOpen} />
     </AppLayout>
   );
 }

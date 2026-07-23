@@ -33,6 +33,25 @@ if (databaseUrl) {
     'ALTER TABLE projects ADD COLUMN IF NOT EXISTS logo_data TEXT',
     'ALTER TABLE projects ADD COLUMN IF NOT EXISTS pitch_content TEXT',
     'ALTER TABLE projects ADD COLUMN IF NOT EXISTS radar_enabled BOOLEAN DEFAULT false',
+    `CREATE TABLE IF NOT EXISTS project_shares (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      visibility TEXT NOT NULL DEFAULT 'private',
+      share_token TEXT NOT NULL UNIQUE,
+      permissions TEXT NOT NULL DEFAULT 'view',
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS project_collaborators (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      invited_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      status TEXT NOT NULL DEFAULT 'pending',
+      invited_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      accepted_at TIMESTAMP
+    )`,
   ];
   Promise.all(migrations.map(stmt => migSql.unsafe(stmt)))
     .then(() => { console.log('[db] Assessment columns migrated'); return migSql.end(); })

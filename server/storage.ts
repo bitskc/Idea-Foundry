@@ -17,6 +17,10 @@ import {
   type InsertCompetitorSnapshot,
   type Notification,
   type InsertNotification,
+  type ProjectShare,
+  type InsertProjectShare,
+  type ProjectCollaborator,
+  type InsertProjectCollaborator,
   users,
   projects,
   conversations,
@@ -27,6 +31,8 @@ import {
   userModelPreferences,
   competitorSnapshots,
   notifications,
+  projectShares,
+  projectCollaborators,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -88,6 +94,18 @@ export interface IStorage {
   // Notification methods
   getNotifications(userId: string): Promise<Notification[]>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
+  // Project Share methods
+  getProjectShare(projectId: number): Promise<ProjectShare | undefined>;
+  getProjectShareByToken(token: string): Promise<ProjectShare | undefined>;
+  createProjectShare(share: InsertProjectShare): Promise<ProjectShare>;
+  updateProjectShare(projectId: number, updates: Partial<InsertProjectShare>): Promise<ProjectShare | undefined>;
+  deleteProjectShare(projectId: number): Promise<void>;
+  // Project Collaborator methods
+  getProjectCollaborators(projectId: number): Promise<ProjectCollaborator[]>;
+  getCollaboratorByUser(projectId: number, userId: string): Promise<ProjectCollaborator | undefined>;
+  createProjectCollaborator(collaborator: InsertProjectCollaborator): Promise<ProjectCollaborator>;
+  updateCollaboratorStatus(id: number, status: string): Promise<void>;
+  removeCollaborator(id: number): Promise<void>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number): Promise<void>;
 }
@@ -407,6 +425,56 @@ export class DatabaseStorage implements IStorage {
 
   async markNotificationRead(id: number): Promise<void> {
     await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));
+  }
+
+  // Project Share methods
+  async getProjectShare(projectId: number): Promise<ProjectShare | undefined> {
+    const [share] = await db.select().from(projectShares).where(eq(projectShares.projectId, projectId));
+    return share;
+  }
+
+  async getProjectShareByToken(token: string): Promise<ProjectShare | undefined> {
+    const [share] = await db.select().from(projectShares).where(eq(projectShares.shareToken, token));
+    return share;
+  }
+
+  async createProjectShare(share: InsertProjectShare): Promise<ProjectShare> {
+    const [created] = await db.insert(projectShares).values(share).returning();
+    return created;
+  }
+
+  async updateProjectShare(projectId: number, updates: Partial<InsertProjectShare>): Promise<ProjectShare | undefined> {
+    const [updated] = await db.update(projectShares).set(updates).where(eq(projectShares.projectId, projectId)).returning();
+    return updated;
+  }
+
+  async deleteProjectShare(projectId: number): Promise<void> {
+    await db.delete(projectShares).where(eq(projectShares.projectId, projectId));
+  }
+
+  // Project Collaborator methods
+  async getProjectCollaborators(projectId: number): Promise<ProjectCollaborator[]> {
+    return db.select().from(projectCollaborators).where(eq(projectCollaborators.projectId, projectId)).orderBy(desc(projectCollaborators.invitedAt));
+  }
+
+  async getCollaboratorByUser(projectId: number, userId: string): Promise<ProjectCollaborator | undefined> {
+    const [collab] = await db.select().from(projectCollaborators).where(and(eq(projectCollaborators.projectId, projectId), eq(projectCollaborators.userId, userId)));
+    return collab;
+  }
+
+  async createProjectCollaborator(collaborator: InsertProjectCollaborator): Promise<ProjectCollaborator> {
+    const [created] = await db.insert(projectCollaborators).values(collaborator).returning();
+    return created;
+  }
+
+  async updateCollaboratorStatus(id: number, status: string): Promise<void> {
+    const updates: any = { status };
+    if (status === "accepted") updates.acceptedAt = new Date();
+    await db.update(projectCollaborators).set(updates).where(eq(projectCollaborators.id, id));
+  }
+
+  async removeCollaborator(id: number): Promise<void> {
+    await db.delete(projectCollaborators).where(eq(projectCollaborators.id, id));
   }
 }
 

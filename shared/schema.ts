@@ -123,6 +123,27 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const projectShares = pgTable("project_shares", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  visibility: text("visibility").notNull().default("private"), // 'public' | 'private' | 'link-only'
+  shareToken: text("share_token").notNull().unique(), // random token for link sharing
+  permissions: text("permissions").notNull().default("view"), // 'view' | 'comment' | 'edit'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const projectCollaborators = pgTable("project_collaborators", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  invitedBy: uuid("invited_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("viewer"), // 'viewer' | 'commenter' | 'editor'
+  status: text("status").notNull().default("pending"), // 'pending' | 'accepted' | 'declined'
+  invitedAt: timestamp("invited_at").defaultNow().notNull(),
+  acceptedAt: timestamp("accepted_at"),
+});
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   id: true,
@@ -161,6 +182,16 @@ export const insertUserApiKeySchema = createInsertSchema(userApiKeys).omit({
   createdAt: true,
 });
 
+export const insertProjectShareSchema = createInsertSchema(projectShares).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertProjectCollaboratorSchema = createInsertSchema(projectCollaborators).omit({
+  id: true,
+  invitedAt: true,
+});
+
 export const insertUserModelPreferenceSchema = createInsertSchema(userModelPreferences).omit({
   id: true,
   updatedAt: true,
@@ -193,6 +224,11 @@ export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;
 export type InsertCompetitorSnapshot = z.infer<typeof insertCompetitorSnapshotSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type ProjectShare = typeof projectShares.$inferSelect;
+export type InsertProjectShare = z.infer<typeof insertProjectShareSchema>;
+export type ProjectCollaborator = typeof projectCollaborators.$inferSelect;
+export type InsertProjectCollaborator = z.infer<typeof insertProjectCollaboratorSchema>;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
 export type Message = typeof messages.$inferSelect;

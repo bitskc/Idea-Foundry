@@ -16,6 +16,7 @@ import IdeaDetail from "@/pages/idea-detail";
 import AuthPage from "@/pages/auth";
 import UpgradePage from "@/pages/upgrade";
 import SettingsPage from "@/pages/settings";
+import SharedIdea from "@/pages/shared-idea";
 import { useEffect } from "react";
 
 function SubdomainRouter() {
@@ -60,6 +61,9 @@ function SubdomainRouter() {
   if (isAppOnly) {
     return (
       <Switch>
+        {/* Public share route — no auth required */}
+        <Route path="/share/:token" component={SharedIdea} />
+
         <Route path="/" component={AuthPage} />
         <Route path="/auth" component={AuthPage} />
 
@@ -109,6 +113,7 @@ function SubdomainRouter() {
   return (
     <Switch>
       {/* Public routes */}
+      <Route path="/share/:token" component={SharedIdea} />
       <Route path="/" component={Landing} />
       <Route path="/auth" component={AuthPage} />
 

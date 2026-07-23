@@ -7,6 +7,8 @@ import type {
   Note, InsertNote, ApiToken, InsertApiToken,
   CompetitorSnapshot, InsertCompetitorSnapshot,
   Notification, InsertNotification,
+  ProjectShare, InsertProjectShare,
+  ProjectCollaborator, InsertProjectCollaborator,
 } from "../shared/schema";
 import type { IStorage } from "./storage";
 import crypto from "crypto";
@@ -372,6 +374,39 @@ export class MockStorage implements IStorage {
     return { ...notification, id: 1, createdAt: new Date() } as Notification;
   }
   async markNotificationRead(_id: number): Promise<void> {
+    // no-op
+  }
+
+  // Project Share methods
+  async getProjectShare(_projectId: number): Promise<ProjectShare | undefined> {
+    return undefined;
+  }
+  async getProjectShareByToken(_token: string): Promise<ProjectShare | undefined> {
+    return undefined;
+  }
+  async createProjectShare(share: InsertProjectShare): Promise<ProjectShare> {
+    return { ...share, id: 1, createdAt: new Date() } as ProjectShare;
+  }
+  async updateProjectShare(_projectId: number, updates: Partial<InsertProjectShare>): Promise<ProjectShare | undefined> {
+    return undefined;
+  }
+  async deleteProjectShare(_projectId: number): Promise<void> {
+    // no-op
+  }
+  // Project Collaborator methods
+  async getProjectCollaborators(_projectId: number): Promise<ProjectCollaborator[]> {
+    return [];
+  }
+  async getCollaboratorByUser(_projectId: number, _userId: string): Promise<ProjectCollaborator | undefined> {
+    return undefined;
+  }
+  async createProjectCollaborator(collaborator: InsertProjectCollaborator): Promise<ProjectCollaborator> {
+    return { ...collaborator, id: 1, invitedAt: new Date() } as ProjectCollaborator;
+  }
+  async updateCollaboratorStatus(_id: number, _status: string): Promise<void> {
+    // no-op
+  }
+  async removeCollaborator(_id: number): Promise<void> {
     // no-op
   }
 }

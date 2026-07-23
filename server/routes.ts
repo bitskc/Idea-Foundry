@@ -17,6 +17,7 @@ import { getStorage } from "./storage";
 import type { IStorage } from "./storage";
 import { registerUser, loginUser } from "./auth";
 import { registerRadarRoutes } from "./radar-routes";
+import { registerShareRoutes } from "./share-routes";
 
 const storage: IStorage = getStorage();
 // AI service is now created per-request via getAIServiceForUser (supports BYOK)
@@ -2651,5 +2652,6 @@ Keep each slide concise (3-6 bullet points or a short paragraph). Be specific an
   });
 
   registerRadarRoutes(app, storage);
+  registerShareRoutes(app);
   return httpServer;
 }
