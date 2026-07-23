@@ -47,9 +47,14 @@ import {
   Lightbulb as LightbulbIcon,
   PenTool,
   Image as ImageIcon,
+  Presentation,
+  Download,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import PptxGenJS from "pptxgenjs";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 import { GitHubRepoLink } from "@/components/github-repo-link";
+import { CompetitorRadar } from "@/components/competitor-radar";
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
@@ -165,7 +170,7 @@ export default function IdeaDetail() {
     const search = window.location.search;
     const params = new URLSearchParams(search);
     const tab = params.get("tab");
-    return tab === "think" || tab === "make" ? tab : "overview";
+    return tab === "think" || tab === "make" || tab === "pitch" ? tab : "overview";
   });
   const [notesList, setNotesList] = useState<Array<{ id: number; content: string; createdAt: string }>>([]);
   const [newNote, setNewNote] = useState("");
@@ -182,6 +187,7 @@ export default function IdeaDetail() {
   const [notesExpanded, setNotesExpanded] = useState(true);
   const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
+  const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
 
   useEffect(() => {
     loadProjectData();
@@ -322,6 +328,152 @@ export default function IdeaDetail() {
       setIsGeneratingPrd(false);
     }
   };
+  const generatePitch = async () => {
+    if (!project) return;
+    setIsGeneratingPitch(true);
+    try {
+      const data = await api.post<{ pitchContent: string }>(`/api/projects/${project.id}/generate-pitch`);
+      setProject(prev => prev ? { ...prev, pitchContent: data.pitchContent } : null);
+      toast({
+        title: "Pitch Deck Generated!",
+        description: "Your 10-slide investor pitch deck is ready to export.",
+      });
+    } catch (error) {
+      console.error("Error generating pitch deck:", error);
+      toast({
+        variant: "destructive",
+        title: "AI Error",
+        description: error instanceof Error ? error.message : "Failed to generate pitch deck",
+      });
+    } finally {
+      setIsGeneratingPitch(false);
+    }
+  };
+
+  // Parse pitch markdown (slides separated by "---") into { title, body } slides.
+  const parsePitchSlides = (markdown: string): Array<{ title: string; body: string }> => {
+    return markdown
+      .split(/\n---\n|\r\n---\r\n/)
+      .map((slide) => slide.trim())
+      .filter(Boolean)
+      .map((slide) => {
+        const lines = slide.split("\n");
+        let title = "";
+        const bodyLines: string[] = [];
+        for (const line of lines) {
+          const headingMatch = line.match(/^#\s+(.+)$/);
+          if (headingMatch && !title) {
+            title = headingMatch[1].trim();
+          } else {
+            bodyLines.push(line);
+          }
+        }
+        return { title: title || "Untitled Slide", body: bodyLines.join("\n").trim() };
+      });
+  };
+
+  const downloadPptx = async (markdown: string) => {
+    const slides = parsePitchSlides(markdown);
+    const pptx = new PptxGenJS();
+    pptx.defineLayout({ name: "Pitch", width: 13.333, height: 7.5 });
+    pptx.layout = "Pitch";
+    for (const slide of slides) {
+      const s = pptx.addSlide();
+      s.background = { color: "FFFFFF" };
+      if (slide.title) {
+        s.addText(slide.title, {
+          x: 0.5,
+          y: 0.4,
+          w: 12.333,
+          h: 1.0,
+          fontSize: 32,
+          bold: true,
+          color: "1F2937",
+        });
+      }
+      if (slide.body) {
+        // Strip markdown markers for a cleaner PPTX body
+        const cleanBody = slide.body
+          .replace(/^#{2,6}\s+/gm, "")
+          .replace(/^\s*[-*]\s+/gm, "• ")
+          .replace(/\*\*(.+?)\*\*/g, "$1")
+          .replace(/\*(.+?)\*/g, "$1")
+          .replace(/`(.+?)`/g, "$1");
+        s.addText(cleanBody, {
+          x: 0.5,
+          y: 1.6,
+          w: 12.333,
+          h: 5.4,
+          fontSize: 18,
+          color: "374151",
+          valign: "top",
+          lineSpacingMultiple: 1.2,
+        });
+      }
+    }
+    await pptx.writeFile({ fileName: "pitch-deck.pptx" });
+    toast({ title: "PPTX downloaded", description: "pitch-deck.pptx saved to your downloads." });
+  };
+
+  const downloadHtml = (markdown: string) => {
+    const slides = parsePitchSlides(markdown);
+    const sections = slides
+      .map((slide) => {
+        const titleHtml = slide.title ? `<h1>${slide.title.replace(/</g, "&lt;")}</h1>` : "";
+        // Convert simple markdown to HTML for reveal.js
+        const bodyHtml = slide.body
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/^#{2,6}\s+(.+)$/gm, "<h2>$1</h2>")
+          .replace(/^\s*[-*]\s+(.+)$/gm, "<li>$1</li>")
+          .replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>")
+          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+          .replace(/\*(.+?)\*/g, "<em>$1</em>")
+          .replace(/\n{2,}/g, "\n\n");
+        return `    <section>\n      ${titleHtml}\n      ${bodyHtml}\n    </section>`;
+      })
+      .join("\n");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pitch Deck</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+  <style>
+    .reveal h1 { font-size: 1.6em; text-transform: none; }
+    .reveal h2 { font-size: 1.1em; text-transform: none; color: #ddd; }
+    .reveal section { text-align: left; }
+    .reveal ul { margin-left: 1.2em; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+${sections}
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+  <script>
+    Reveal.initialize({ hash: true, slideNumber: true });
+  </script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pitch-deck.html";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: "HTML downloaded", description: "pitch-deck.html saved to your downloads." });
+  };
 
   const generateStackRecommendation = async () => {
     if (!project) return;
@@ -433,7 +585,7 @@ export default function IdeaDetail() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="overview" className="gap-2" data-testid="tab-overview">
               <Eye className="w-4 h-4" /> Overview
             </TabsTrigger>
@@ -442,6 +594,9 @@ export default function IdeaDetail() {
             </TabsTrigger>
             <TabsTrigger value="make" className="gap-2" data-testid="tab-make">
               <Hammer className="w-4 h-4" /> Make
+            </TabsTrigger>
+            <TabsTrigger value="pitch" className="gap-2" data-testid="tab-pitch">
+              <Presentation className="w-4 h-4" /> Pitch
             </TabsTrigger>
           </TabsList>
 
@@ -724,6 +879,9 @@ export default function IdeaDetail() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Competitor Radar */}
+            <CompetitorRadar projectId={project.id} radarEnabled={project.radarEnabled ?? false} />
 
             {/* Key Insights */}
             {insights && insights.length > 0 && (
@@ -1418,6 +1576,103 @@ export default function IdeaDetail() {
               initialUrl={project.githubRepoUrl}
               onUpdate={(url) => setProject(prev => prev ? { ...prev, githubRepoUrl: url } : null)}
             />
+          </TabsContent>
+
+          {/* Pitch Tab */}
+          <TabsContent value="pitch" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Presentation className="w-5 h-5 text-primary" />
+                  Pitch Deck
+                </CardTitle>
+                <CardDescription>Generate a 10-slide investor pitch deck and export it as PPTX or HTML</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {project.pitchContent ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <p className="font-medium">Your pitch deck has been generated!</p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        onClick={() => downloadPptx(project.pitchContent!)}
+                        data-testid="button-download-pptx"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download PPTX
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => downloadHtml(project.pitchContent!)}
+                        data-testid="button-download-html"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download HTML
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          await api.patch(`/api/projects/${project.id}`, { pitchContent: null });
+                          setProject(prev => prev ? { ...prev, pitchContent: null } : null);
+                        }}
+                        data-testid="button-regenerate-pitch"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate New Pitch Deck
+                      </Button>
+                    </div>
+                    <div className="prose prose-slate dark:prose-invert max-w-none break-words overflow-wrap-anywhere rounded-lg border bg-muted/30 p-6">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ ...props }) => <h1 className="text-2xl font-display font-bold mt-6 mb-3 text-foreground break-words" {...props} />,
+                          h2: ({ ...props }) => <h2 className="text-xl font-display font-bold mt-5 mb-2 text-foreground break-words" {...props} />,
+                          h3: ({ ...props }) => <h3 className="text-lg font-semibold mt-4 mb-2 text-foreground" {...props} />,
+                          p: ({ ...props }) => <p className="mb-3 leading-relaxed" {...props} />,
+                          ul: ({ ...props }) => <ul className="list-disc pl-5 mb-3 space-y-1" {...props} />,
+                          ol: ({ ...props }) => <ol className="list-decimal pl-5 mb-3 space-y-1" {...props} />,
+                          strong: ({ ...props }) => <strong className="font-semibold text-foreground" {...props} />,
+                          hr: () => <hr className="my-6 border-border" />,
+                        }}
+                      >
+                        {project.pitchContent.replace(/^```(?:markdown)?\n?/i, "").replace(/\n?```$/i, "").trim()}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border-2 border-dashed p-8 text-center space-y-4">
+                      <Presentation className="w-12 h-12 mx-auto text-muted-foreground" />
+                      <div>
+                        <h4 className="font-medium mb-1">No pitch deck yet</h4>
+                        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                          Generate a compelling 10-slide investor pitch deck from your idea data, then export it as PowerPoint or a self-contained HTML presentation.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={generatePitch}
+                        disabled={isGeneratingPitch}
+                        size="lg"
+                        data-testid="button-generate-pitch"
+                      >
+                        {isGeneratingPitch ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Generating Pitch Deck...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Generate Pitch Deck
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

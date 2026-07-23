@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, timestamp, integer, jsonb, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, timestamp, integer, jsonb, uuid, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -44,6 +44,8 @@ export const projects = pgTable("projects", {
   pivotSuggestions: jsonb("pivot_suggestions"), // Array of pivot objects
   specialistAssessments: jsonb("specialist_assessments"), // Array of specialist assessment objects
   logoData: text("logo_data"), // Base64 data URL of generated brand logo
+  pitchContent: text("pitch_content"), // Generated pitch deck markdown
+  radarEnabled: boolean("radar_enabled").default(false), // Competitor radar opt-in
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -102,6 +104,25 @@ export const userModelPreferences = pgTable("user_model_preferences", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+
+export const competitorSnapshots = pgTable("competitor_snapshots", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  competitors: jsonb("competitors").notNull(), // Snapshot of competitors array
+  diffSummary: jsonb("diff_summary"), // { added: [], removed: [], changed: [], summary: string }
+  checkedAt: timestamp("checked_at").defaultNow().notNull(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'competitor_change', 'stale_idea', etc.
+  title: text("title").notNull(),
+  body: text("body"),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   id: true,
@@ -150,6 +171,16 @@ export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({
   tokenHash: true,
 });
 
+export const insertCompetitorSnapshotSchema = createInsertSchema(competitorSnapshots).omit({
+  id: true,
+  checkedAt: true,
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -158,6 +189,10 @@ export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 
 export type Conversation = typeof conversations.$inferSelect;
+export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;
+export type InsertCompetitorSnapshot = z.infer<typeof insertCompetitorSnapshotSchema>;
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
 export type Message = typeof messages.$inferSelect;

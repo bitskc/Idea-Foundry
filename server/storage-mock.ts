@@ -4,7 +4,9 @@
 import type { 
   User, InsertUser, Project, InsertProject, 
   Conversation, InsertConversation, Message, InsertMessage,
-  Note, InsertNote, ApiToken, InsertApiToken
+  Note, InsertNote, ApiToken, InsertApiToken,
+  CompetitorSnapshot, InsertCompetitorSnapshot,
+  Notification, InsertNotification,
 } from "../shared/schema";
 import type { IStorage } from "./storage";
 import crypto from "crypto";
@@ -89,6 +91,8 @@ As a user, I want to create API tokens for MCP integration.
   pivotSuggestions: null,
   specialistAssessments: null,
   logoData: null,
+  pitchContent: null,
+  radarEnabled: false,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -345,6 +349,30 @@ export class MockStorage implements IStorage {
   }
   async upsertUserModelPreference(_userId: string, task: string, provider: string, model: string | null): Promise<{ id: number; task: string; provider: string; model: string | null }> {
     return { id: 1, task, provider, model };
+  }
+
+  // Competitor Snapshot methods
+  async getCompetitorSnapshots(_projectId: number): Promise<CompetitorSnapshot[]> {
+    return [];
+  }
+  async getLatestCompetitorSnapshot(_projectId: number): Promise<CompetitorSnapshot | undefined> {
+    return undefined;
+  }
+  async createCompetitorSnapshot(snapshot: InsertCompetitorSnapshot): Promise<CompetitorSnapshot> {
+    return { ...snapshot, id: 1, checkedAt: new Date() } as CompetitorSnapshot;
+  }
+  // Notification methods
+  async getNotifications(_userId: string): Promise<Notification[]> {
+    return [];
+  }
+  async getUnreadNotifications(_userId: string): Promise<Notification[]> {
+    return [];
+  }
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    return { ...notification, id: 1, createdAt: new Date() } as Notification;
+  }
+  async markNotificationRead(_id: number): Promise<void> {
+    // no-op
   }
 }
 

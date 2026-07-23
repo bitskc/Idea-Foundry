@@ -91,6 +91,20 @@ export const AI_TASKS: AITaskDefinition[] = [
     defaultProvider: "gemini",
     defaultModel: "gemini-2.5-flash-image",
   },
+  {
+    key: "pitch-generation",
+    label: "Pitch Deck Generation",
+    description: "Generate a 10-slide investor pitch deck from idea data",
+    defaultProvider: "anthropic",
+    defaultModel: "claude-sonnet-5",
+  },
+  {
+    key: "competitor-radar",
+    label: "Competitor Radar",
+    description: "Weekly competitor monitoring and change detection",
+    defaultProvider: "anthropic",
+    defaultModel: "claude-sonnet-5",
+  },
 ];
 
 export const AI_TASK_KEYS = AI_TASKS.map(t => t.key);

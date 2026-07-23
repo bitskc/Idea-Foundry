@@ -13,6 +13,10 @@ import {
   type InsertApiToken,
   type UserApiKey,
   type UserModelPreference,
+  type CompetitorSnapshot,
+  type InsertCompetitorSnapshot,
+  type Notification,
+  type InsertNotification,
   users,
   projects,
   conversations,
@@ -21,6 +25,8 @@ import {
   apiTokens,
   userApiKeys,
   userModelPreferences,
+  competitorSnapshots,
+  notifications,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -75,6 +81,15 @@ export interface IStorage {
   getUserModelPreferences(userId: string): Promise<{ id: number; task: string; provider: string; model: string | null }[]>;
   upsertUserModelPreference(userId: string, task: string, provider: string, model: string | null): Promise<{ id: number; task: string; provider: string; model: string | null }>;
   deleteUserApiKey(id: number, userId: string): Promise<void>;
+  // Competitor Snapshot methods
+  getCompetitorSnapshots(projectId: number): Promise<CompetitorSnapshot[]>;
+  getLatestCompetitorSnapshot(projectId: number): Promise<CompetitorSnapshot | undefined>;
+  createCompetitorSnapshot(snapshot: InsertCompetitorSnapshot): Promise<CompetitorSnapshot>;
+  // Notification methods
+  getNotifications(userId: string): Promise<Notification[]>;
+  getUnreadNotifications(userId: string): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -359,6 +374,39 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUserApiKey(id: number, userId: string): Promise<void> {
     await db.delete(userApiKeys).where(and(eq(userApiKeys.id, id), eq(userApiKeys.userId, userId)));
+  }
+
+  // Competitor Snapshot methods
+  async getCompetitorSnapshots(projectId: number): Promise<CompetitorSnapshot[]> {
+    return db.select().from(competitorSnapshots).where(eq(competitorSnapshots.projectId, projectId)).orderBy(desc(competitorSnapshots.checkedAt));
+  }
+
+  async getLatestCompetitorSnapshot(projectId: number): Promise<CompetitorSnapshot | undefined> {
+    const [snapshot] = await db.select().from(competitorSnapshots).where(eq(competitorSnapshots.projectId, projectId)).orderBy(desc(competitorSnapshots.checkedAt)).limit(1);
+    return snapshot;
+  }
+
+  async createCompetitorSnapshot(snapshot: InsertCompetitorSnapshot): Promise<CompetitorSnapshot> {
+    const [created] = await db.insert(competitorSnapshots).values(snapshot).returning();
+    return created;
+  }
+
+  // Notification methods
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    return db.select().from(notifications).where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`)).orderBy(desc(notifications.createdAt));
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [created] = await db.insert(notifications).values(notification).returning();
+    return created;
+  }
+
+  async markNotificationRead(id: number): Promise<void> {
+    await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));
   }
 }
 

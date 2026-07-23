@@ -12,5 +12,8 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.mjs" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron/competitor-radar", "schedule": "0 0 * * 0" }
   ]
 }

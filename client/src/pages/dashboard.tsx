@@ -3,7 +3,7 @@ import AppLayout from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreVertical, Calendar, ArrowRight, Loader2, Trash2, Flame, Lightbulb, Archive, Clock, Pencil, Check, X } from "lucide-react";
+import { Plus, MoreVertical, Calendar, ArrowRight, Loader2, Trash2, Flame, Lightbulb, Archive, Clock, Pencil, Check, X, TrendingUp, Zap, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Project } from "@shared/schema";
 import { api } from "@/lib/api";
+import { computeVelocity, computeStreak } from "@/lib/velocity";
 
 type IdeaStatus = "exploring" | "active" | "backburner" | "archived";
 
@@ -169,6 +170,60 @@ export default function Dashboard() {
           <Button onClick={() => setLocation("/app/new")} className="gap-2" data-testid="button-new-idea">
             <Plus className="w-4 h-4" /> New Idea
           </Button>
+
+        {/* Velocity Streak Strip */}
+        {projects.length > 0 && (() => {
+          const streak = computeStreak(projects);
+          const activeProjects = projects.filter(p => (p.ideaStatus || "exploring") !== "archived");
+          const avgVelocity = activeProjects.length > 0
+            ? Math.round(activeProjects.reduce((sum, p) => sum + computeVelocity(p).velocityScore, 0) / activeProjects.length)
+            : 0;
+          const staleCount = activeProjects.filter(p => computeVelocity(p).isStale).length;
+          return (
+            <div className="mb-6 p-4 rounded-xl border bg-card/50" data-testid="velocity-strip">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-sm">Idea Velocity</h3>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-orange-500" />
+                    <span className="font-semibold">{streak.currentStreak}d</span>
+                    <span className="text-muted-foreground text-xs">streak</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground text-xs">Avg velocity</span>
+                    <span className="font-semibold">{avgVelocity}/10</span>
+                  </div>
+                  {staleCount > 0 && (
+                    <div className="flex items-center gap-1.5" data-testid="stale-count">
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                      <span className="font-semibold text-yellow-600">{staleCount}</span>
+                      <span className="text-muted-foreground text-xs">stale</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* 30-day activity heatmap */}
+              <div className="flex gap-1" data-testid="activity-heatmap">
+                {streak.activityMap.map((active, i) => (
+                  <div
+                    key={i}
+                    className={`flex-1 h-2 rounded-sm transition-colors ${
+                      active ? "bg-primary" : "bg-muted"
+                    }`}
+                    title={`Day ${i + 1}: ${active ? "Active" : "No activity"}`}
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                <span>30 days ago</span>
+                <span>Today</span>
+              </div>
+            </div>
+          );
+        })()}
         </div>
 
         {/* Status Filter Tabs */}
@@ -227,8 +282,9 @@ export default function Dashboard() {
           {filteredProjects.map((project) => {
             const statusConfig = getIdeaStatusConfig(project.ideaStatus || "exploring");
             const StatusIcon = statusConfig.icon;
+            const velocity = computeVelocity(project);
             return (
-              <Card key={project.id} className="group hover:shadow-lg transition-all border-border/60" data-testid={`card-idea-${project.id}`}>
+              <Card key={project.id} className={`group hover:shadow-lg transition-all border-border/60 ${velocity.isStale ? "border-yellow-300/50" : ""}`} data-testid={`card-idea-${project.id}`}>
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div className="flex gap-2 mb-2 flex-wrap">
@@ -236,6 +292,16 @@ export default function Dashboard() {
                       <Badge variant="outline" className={`${statusConfig.color} gap-1`}>
                         <StatusIcon className="w-3 h-3" />
                         {statusConfig.label}
+                      </Badge>
+                      {velocity.isStale && (
+                        <Badge variant="outline" className="border-yellow-500 text-yellow-600 bg-yellow-500/10 gap-1" data-testid={`badge-stale-${project.id}`}>
+                          <AlertCircle className="w-3 h-3" />
+                          Stale
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className={`${velocity.velocityColor} gap-1`} data-testid={`badge-velocity-${project.id}`}>
+                        <Zap className="w-3 h-3" />
+                        {velocity.velocityLabel}
                       </Badge>
                     </div>
                     <DropdownMenu>

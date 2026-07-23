@@ -17,6 +17,7 @@ import { signOut } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { BottomNav } from "@/lib/bottom-nav";
 import type { Project } from "@shared/schema";
+import { NotificationBell } from "@/components/notification-bell";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -76,6 +77,7 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
               <Lightbulb className="w-5 h-5 text-white" />
             </div>
             <span className="font-display font-bold text-lg">Idea Foundry</span>
+            <div className="ml-auto"><NotificationBell /></div>
           </div>
         </div>
 
@@ -135,9 +137,12 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
             </div>
             <span className="font-display font-bold text-base">Idea Foundry</span>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setLocation("/app/new")}>
-            <Plus className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <Button variant="outline" size="sm" onClick={() => setLocation("/app/new")}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
         </header>
 
         {/* Page Content — bottom padding on mobile for nav bar */}

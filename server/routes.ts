@@ -16,6 +16,7 @@ import { validateApiToken } from "./mcp/auth";
 import { getStorage } from "./storage";
 import type { IStorage } from "./storage";
 import { registerUser, loginUser } from "./auth";
+import { registerRadarRoutes } from "./radar-routes";
 
 const storage: IStorage = getStorage();
 // AI service is now created per-request via getAIServiceForUser (supports BYOK)
@@ -2521,5 +2522,134 @@ Return a JSON object with this structure:
     }
   });
 
+  // Generate Pitch Deck (10-slide investor pitch deck in markdown)
+  // NOTE: maxDuration: 60 — pitch generation may take up to 60s on slow providers
+  app.post("/api/projects/:id/generate-pitch", requireAuth, async (req, res) => {
+    try {
+      const projectId = parseInt(String(req.params.id));
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Build rich context from all available project data (jsonb fields are
+      // typed `unknown`; embed via JSON.stringify so the AI gets the full data
+      // without unsafe property access).
+      const competitors = Array.isArray(project.competitors) ? project.competitors : [];
+      const keyInsights = Array.isArray(project.keyInsights) ? project.keyInsights : [];
+      const classification = project.ideaClassification ?? null;
+      const devDifficulty = project.developmentDifficulty ?? null;
+      const difficultyRoi = project.difficultyRoiRatio ?? null;
+      const pivotSuggestions = Array.isArray(project.pivotSuggestions) ? project.pivotSuggestions : [];
+      const specialistAssessments = Array.isArray(project.specialistAssessments) ? project.specialistAssessments : [];
+      const viabilityBreakdown = project.viabilityBreakdown ?? null;
+
+      const pitchPrompt = `Generate a compelling 10-slide investor pitch deck in markdown for the following product idea. Separate each slide with a line containing only "---". Each slide should start with a "# " level-1 heading (the slide title) followed by the slide body content.
+
+PRODUCT IDEA:
+- Title: ${project.title}
+- Description: ${project.description}
+- Type: ${project.type || "Not specified"}
+- Raw Idea: ${project.rawIdea || project.description}
+
+VIABILITY ANALYSIS:
+- Overall Viability Score: ${project.viabilityScore ?? "Not assessed"}/10
+- Breakdown: ${viabilityBreakdown ? JSON.stringify(viabilityBreakdown) : "Not assessed"}
+
+COMPETITORS:
+${competitors.length > 0 ? JSON.stringify(competitors, null, 2) : "No competitor data available — infer from the idea domain."}
+
+KEY INSIGHTS:
+${keyInsights.length > 0 ? JSON.stringify(keyInsights, null, 2) : "None available."}
+
+IDEA CLASSIFICATION:
+${classification ? JSON.stringify(classification) : "Not classified."}
+
+DEVELOPMENT DIFFICULTY:
+${devDifficulty ? JSON.stringify(devDifficulty) : "Not assessed."}
+
+DIFFICULTY-TO-ROI RATIO:
+${difficultyRoi ? JSON.stringify(difficultyRoi) : "Not assessed."}
+
+PIVOT SUGGESTIONS:
+${pivotSuggestions.length > 0 ? JSON.stringify(pivotSuggestions, null, 2) : "None available."}
+
+SPECIALIST ASSESSMENTS:
+${specialistAssessments.length > 0 ? JSON.stringify(specialistAssessments, null, 2) : "None available."}
+
+EXISTING PRD (for reference):
+${project.prdContent ? project.prdContent.slice(0, 3000) : "No PRD available."}
+
+Generate EXACTLY 10 slides in this order, each starting with a "# " heading:
+1. Title slide — the idea name and a catchy one-line tagline
+2. Problem — the pain point being solved and who suffers from it
+3. Solution — how this product solves the problem and the core value proposition
+4. Market Size — TAM/SAM/SOM estimates with reasoning
+5. Competition — the competitive landscape (use the competitor data above) and how this idea differentiates
+6. Traction / Progress — current status, milestones reached, and validation signals
+7. Business Model — how the product makes money, pricing, and revenue streams
+8. Go-to-Market — customer acquisition strategy and channels
+9. Team / Ask — the team (infer a plausible founding team if unknown) and the funding ask with use of funds
+10. Closing — a memorable closing slide with a call to action and contact placeholder
+
+Keep each slide concise (3-6 bullet points or a short paragraph). Be specific and persuasive, grounded in the data above. Output ONLY the markdown for the 10 slides separated by "---", with no preamble or commentary.`;
+
+      // Use per-task model preference (defaults to Anthropic for pitch generation)
+      const service = await getAIServiceForUser(authReq.user.id, storage, "pitch-generation");
+      const providerName = getProviderName(service);
+
+      let pitchContent;
+      try {
+        pitchContent = await service.generateText(pitchPrompt, [], {
+          systemPrompt: "You are an expert startup pitch deck writer. Generate compelling, investor-ready pitch decks in markdown. Be specific, data-grounded, and persuasive. Always produce exactly 10 slides separated by '---'.",
+          maxTokens: 4000,
+        });
+      } catch (primaryError) {
+        console.error(`Pitch with ${providerName} failed, trying fallback:`, primaryError);
+        const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+        if (!fallback) throw primaryError;
+        pitchContent = await fallback.generateText(pitchPrompt, [], {
+          systemPrompt: "You are an expert startup pitch deck writer. Generate compelling, investor-ready pitch decks in markdown. Be specific, data-grounded, and persuasive. Always produce exactly 10 slides separated by '---'.",
+          maxTokens: 4000,
+        });
+      }
+
+      // Save pitch deck to project
+      await storage.updateProject(projectId, { pitchContent });
+
+      res.json({ pitchContent });
+    } catch (error) {
+      console.error("Error generating pitch deck:", error);
+      res.status(500).json({ error: "Failed to generate pitch deck", message: extractAIError(error) });
+    }
+  });
+
+  // Get stored pitch deck
+  app.get("/api/projects/:id/pitch", requireAuth, async (req, res) => {
+    try {
+      const projectId = parseInt(String(req.params.id));
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      res.json({ pitchContent: project.pitchContent || null });
+    } catch (error) {
+      console.error("Error fetching pitch deck:", error);
+      res.status(500).json({ error: "Failed to fetch pitch deck" });
+    }
+  });
+
+  registerRadarRoutes(app, storage);
   return httpServer;
 }
