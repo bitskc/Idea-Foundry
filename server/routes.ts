@@ -8,6 +8,7 @@ import { getAIServiceForUser } from "./ai/factory";
 import { z } from "zod";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
 import { TechStackRecommendationSchema } from "../shared/schema";
+import { extractAIError } from "../shared/ai-tasks";
 import { stripe, createCheckoutSession, createPortalSession, getOrCreateCustomer } from "./stripe";
 import Stripe from "stripe";
 import rateLimit from "express-rate-limit";
@@ -759,7 +760,7 @@ Return ONLY a JSON array of 6 name suggestions with this exact format:
       } catch (aiError) {
         console.error("Error generating AI response:", aiError);
         // Add fallback message if AI fails, but include the error reason
-        const aiErrorMsg = aiError instanceof Error ? aiError.message : String(aiError);
+        const aiErrorMsg = extractAIError(aiError);
         const fallbackMessage = startMode === "problem"
           ? `That's a real pain point! Let's understand it better. Who specifically experiences this problem, and how often do they encounter it?\n\n*⚠️ AI analysis failed: ${aiErrorMsg}. You can continue the conversation, or check your API key in Settings.*`
           : `That's an interesting idea! Let's explore it further. What specific problem are you trying to solve with this product?\n\n*⚠️ AI analysis failed: ${aiErrorMsg}. You can continue the conversation, or check your API key in Settings.*`;
@@ -885,7 +886,7 @@ Be realistic and honest in your assessment. Consider market size, competition in
       res.json(updatedProject);
     } catch (error) {
       console.error("Error generating research:", error);
-      res.status(500).json({ error: "Failed to generate research", message: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ error: "Failed to generate research", message: extractAIError(error) });
     }
   });
 
@@ -1195,7 +1196,7 @@ Be practical and opinionated. Choose technologies that work well together and ar
       res.json(recommendation);
     } catch (error) {
       console.error("Error generating tech stack recommendation:", error);
-      res.status(500).json({ error: "Failed to generate tech stack recommendation", message: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ error: "Failed to generate tech stack recommendation", message: extractAIError(error) });
     }
   });
 
@@ -1370,6 +1371,7 @@ Be practical and opinionated. Choose technologies that work well together and ar
         }
 
         let fallbackSucceeded = false;
+        let lastFallbackError: unknown = null;
         for (const { name, service: fallbackService } of fallbacks) {
           try {
             console.log(`Trying ${name} fallback...`);
@@ -1382,13 +1384,15 @@ Be practical and opinionated. Choose technologies that work well together and ar
             }
             fallbackSucceeded = true;
             break;
-          } catch (fallbackError) {
-            console.error(`${name} fallback failed:`, fallbackError);
+          } catch (fbError) {
+            console.error(`${name} fallback failed:`, fbError);
+            lastFallbackError = fbError;
           }
         }
 
         if (!fallbackSucceeded) {
-          res.write(`data: ${JSON.stringify({ error: "Failed to generate response. Please check your API key in Settings." })}\n\n`);
+          const lastError = lastFallbackError ? extractAIError(lastFallbackError) : extractAIError(streamError);
+          res.write(`data: ${JSON.stringify({ error: `AI request failed: ${lastError}. Check your API key in Settings.` })}\n\n`);
           res.end();
           return;
         }
@@ -2015,7 +2019,7 @@ This PRD should be detailed enough that even a basic AI model can follow the ste
       res.json({ prdContent });
     } catch (error) {
       console.error("Error generating PRD:", error);
-      res.status(500).json({ error: "Failed to generate PRD", message: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ error: "Failed to generate PRD", message: extractAIError(error) });
     }
   });
 
@@ -2108,7 +2112,7 @@ Return a JSON object with this structure:
       res.json(synergyData);
     } catch (error) {
       console.error("Error generating synergies:", error);
-      res.status(500).json({ error: "Failed to generate synergy analysis", message: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ error: "Failed to generate synergy analysis", message: extractAIError(error) });
     }
   });
 

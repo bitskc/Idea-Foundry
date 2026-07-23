@@ -70,3 +70,22 @@ export const AI_TASK_KEYS = AI_TASKS.map(t => t.key);
 export function getTaskDefault(task: string): AITaskDefinition | undefined {
   return AI_TASKS.find(t => t.key === task);
 }
+
+/**
+ * Extract a human-readable error message from an AI provider error.
+ * Handles Gemini and Anthropic error formats.
+ */
+export function extractAIError(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message;
+    // Anthropic: "400 {"type":"error","error":{"type":"...","message":"actual message"}}"
+    const anthropicMatch = msg.match(/\d+\s+\{[\s\S]*"message":\s*"([^"]+)"/);
+    if (anthropicMatch) return anthropicMatch[1];
+    // Gemini: "[GoogleGenerativeAI Error]: ... [400 Bad Request] API key not valid..."
+    const geminiMatch = msg.match(/\[GoogleGenerativeAI Error\]:\s*(.+)/);
+    if (geminiMatch) return geminiMatch[1].trim();
+    // Generic: just return the message, truncated
+    return msg.length > 200 ? msg.substring(0, 200) + "..." : msg;
+  }
+  return String(error);
+}
