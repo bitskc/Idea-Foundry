@@ -105,6 +105,13 @@ export const AI_TASKS: AITaskDefinition[] = [
     defaultProvider: "anthropic",
     defaultModel: "claude-sonnet-5",
   },
+  {
+    key: "domain-search",
+    label: "Domain Name Search",
+    description: "Generate domain name suggestions from idea context",
+    defaultProvider: "gemini",
+    defaultModel: "gemini-flash-lite-latest",
+  },
 ];
 
 export const AI_TASK_KEYS = AI_TASKS.map(t => t.key);

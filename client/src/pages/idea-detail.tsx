@@ -52,6 +52,8 @@ import {
   Presentation,
   Download,
   Share2,
+  Globe,
+  Search,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import PptxGenJS from "pptxgenjs";
@@ -221,6 +223,9 @@ export default function IdeaDetail() {
   const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [domainSuggestions, setDomainSuggestions] = useState<any[]>([]);
+  const [isSearchingDomains, setIsSearchingDomains] = useState(false);
+  const [hasSearchedDomains, setHasSearchedDomains] = useState(false);
 
   useEffect(() => {
     loadProjectData();
@@ -550,6 +555,27 @@ ${sections}
       setIsGeneratingLogo(false);
     }
   };
+
+  const searchDomains = async () => {
+    if (!project) return;
+    setIsSearchingDomains(true);
+    try {
+      const data = await api.post<{ suggestions: any[] }>(`/api/projects/${project.id}/search-domains`);
+      setDomainSuggestions(data.suggestions || []);
+      setHasSearchedDomains(true);
+      toast({ title: "Domain suggestions ready!", description: `${data.suggestions?.length || 0} ideas generated.` });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: error instanceof Error ? error.message : "Failed to generate domain suggestions" });
+    } finally {
+      setIsSearchingDomains(false);
+    }
+  };
+
+  // Build affiliate domain search links
+  const PORKBUN_AFFILIATE = import.meta.env.VITE_PORKBUN_AFFILIATE || "";
+  const NAMECHEAP_AFFILIATE = import.meta.env.VITE_NAMECHEAP_AFFILIATE || "";
+  const buildPorkbunLink = (domain: string) => `https://porkbun.com/search?q=${encodeURIComponent(domain)}${PORKBUN_AFFILIATE ? `&ref=${PORKBUN_AFFILIATE}` : ""}`;
+  const buildNamecheapLink = (domain: string) => `https://www.namecheap.com/domains/registration/results/?domain=${encodeURIComponent(domain)}${NAMECHEAP_AFFILIATE ? `&aff=${NAMECHEAP_AFFILIATE}` : ""}`;
 
   if (isLoading) {
     return (
@@ -1668,6 +1694,90 @@ ${sections}
               initialUrl={project.githubRepoUrl}
               onUpdate={(url) => setProject(prev => prev ? { ...prev, githubRepoUrl: url } : null)}
             />
+
+            {/* Domain Name Search */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-primary" />
+                  Domain Name Search
+                </CardTitle>
+                <CardDescription>AI-generated domain name ideas with registration links</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {domainSuggestions.length === 0 && !isSearchingDomains && (
+                  <div className="text-center py-6">
+                    <Search className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Generate creative domain name ideas based on your project.
+                    </p>
+                    <Button onClick={searchDomains} data-testid="button-search-domains">
+                      <Globe className="w-4 h-4 mr-2" />
+                      Generate Domain Ideas
+                    </Button>
+                  </div>
+                )}
+                {isSearchingDomains && (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="ml-2 text-sm text-muted-foreground">Generating domain ideas...</span>
+                  </div>
+                )}
+                {domainSuggestions.length > 0 && (
+                  <div className="space-y-3">
+                    {domainSuggestions.map((s, i) => (
+                      <div key={i} className="border rounded-lg p-4 hover:border-primary/30 transition-colors" data-testid={`domain-suggestion-${i}`}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <div className="font-mono font-semibold text-base truncate">
+                              {s.name}<span className="text-primary">{s.tld}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">{s.rationale}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          <a
+                            href={buildPorkbunLink(`${s.name}${s.tld}`)}
+                            target="_blank"
+                            rel="noopener noreferrer sponsored"
+                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-pink-50 text-pink-700 hover:bg-pink-100 dark:bg-pink-950 dark:text-pink-300 transition-colors font-medium"
+                            data-testid={`domain-porkbun-${i}`}
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Check on Porkbun
+                          </a>
+                          <a
+                            href={buildNamecheapLink(`${s.name}${s.tld}`)}
+                            target="_blank"
+                            rel="noopener noreferrer sponsored"
+                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-300 transition-colors font-medium"
+                            data-testid={`domain-namecheap-${i}`}
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Check on Namecheap
+                          </a>
+                          {s.alternatives?.map((alt: string) => (
+                            <a
+                              key={alt}
+                              href={buildPorkbunLink(`${s.name}${alt}`)}
+                              target="_blank"
+                              rel="noopener noreferrer sponsored"
+                              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border hover:bg-muted transition-colors text-muted-foreground"
+                            >
+                              {s.name}<span className="text-primary">{alt}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={searchDomains} className="w-full" data-testid="button-regenerate-domains">
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate More Ideas
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Pitch Tab */}

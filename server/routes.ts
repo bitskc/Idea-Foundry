@@ -1395,6 +1395,91 @@ Be practical and opinionated. Choose technologies that work well together and ar
     }
   });
 
+  // Generate domain name suggestions for a project
+  app.post("/api/projects/:id/search-domains", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const prompt = `Generate domain name suggestions for this project:
+
+PROJECT: ${project.title}
+DESCRIPTION: ${project.description}
+TYPE: ${project.type}
+
+Rules:
+- Generate 8-10 creative, memorable domain name ideas
+- Mix real words, portmanteaus, and creative compound words
+- Include a variety of TLDs (.com, .io, .app, .dev, .ai, .co)
+- For each suggestion, suggest the best TLD and 1-2 alternatives
+- Consider brandability, memorability, and spelling clarity
+- Avoid names that are likely already taken by major companies
+
+Return a JSON object with this exact structure:
+{
+  "suggestions": [
+    {
+      "name": "domainname",
+      "tld": ".com",
+      "alternatives": [".io", ".app"],
+      "rationale": "Why this name works for this project"
+    }
+  ]
+}
+
+Be creative but practical. Focus on names that are likely available.`;
+
+      const service = await getAIServiceForUser(authReq.user.id, storage, "domain-search");
+      const providerName = getProviderName(service);
+
+      let rawText;
+      try {
+        rawText = await service.generateText(prompt, [], {
+          systemPrompt: "You are a branding expert who specializes in finding available, memorable domain names for startups. Respond with valid JSON only.",
+          maxTokens: 1000
+        });
+      } catch (primaryError) {
+        console.error(`Domain search with ${providerName} failed, trying fallback:`, primaryError);
+        const fallback = await getFallbackService(authReq.user.id, storage, providerName);
+        if (!fallback) throw primaryError;
+        rawText = await fallback.generateText(prompt, [], {
+          systemPrompt: "You are a branding expert who specializes in finding available, memorable domain names for startups. Respond with valid JSON only.",
+          maxTokens: 1000
+        });
+      }
+
+      // Parse JSON from text response
+      let result;
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        const match = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (match) {
+          result = JSON.parse(match[1].trim());
+        } else {
+          const start = rawText.indexOf('{');
+          if (start !== -1) {
+            result = JSON.parse(rawText.slice(start));
+          } else {
+            throw new Error("No JSON found in domain search response");
+          }
+        }
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Error generating domain suggestions:", error);
+      res.status(500).json({ error: "Failed to generate domain suggestions", message: extractAIError(error) });
+    }
+  });
+
   // Start conversation for an existing project (for quick-capture projects)
   app.post("/api/projects/:id/start-conversation", async (req, res) => {
     try {
