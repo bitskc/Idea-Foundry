@@ -22,12 +22,12 @@ const storage: IStorage = getStorage();
 
 // Audience-specific question emphasis
 const AUDIENCE_PROMPTS: Record<string, string> = {
-  b2b_saas: "Focus on: Enterprise GTM strategy, ARR potential, integration requirements, sales cycles, customer success",
-  b2c_mobile: "Focus on: Unit economics, DAU/MAU metrics, viral loops, retention strategies, app store optimization",
-  marketplace: "Focus on: Two-sided growth, supply/demand balance, network effects, take rates, liquidity",
-  ai_agent: "Focus on: Model selection, data pipelines, accuracy metrics, prompt engineering, API costs",
-  consumer_web: "Focus on: Content strategy, engagement metrics, ad revenue potential, SEO, viral growth",
-  hardware: "Focus on: Supply chain, hardware costs, software-hardware synergy, manufacturing, certifications",
+  "B2B SaaS": "Focus on: Enterprise GTM strategy, ARR potential, integration requirements, sales cycles, customer success",
+  "B2C App": "Focus on: Unit economics, DAU/MAU metrics, viral loops, retention strategies, app store optimization",
+  "Marketplace": "Focus on: Two-sided growth, supply/demand balance, network effects, take rates, liquidity",
+  "Creator Tool": "Focus on: Creator economy trends, monetization models, content workflows, audience building",
+  "AI/ML": "Focus on: Model selection, data pipelines, accuracy metrics, prompt engineering, API costs",
+  "Other": "Focus on: General market analysis, competitive landscape, and unique value proposition",
 };
 
 // Challenger mode prompt - devil's advocate that pushes back on ideas

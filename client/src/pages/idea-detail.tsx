@@ -1227,28 +1227,6 @@ export default function IdeaDetail() {
               initialUrl={project.githubRepoUrl}
               onUpdate={(url) => setProject(prev => prev ? { ...prev, githubRepoUrl: url } : null)}
             />
-
-            {/* Validation Tools */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Validation Tools</CardTitle>
-                <CardDescription>Test your idea before building</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button variant="outline" className="h-auto py-4 flex-col gap-2" data-testid="button-landing-page">
-                    <ExternalLink className="w-5 h-5" />
-                    <span className="font-medium">Landing Page Generator</span>
-                    <span className="text-xs text-muted-foreground">Create a quick landing page to test interest</span>
-                  </Button>
-                  <Button variant="outline" className="h-auto py-4 flex-col gap-2" data-testid="button-communities">
-                    <Users className="w-5 h-5" />
-                    <span className="font-medium">Find Communities</span>
-                    <span className="text-xs text-muted-foreground">Discover where your users hang out</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>
