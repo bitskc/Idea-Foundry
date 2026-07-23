@@ -927,11 +927,12 @@ Be realistic and honest. For development difficulty, consider what a SOLO FOUNDE
 
       const service = await getAIServiceForUser(authReq.user.id, storage, "research");
       const providerName = getProviderName(service);
-
       let researchData;
       try {
+
         researchData = await service.generateJSON(researchPrompt, [], {
           schema: ResearchSchema,
+          maxTokens: 4000,
           systemPrompt: "You are a senior business analyst and product strategist. Provide honest, detailed assessments that help founders avoid building difficult, low-ROI products. Focus on identifying low-hanging fruit — ideas that are simple to build but have real revenue potential."
         });
       } catch (primaryError) {
@@ -940,6 +941,7 @@ Be realistic and honest. For development difficulty, consider what a SOLO FOUNDE
         if (!fallback) throw primaryError;
         researchData = await fallback.generateJSON(researchPrompt, [], {
           schema: ResearchSchema,
+          maxTokens: 4000,
           systemPrompt: "You are a senior business analyst and product strategist. Provide honest, detailed assessments."
         });
       }
@@ -954,14 +956,14 @@ Be realistic and honest. For development difficulty, consider what a SOLO FOUNDE
             try {
               return await svc.generateJSON(
                 `You are assessing this product idea from a MARKETING perspective.\n\n${ideaContext}\nCLASSIFIED TYPE: ${classifiedType}\n\nAssess: positioning, channel fit, target audience reachability, launch strategy, and customer acquisition difficulty. Be specific about which marketing channels would work and which wouldn't.\n\nRespond with JSON: { "agent": "marketing-expert", "role": "Marketing Strategist", "verdict": string (1-2 sentence overall verdict), "score": 1-10, "reasoning": string, "recommendations": array of strings }.`,
-                [], { schema: SpecialistAssessmentSchema, systemPrompt: `You are a senior marketing strategist with deep go-to-market experience for ${classification?.primaryType || "software"} products. Assess positioning, channel fit, and launch feasibility.` }
+                [], { schema: SpecialistAssessmentSchema, maxTokens: 2000, systemPrompt: `You are a senior marketing strategist with deep go-to-market experience for ${classification?.primaryType || "software"} products. Assess positioning, channel fit, and launch feasibility.` }
               );
             } catch (e) {
               const fb = await getFallbackService(authReq.user.id, storage, provName);
               if (!fb) return null;
               return await fb.generateJSON(
                 `Assess this product idea from a MARKETING perspective.\n\n${ideaContext}\n\nRespond with JSON: { "agent": "marketing-expert", "role": "Marketing Strategist", "verdict": string, "score": 1-10, "reasoning": string, "recommendations": array of strings }.`,
-                [], { schema: SpecialistAssessmentSchema, systemPrompt: "You are a senior marketing strategist." }
+                [], { schema: SpecialistAssessmentSchema, maxTokens: 2000, systemPrompt: "You are a senior marketing strategist." }
               );
             }
           } catch (e) {
@@ -977,14 +979,14 @@ Be realistic and honest. For development difficulty, consider what a SOLO FOUNDE
             try {
               return await svc.generateJSON(
                 `You are assessing this product idea from a DEVELOPMENT perspective.\n\n${ideaContext}\nCLASSIFIED TYPE: ${classifiedType}\n\nAssess: technical feasibility for a solo founder, hardest engineering challenges, recommended tech stack, build time estimate, and key technical risks. Be specific about what's hard vs easy to build.\n\nRespond with JSON: { "agent": "developer", "role": "Senior Developer", "verdict": string (1-2 sentence overall verdict), "score": 1-10 (10 = very easy to build), "reasoning": string, "recommendations": array of strings }.`,
-                [], { schema: SpecialistAssessmentSchema, systemPrompt: `You are a senior full-stack developer who has shipped ${classification?.primaryType || "software"} products. Assess technical feasibility, recommend the stack you'd personally use, and flag the hardest engineering risks.` }
+                [], { schema: SpecialistAssessmentSchema, maxTokens: 2000, systemPrompt: `You are a senior full-stack developer who has shipped ${classification?.primaryType || "software"} products. Assess technical feasibility, recommend the stack you'd personally use, and flag the hardest engineering risks.` }
               );
             } catch (e) {
               const fb = await getFallbackService(authReq.user.id, storage, provName);
               if (!fb) return null;
               return await fb.generateJSON(
                 `Assess this product idea from a DEVELOPMENT perspective.\n\n${ideaContext}\n\nRespond with JSON: { "agent": "developer", "role": "Senior Developer", "verdict": string, "score": 1-10, "reasoning": string, "recommendations": array of strings }.`,
-                [], { schema: SpecialistAssessmentSchema, systemPrompt: "You are a senior full-stack developer." }
+                [], { schema: SpecialistAssessmentSchema, maxTokens: 2000, systemPrompt: "You are a senior full-stack developer." }
               );
             }
           } catch (e) {

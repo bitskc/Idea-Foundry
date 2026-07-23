@@ -275,7 +275,7 @@ export const DevelopmentDifficultySchema = z.object({
   frontend: z.number().min(1).max(10),
   backend: z.number().min(1).max(10),
   infra: z.number().min(1).max(10),
-  aiMl: z.number().min(1).max(10),
+  aiMl: z.number().min(0).max(10),
   integrations: z.number().min(1).max(10),
   totalEstimate: z.string(),
   reasoning: z.string(),
