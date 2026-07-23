@@ -8,11 +8,14 @@ import { getTaskDefault } from "../../shared/ai-tasks";
  * Get an AI service for a specific user and task.
  *
  * Resolution order:
- * 1. User's per-task model preference (if set) → use that provider + model
- *    with the user's BYOK key for that provider (or server default if no BYOK)
- * 2. User's BYOK key for the task's default provider → use with BYOK model
- * 3. User's BYOK key for the other provider → use with BYOK model
- * 4. Server default for the task's default provider
+ * 1. User's per-task model preference (if set AND that provider has a key)
+ * 2. Task's default provider (if it has a key — BYOK or server)
+ * 3. The other provider (if it has a key — BYOK or server)
+ * 4. Throw a clear error if no provider has any key
+ *
+ * "Has a key" means either a BYOK key from the user OR a server env var.
+ * We never create an adapter for a provider with no key — that's what was
+ * causing the "Failed to generate" errors.
  *
  * No caching — per-request instantiation is cheap and avoids stale-key issues.
  */
@@ -25,41 +28,63 @@ export async function getAIServiceForUser(
   const defaultProvider = taskDef?.defaultProvider || "gemini";
   const defaultModel = taskDef?.defaultModel;
 
+  // Gather all available keys (BYOK + server env) for both providers
+  const geminiByok = await storage.getUserApiKey(userId, "gemini");
+  const anthropicByok = await storage.getUserApiKey(userId, "anthropic");
+
+  const hasGeminiKey = !!geminiByok || !!process.env.GEMINI_API_KEY;
+  const hasAnthropicKey = !!anthropicByok || !!process.env.ANTHROPIC_API_KEY;
+
+  if (!hasGeminiKey && !hasAnthropicKey) {
+    throw new Error(
+      "No AI provider API key available. Add your own key in Settings → API Keys, or contact the administrator."
+    );
+  }
+
+  // Helper: create an adapter for a provider, using BYOK key if available
+  // (falling back to server env var), with optional model override
+  function makeAdapter(
+    provider: "gemini" | "anthropic",
+    modelOverride?: string
+  ): AIService {
+    if (provider === "gemini") {
+      const byok = geminiByok;
+      if (byok) return new GeminiAdapter(byok.key, modelOverride || byok.model || undefined);
+      return new GeminiAdapter(undefined, modelOverride);
+    } else {
+      const byok = anthropicByok;
+      if (byok) return new AnthropicAdapter(byok.key, modelOverride || byok.model || undefined);
+      return new AnthropicAdapter(undefined, modelOverride);
+    }
+  }
+
   // 1. Check if user has a per-task model preference
   const prefs = await storage.getUserModelPreferences(userId);
   const taskPref = prefs.find(p => p.task === task);
 
   if (taskPref) {
     const provider = taskPref.provider as "gemini" | "anthropic";
-    const model = taskPref.model || undefined;
-    const byokEntry = await storage.getUserApiKey(userId, provider);
-    if (byokEntry) {
-      if (provider === "gemini") return new GeminiAdapter(byokEntry.key, model);
-      if (provider === "anthropic") return new AnthropicAdapter(byokEntry.key, model);
+    const hasKey = provider === "gemini" ? hasGeminiKey : hasAnthropicKey;
+    if (hasKey) {
+      return makeAdapter(provider, taskPref.model || undefined);
     }
-    // No BYOK for preferred provider — use server key with user's model choice
-    if (provider === "gemini" && process.env.GEMINI_API_KEY) return new GeminiAdapter(undefined, model);
-    if (provider === "anthropic" && process.env.ANTHROPIC_API_KEY) return new AnthropicAdapter(undefined, model);
+    // User's preferred provider has no key — fall through to defaults
   }
 
-  // 2. Check BYOK key for the task's default provider
-  const byokEntry = await storage.getUserApiKey(userId, defaultProvider);
-  if (byokEntry) {
-    if (defaultProvider === "gemini") return new GeminiAdapter(byokEntry.key, byokEntry.model || undefined);
-    if (defaultProvider === "anthropic") return new AnthropicAdapter(byokEntry.key, byokEntry.model || undefined);
+  // 2. Try the task's default provider (if it has a key)
+  const defaultHasKey = defaultProvider === "gemini" ? hasGeminiKey : hasAnthropicKey;
+  if (defaultHasKey) {
+    return makeAdapter(defaultProvider, defaultModel);
   }
 
-  // 3. Check BYOK key for the other provider
-  const otherProvider = defaultProvider === "gemini" ? "anthropic" : "gemini";
-  const otherEntry = await storage.getUserApiKey(userId, otherProvider);
-  if (otherEntry) {
-    if (otherProvider === "gemini") return new GeminiAdapter(otherEntry.key, otherEntry.model || undefined);
-    if (otherProvider === "anthropic") return new AnthropicAdapter(otherEntry.key, otherEntry.model || undefined);
+  // 3. Fall back to the other provider (whichever has a key)
+  const otherProvider: "gemini" | "anthropic" = defaultProvider === "gemini" ? "anthropic" : "gemini";
+  const otherHasKey = otherProvider === "gemini" ? hasGeminiKey : hasAnthropicKey;
+  if (otherHasKey) {
+    // Use the other provider's default model from its task definition, or just the adapter default
+    return makeAdapter(otherProvider);
   }
 
-  // 4. Fall back to server defaults
-  if (defaultProvider === "anthropic" && process.env.ANTHROPIC_API_KEY) {
-    return new AnthropicAdapter(undefined, defaultModel);
-  }
-  return new GeminiAdapter(undefined, defaultModel);
+  // Should never reach here since we checked at least one has a key above
+  throw new Error("No AI provider API key available.");
 }
