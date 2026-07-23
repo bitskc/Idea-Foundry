@@ -9,7 +9,7 @@ export class GeminiAdapter implements AIService {
 
     constructor(apiKey?: string, model?: string) {
         this.apiKey = apiKey || process.env.GEMINI_API_KEY || "";
-        this.defaultModel = model || process.env.GEMINI_MODEL || "gemini-2.0-flash";
+        this.defaultModel = model || process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
         if (!this.apiKey) {
             console.warn("GEMINI_API_KEY is missing. Gemini adapter will fail if used.");
         }

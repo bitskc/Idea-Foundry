@@ -8,7 +8,7 @@ export class AnthropicAdapter implements AIService {
 
     constructor(apiKey?: string, model?: string) {
         const key = apiKey || process.env.ANTHROPIC_API_KEY;
-        this.defaultModel = model || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+        this.defaultModel = model || process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
         if (!key) {
             console.warn("ANTHROPIC_API_KEY is missing. Anthropic adapter will fail if used.");
         }
