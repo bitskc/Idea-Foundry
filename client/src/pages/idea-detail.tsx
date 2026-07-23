@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -79,6 +80,33 @@ interface ViabilityBreakdown {
   effort: number;
   profitPotential: number;
 }
+
+const VIABILITY_METRICS: Record<keyof ViabilityBreakdown, { label: string; description: string; higherIsBetter: boolean; interpret: (v: number) => { label: string; color: string } }> = {
+  marketSize: {
+    label: "Market Size",
+    description: "Estimated size of the addressable market. A higher score means a larger potential customer base and more room to grow.",
+    higherIsBetter: true,
+    interpret: (v) => v >= 7 ? { label: "Large market", color: "text-green-600" } : v >= 4 ? { label: "Moderate market", color: "text-yellow-600" } : { label: "Niche market", color: "text-red-600" },
+  },
+  competition: {
+    label: "Competition",
+    description: "How crowded the competitive landscape is. A higher score means fewer direct competitors or a stronger differentiated position.",
+    higherIsBetter: true,
+    interpret: (v) => v >= 7 ? { label: "Blue ocean", color: "text-green-600" } : v >= 4 ? { label: "Some competition", color: "text-yellow-600" } : { label: "Highly contested", color: "text-red-600" },
+  },
+  effort: {
+    label: "Build Effort",
+    description: "How feasible the idea is to build with available resources. A higher score means lower relative effort — quicker to ship with less complexity.",
+    higherIsBetter: true,
+    interpret: (v) => v >= 7 ? { label: "Quick to build", color: "text-green-600" } : v >= 4 ? { label: "Moderate effort", color: "text-yellow-600" } : { label: "Complex build", color: "text-red-600" },
+  },
+  profitPotential: {
+    label: "Profit Potential",
+    description: "Estimated revenue and margin potential. A higher score means stronger monetization prospects and healthier unit economics.",
+    higherIsBetter: true,
+    interpret: (v) => v >= 7 ? { label: "High potential", color: "text-green-600" } : v >= 4 ? { label: "Moderate potential", color: "text-yellow-600" } : { label: "Low potential", color: "text-red-600" },
+  },
+};
 
 interface IdeaClassification {
   primaryType: string;
@@ -642,26 +670,42 @@ ${sections}
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <Users className="w-6 h-6 mx-auto mb-2 text-blue-500" />
-                      <div className="text-2xl font-bold">{viability.marketSize}/10</div>
-                      <div className="text-xs text-muted-foreground">Market Size</div>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <Target className="w-6 h-6 mx-auto mb-2 text-orange-500" />
-                      <div className="text-2xl font-bold">{viability.competition}/10</div>
-                      <div className="text-xs text-muted-foreground">Competition</div>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <Clock className="w-6 h-6 mx-auto mb-2 text-purple-500" />
-                      <div className="text-2xl font-bold">{viability.effort}/10</div>
-                      <div className="text-xs text-muted-foreground">Build Effort</div>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <DollarSign className="w-6 h-6 mx-auto mb-2 text-green-500" />
-                      <div className="text-2xl font-bold">{viability.profitPotential}/10</div>
-                      <div className="text-xs text-muted-foreground">Profit Potential</div>
-                    </div>
+                    {(Object.keys(VIABILITY_METRICS) as Array<keyof ViabilityBreakdown>).map((key) => {
+                      const metric = VIABILITY_METRICS[key];
+                      const value = viability[key];
+                      const interpretation = metric.interpret(value);
+                      const Icon = key === "marketSize" ? Users : key === "competition" ? Target : key === "effort" ? Clock : DollarSign;
+                      const iconColor = key === "marketSize" ? "text-blue-500" : key === "competition" ? "text-orange-500" : key === "effort" ? "text-purple-500" : "text-green-500";
+                      return (
+                        <Popover key={key}>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="text-center p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              data-testid={`viability-badge-${key}`}
+                            >
+                              <Icon className={`w-6 h-6 mx-auto mb-2 ${iconColor}`} />
+                              <div className="text-2xl font-bold">{value}/10</div>
+                              <div className="text-xs text-muted-foreground">{metric.label}</div>
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72" data-testid={`viability-popover-${key}`}>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-semibold text-sm">{metric.label}</h4>
+                                <span className={`text-xs font-medium ${interpretation.color}`}>{interpretation.label}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{metric.description}</p>
+                              <div className="flex items-center gap-2 pt-1">
+                                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                                  <div className="h-full rounded-full bg-primary" style={{ width: `${value * 10}%` }} />
+                                </div>
+                                <span className="text-xs font-semibold tabular-nums">{value}/10</span>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
