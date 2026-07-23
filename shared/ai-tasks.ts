@@ -63,6 +63,27 @@ export const AI_TASKS: AITaskDefinition[] = [
     defaultProvider: "anthropic",
     defaultModel: "claude-sonnet-5",
   },
+  {
+    key: "idea-classification",
+    label: "Idea Classification",
+    description: "Classify idea type and subtype for specialist routing",
+    defaultProvider: "gemini",
+    defaultModel: "gemini-flash-lite-latest",
+  },
+  {
+    key: "specialist-marketing",
+    label: "Marketing Specialist",
+    description: "GTM, positioning, and channel-fit assessment",
+    defaultProvider: "anthropic",
+    defaultModel: "claude-sonnet-5",
+  },
+  {
+    key: "specialist-developer",
+    label: "Developer Specialist",
+    description: "Dev difficulty and engineering risk assessment",
+    defaultProvider: "anthropic",
+    defaultModel: "claude-sonnet-5",
+  },
 ];
 
 export const AI_TASK_KEYS = AI_TASKS.map(t => t.key);

@@ -15,6 +15,13 @@
       "when": 1770016021924,
       "tag": "0001_cultured_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770200000000,
+      "tag": "0003_assessment_agents",
+      "breakpoints": true
     }
   ]
 }

@@ -345,6 +345,14 @@ export default function Dashboard() {
                       <span className="text-sm font-semibold">{project.viabilityScore}/10</span>
                     </div>
                   )}
+                  {(project.difficultyRoiRatio as any) && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs text-muted-foreground">ROI Ratio</span>
+                      <Badge variant="outline" className={`text-xs ${(project.difficultyRoiRatio as any).verdict === 'strong' ? 'border-green-500 text-green-600' : (project.difficultyRoiRatio as any).verdict === 'balanced' ? 'border-yellow-500 text-yellow-600' : 'border-red-500 text-red-600'}`}>
+                        {(project.difficultyRoiRatio as any).ratio.toFixed(1)} ({(project.difficultyRoiRatio as any).verdict})
+                      </Badge>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs text-muted-foreground mb-2">
                     <span>Progress</span>
                     <span>{project.progress}%</span>

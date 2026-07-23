@@ -38,7 +38,13 @@ import {
   Shield,
   AlertTriangle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Wrench,
+  Brain,
+  Megaphone,
+  GitBranch,
+  Gauge,
+  Lightbulb as LightbulbIcon,
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 import { GitHubRepoLink } from "@/components/github-repo-link";
@@ -65,6 +71,47 @@ interface ViabilityBreakdown {
   competition: number;
   effort: number;
   profitPotential: number;
+}
+
+interface IdeaClassification {
+  primaryType: string;
+  subtype: string;
+  confidence: number;
+  reasoning: string;
+}
+
+interface DevelopmentDifficulty {
+  overall: number;
+  frontend: number;
+  backend: number;
+  infra: number;
+  aiMl: number;
+  integrations: number;
+  totalEstimate: string;
+  reasoning: string;
+}
+
+interface DifficultyRoiRatio {
+  ratio: number;
+  verdict: "strong" | "balanced" | "weak";
+  reasoning: string;
+}
+
+interface PivotSuggestion {
+  title: string;
+  rationale: string;
+  newAngle: string;
+  estimatedDifficulty: number;
+  estimatedRoi: number;
+}
+
+interface SpecialistAssessment {
+  agent: string;
+  role: string;
+  verdict: string;
+  score: number;
+  reasoning: string;
+  recommendations: string[];
 }
 
 export default function IdeaDetail() {
@@ -176,7 +223,7 @@ export default function IdeaDetail() {
     try {
       const data = await api.post<any>(`/api/projects/${project.id}/research`);
       setProject(prev => prev ? { ...prev, ...data } : null);
-      toast({ title: "Research generated!", description: "Competitor analysis and viability score updated." });
+      toast({ title: "Assessment complete!", description: "Multi-agent research, difficulty analysis, and specialist perspectives updated." });
     } catch (error) {
       console.error("Error generating research:", error);
       toast({
@@ -279,6 +326,11 @@ export default function IdeaDetail() {
   const viability = project.viabilityBreakdown as ViabilityBreakdown | null;
   const competitors = project.competitors as Competitor[] | null;
   const insights = project.keyInsights as string[] | null;
+  const classification = project.ideaClassification as IdeaClassification | null;
+  const devDifficulty = project.developmentDifficulty as DevelopmentDifficulty | null;
+  const roiRatio = project.difficultyRoiRatio as DifficultyRoiRatio | null;
+  const pivots = project.pivotSuggestions as PivotSuggestion[] | null;
+  const specialists = project.specialistAssessments as SpecialistAssessment[] | null;
 
   return (
     <AppLayout>
@@ -344,7 +396,7 @@ export default function IdeaDetail() {
                   <Sparkles className="w-10 h-10 mx-auto mb-4 text-primary" />
                   <h3 className="text-lg font-semibold mb-2">Get AI-Powered Research</h3>
                   <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                    Let AI analyze your idea, find competitors, and calculate a viability score in under 60 seconds.
+                    Get a multi-agent assessment: idea classification, competitor research, development difficulty, ROI ratio, specialist perspectives, and pivot suggestions.
                   </p>
                   <Button
                     onClick={generateResearch}
@@ -397,6 +449,175 @@ export default function IdeaDetail() {
                       <div className="text-2xl font-bold">{viability.profitPotential}/10</div>
                       <div className="text-xs text-muted-foreground">Profit Potential</div>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Idea Classification */}
+            {classification && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-primary" />
+                    Idea Classification
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <Badge variant="secondary" className="text-sm">{classification.primaryType}</Badge>
+                    <Badge variant="outline" className="text-sm">{classification.subtype}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {Math.round(classification.confidence * 100)}% confidence
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{classification.reasoning}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Development Difficulty */}
+            {devDifficulty && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-primary" />
+                    Development Difficulty
+                  </CardTitle>
+                  <CardDescription className="text-sm font-medium text-foreground">
+                    {devDifficulty.totalEstimate}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                    <div className="text-center p-3 rounded-lg bg-secondary/50">
+                      <div className={`text-xl font-bold ${devDifficulty.overall >= 7 ? 'text-red-600' : devDifficulty.overall >= 4 ? 'text-yellow-600' : 'text-green-600'}`}>{devDifficulty.overall}/10</div>
+                      <div className="text-xs text-muted-foreground">Overall</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-secondary/50">
+                      <div className="text-xl font-bold">{devDifficulty.frontend}/10</div>
+                      <div className="text-xs text-muted-foreground">Frontend</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-secondary/50">
+                      <div className="text-xl font-bold">{devDifficulty.backend}/10</div>
+                      <div className="text-xs text-muted-foreground">Backend</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-secondary/50">
+                      <div className="text-xl font-bold">{devDifficulty.infra}/10</div>
+                      <div className="text-xs text-muted-foreground">Infrastructure</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-secondary/50">
+                      <div className="text-xl font-bold">{devDifficulty.aiMl}/10</div>
+                      <div className="text-xs text-muted-foreground">AI/ML</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-secondary/50">
+                      <div className="text-xl font-bold">{devDifficulty.integrations}/10</div>
+                      <div className="text-xs text-muted-foreground">Integrations</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{devDifficulty.reasoning}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Difficulty-to-ROI Ratio */}
+            {roiRatio && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Gauge className="w-5 h-5 text-primary" />
+                    Difficulty-to-ROI Ratio
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className={`text-3xl font-bold ${roiRatio.verdict === 'strong' ? 'text-green-600' : roiRatio.verdict === 'balanced' ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {roiRatio.ratio.toFixed(1)}
+                    </div>
+                    <Badge variant="outline" className={`text-sm ${roiRatio.verdict === 'strong' ? 'border-green-500 text-green-600' : roiRatio.verdict === 'balanced' ? 'border-yellow-500 text-yellow-600' : 'border-red-500 text-red-600'}`}>
+                      {roiRatio.verdict === 'strong' ? 'Strong — Low hanging fruit!' : roiRatio.verdict === 'balanced' ? 'Balanced' : 'Weak — High effort, low return'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{roiRatio.reasoning}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Specialist Assessments */}
+            {specialists && specialists.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary" />
+                    Specialist Assessments
+                  </CardTitle>
+                  <CardDescription>Multi-perspective evaluation from domain experts</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4">
+                    {specialists.map((specialist, idx) => (
+                      <div key={idx} className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {specialist.agent === 'marketing-expert' ? (
+                              <Megaphone className="w-4 h-4 text-blue-500" />
+                            ) : specialist.agent === 'developer' ? (
+                              <Wrench className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Brain className="w-4 h-4 text-purple-500" />
+                            )}
+                            <span className="font-medium">{specialist.role}</span>
+                          </div>
+                          <div className={`text-lg font-bold ${specialist.score >= 7 ? 'text-green-600' : specialist.score >= 4 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            {specialist.score}/10
+                          </div>
+                        </div>
+                        <p className="text-sm font-medium mb-2">{specialist.verdict}</p>
+                        <p className="text-sm text-muted-foreground mb-3">{specialist.reasoning}</p>
+                        {specialist.recommendations.length > 0 && (
+                          <ul className="text-sm space-y-1">
+                            {specialist.recommendations.map((rec, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-primary mt-1">•</span>
+                                <span>{rec}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pivot Suggestions */}
+            {pivots && pivots.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <GitBranch className="w-5 h-5 text-primary" />
+                    Pivot Suggestions
+                  </CardTitle>
+                  <CardDescription>Alternative angles that could increase your chance of success</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4">
+                    {pivots.map((pivot, idx) => (
+                      <div key={idx} className="p-4 rounded-lg border bg-card">
+                        <h4 className="font-semibold mb-2">{pivot.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-2">{pivot.rationale}</p>
+                        <p className="text-sm mb-3"><span className="font-medium">New angle:</span> {pivot.newAngle}</p>
+                        <div className="flex gap-4 text-sm">
+                          <span className="text-muted-foreground">
+                            Difficulty: <span className={`font-medium ${pivot.estimatedDifficulty >= 7 ? 'text-red-600' : pivot.estimatedDifficulty >= 4 ? 'text-yellow-600' : 'text-green-600'}`}>{pivot.estimatedDifficulty}/10</span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            ROI: <span className={`font-medium ${pivot.estimatedRoi >= 7 ? 'text-green-600' : pivot.estimatedRoi >= 4 ? 'text-yellow-600' : 'text-red-600'}`}>{pivot.estimatedRoi}/10</span>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

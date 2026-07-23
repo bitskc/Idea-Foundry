@@ -38,6 +38,11 @@ export const projects = pgTable("projects", {
   synergyAnalysis: jsonb("synergy_analysis"), // Cached synergy report
   techStack: jsonb("tech_stack"), // User's selected/saved tech stack
   techStackRecommendation: jsonb("tech_stack_recommendation"), // AI recommendation cache
+  ideaClassification: jsonb("idea_classification"), // { primaryType, subtype, confidence, reasoning }
+  developmentDifficulty: jsonb("development_difficulty"), // { overall, frontend, backend, infra, aiMl, integrations, totalEstimate, reasoning }
+  difficultyRoiRatio: jsonb("difficulty_roi_ratio"), // { ratio, verdict, reasoning }
+  pivotSuggestions: jsonb("pivot_suggestions"), // Array of pivot objects
+  specialistAssessments: jsonb("specialist_assessments"), // Array of specialist assessment objects
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -255,4 +260,46 @@ export const TechStackRecommendationSchema = z.object({
   mvpTimeline: z.string().optional(),
   costEstimate: z.string().optional(),
   warnings: z.array(z.string()).optional(),
+});
+
+// Assessment schemas for multi-agent research
+export const IdeaClassificationSchema = z.object({
+  primaryType: z.string(),
+  subtype: z.string(),
+  confidence: z.number().min(0).max(1),
+  reasoning: z.string(),
+});
+
+export const DevelopmentDifficultySchema = z.object({
+  overall: z.number().min(1).max(10),
+  frontend: z.number().min(1).max(10),
+  backend: z.number().min(1).max(10),
+  infra: z.number().min(1).max(10),
+  aiMl: z.number().min(1).max(10),
+  integrations: z.number().min(1).max(10),
+  totalEstimate: z.string(),
+  reasoning: z.string(),
+});
+
+export const DifficultyRoiRatioSchema = z.object({
+  ratio: z.number(),
+  verdict: z.enum(["strong", "balanced", "weak"]),
+  reasoning: z.string(),
+});
+
+export const PivotSuggestionSchema = z.object({
+  title: z.string(),
+  rationale: z.string(),
+  newAngle: z.string(),
+  estimatedDifficulty: z.number().min(1).max(10),
+  estimatedRoi: z.number().min(1).max(10),
+});
+
+export const SpecialistAssessmentSchema = z.object({
+  agent: z.string(),
+  role: z.string(),
+  verdict: z.string(),
+  score: z.number().min(1).max(10),
+  reasoning: z.string(),
+  recommendations: z.array(z.string()),
 });
