@@ -17,7 +17,7 @@ import { getStorage } from "./storage";
 import type { IStorage } from "./storage";
 import { registerUser, loginUser } from "./auth";
 import { registerRadarRoutes } from "./radar-routes";
-import { registerShareRoutes } from "./share-routes";
+import { registerShareRoutes, registerPublicShareRoutes } from "./share-routes";
 
 const storage: IStorage = getStorage();
 // AI service is now created per-request via getAIServiceForUser (supports BYOK)
@@ -531,6 +531,8 @@ export async function registerRoutes(
     }
   });
 
+  // Public share routes — MUST be before global auth middleware
+  registerPublicShareRoutes(app);
   // Apply auth to all API routes below
   app.use("/api", requireAuth);
 

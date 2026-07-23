@@ -6,6 +6,52 @@ import crypto from "crypto";
 
 const storage: IStorage = getStorage();
 
+export function registerPublicShareRoutes(app: Express) {
+  // ===== Public share view (no auth required, token-based) =====
+  // MUST be registered before app.use("/api", requireAuth)
+
+  app.get("/api/shared/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const share = await storage.getProjectShareByToken(token);
+      if (!share) return res.status(404).json({ error: "Share link not found" });
+      if (share.visibility === "private") {
+        return res.status(403).json({ error: "This idea is no longer shared publicly" });
+      }
+
+      const project = await storage.getProject(share.projectId);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+
+      res.json({
+        id: project.id,
+        title: project.title,
+        description: project.description,
+        type: project.type,
+        ideaStatus: project.ideaStatus,
+        viabilityScore: project.viabilityScore,
+        viabilityBreakdown: project.viabilityBreakdown,
+        competitors: project.competitors,
+        keyInsights: project.keyInsights,
+        ideaClassification: project.ideaClassification,
+        developmentDifficulty: project.developmentDifficulty,
+        difficultyRoiRatio: project.difficultyRoiRatio,
+        pivotSuggestions: project.pivotSuggestions,
+        specialistAssessments: project.specialistAssessments,
+        prdContent: project.prdContent,
+        pitchContent: project.pitchContent,
+        logoData: project.logoData,
+        techStack: project.techStack,
+        targetAvatar: project.targetAvatar,
+        progress: project.progress,
+        createdAt: project.createdAt,
+        permissions: share.permissions,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch shared project", message: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+}
+
 export function registerShareRoutes(app: Express) {
   // ===== Share link management (owner-only) =====
 
@@ -91,50 +137,6 @@ export function registerShareRoutes(app: Express) {
     }
   });
 
-  // ===== Public share view (no auth required, token-based) =====
-
-  app.get("/api/shared/:token", async (req, res) => {
-    try {
-      const { token } = req.params;
-      const share = await storage.getProjectShareByToken(token);
-      if (!share) return res.status(404).json({ error: "Share link not found" });
-      if (share.visibility === "private") {
-        return res.status(403).json({ error: "This idea is no longer shared publicly" });
-      }
-
-      const project = await storage.getProject(share.projectId);
-      if (!project) return res.status(404).json({ error: "Project not found" });
-
-      // Return a sanitized public view — no sensitive fields
-      res.json({
-        id: project.id,
-        title: project.title,
-        description: project.description,
-        type: project.type,
-        ideaStatus: project.ideaStatus,
-        viabilityScore: project.viabilityScore,
-        viabilityBreakdown: project.viabilityBreakdown,
-        competitors: project.competitors,
-        keyInsights: project.keyInsights,
-        ideaClassification: project.ideaClassification,
-        developmentDifficulty: project.developmentDifficulty,
-        difficultyRoiRatio: project.difficultyRoiRatio,
-        pivotSuggestions: project.pivotSuggestions,
-        specialistAssessments: project.specialistAssessments,
-        prdContent: project.prdContent,
-        pitchContent: project.pitchContent,
-        logoData: project.logoData,
-        techStack: project.techStack,
-        targetAvatar: project.targetAvatar,
-        progress: project.progress,
-        createdAt: project.createdAt,
-        permissions: share.permissions,
-        ownerEmail: undefined, // Don't expose owner identity
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch shared project", message: error instanceof Error ? error.message : "Unknown error" });
-    }
-  });
 
   // ===== Collaborator management (owner-only) =====
 
