@@ -88,6 +88,7 @@ As a user, I want to create API tokens for MCP integration.
   difficultyRoiRatio: null,
   pivotSuggestions: null,
   specialistAssessments: null,
+  logoData: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

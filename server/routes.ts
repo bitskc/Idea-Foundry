@@ -2177,6 +2177,68 @@ This PRD should be detailed enough that even a basic AI model can follow the ste
     }
   });
 
+  // Generate Logo (uses Gemini REST API directly for image generation)
+  app.post("/api/projects/:id/generate-logo", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const authReq = req as unknown as AuthenticatedRequest;
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== authReq.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Get BYOK Gemini key or fall back to server default
+      const byokEntry = await storage.getUserApiKey(authReq.user.id, "gemini");
+      const apiKey = byokEntry?.key || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ error: "No Gemini API key available. Add your key in Settings." });
+      }
+
+      const prompt = `Generate a clean, modern, minimalist app logo for a startup called "${project.title}". The idea is: ${project.description}. Category: ${project.type}. The logo should be simple, scalable, and work as an app icon. Use bold colors and clean shapes. No text in the logo unless it's a single letter monogram. Return only the image.`;
+
+      const geminiResp = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseModalities: ["IMAGE"] },
+          }),
+        }
+      );
+
+      if (!geminiResp.ok) {
+        const errText = await geminiResp.text();
+        console.error("Gemini image API error:", geminiResp.status, errText);
+        return res.status(geminiResp.status).json({ error: "Gemini API error", message: errText });
+      }
+
+      interface GeminiImagePart { inlineData?: { data: string; mimeType: string } }
+      interface GeminiImageResponse { candidates?: Array<{ content?: { parts?: GeminiImagePart[] } }> }
+      const geminiData = await geminiResp.json() as GeminiImageResponse;
+      const parts: GeminiImagePart[] = geminiData?.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find(p => p.inlineData?.data);
+      if (!imagePart || !imagePart.inlineData) {
+        return res.status(502).json({ error: "No image returned", message: "Gemini did not return an image." });
+      }
+
+      const dataUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+      await storage.updateProject(id, { logoData: dataUrl });
+      res.json({ logoData: dataUrl });
+    } catch (error) {
+      console.error("Error generating logo:", error);
+      res.status(500).json({ error: "Failed to generate logo", message: extractAIError(error) });
+    }
+  });
+
   // Create Synergy Analysis
   app.post("/api/projects/:id/synergies", async (req, res) => {
     try {

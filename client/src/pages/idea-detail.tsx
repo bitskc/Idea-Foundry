@@ -45,6 +45,8 @@ import {
   GitBranch,
   Gauge,
   Lightbulb as LightbulbIcon,
+  PenTool,
+  Image as ImageIcon,
 } from "lucide-react";
 import type { Project, Conversation as ConversationType, Message } from "@shared/schema";
 import { GitHubRepoLink } from "@/components/github-repo-link";
@@ -114,6 +116,42 @@ interface SpecialistAssessment {
   recommendations: string[];
 }
 
+interface StackTemplate {
+  id: string;
+  name: string;
+  description: string;
+  repo: string;
+  types: string[];
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const STACK_TEMPLATES: StackTemplate[] = [
+  {
+    id: "foundry-stack",
+    name: "Foundry Stack",
+    description: "Full-stack SaaS starter with auth, DB, AI, and deployment",
+    repo: "https://github.com/bitskc/idea-foundry",
+    types: ["B2B SaaS", "B2C App", "Marketplace", "AI/ML", "Other"],
+    icon: Rocket,
+  },
+  {
+    id: "biz-stack",
+    name: "Biz Stack",
+    description: "Service business website + CRM with AI chat and quoting",
+    repo: "https://github.com/bitskc/biz-stack",
+    types: ["service"],
+    icon: Building,
+  },
+  {
+    id: "content-stack",
+    name: "Content Stack",
+    description: "Content creator platform with posts, media, and monetization",
+    repo: "https://github.com/bitskc/content-stack",
+    types: ["Creator Tool"],
+    icon: PenTool,
+  },
+];
+
 export default function IdeaDetail() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -143,6 +181,7 @@ export default function IdeaDetail() {
   const [savedTechStack, setSavedTechStack] = useState<any>(null);
   const [notesExpanded, setNotesExpanded] = useState(true);
   const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
+  const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
 
   useEffect(() => {
     loadProjectData();
@@ -300,6 +339,20 @@ export default function IdeaDetail() {
       });
     } finally {
       setIsGeneratingStack(false);
+    }
+  };
+
+  const generateLogo = async () => {
+    if (!project) return;
+    setIsGeneratingLogo(true);
+    try {
+      const result = await api.post<{ logoData: string }>(`/api/projects/${project.id}/generate-logo`);
+      setProject(prev => prev ? { ...prev, logoData: result.logoData } : null);
+      toast({ title: "Logo Generated!", description: "Your brand logo is ready." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: error instanceof Error ? error.message : "Failed to generate logo" });
+    } finally {
+      setIsGeneratingLogo(false);
     }
   };
 
@@ -1046,6 +1099,73 @@ export default function IdeaDetail() {
               </CardContent>
             </Card>
 
+            {/* Logo Generator */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-primary" />
+                  Brand Logo
+                </CardTitle>
+                <CardDescription>Generate a clean, modern logo for your brand from your idea context</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {project.logoData ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-col items-center gap-4">
+                      <img
+                        src={project.logoData}
+                        alt={`${project.title} logo`}
+                        className="w-32 h-32 rounded-xl object-contain border"
+                      />
+                      <Button
+                        onClick={generateLogo}
+                        disabled={isGeneratingLogo}
+                        variant="outline"
+                        data-testid="button-regenerate-logo"
+                      >
+                        {isGeneratingLogo ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Regenerating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Regenerate
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Generate a simple, scalable app icon and brand logo from your idea's title and description.
+                    </p>
+                    <Button
+                      onClick={generateLogo}
+                      disabled={isGeneratingLogo}
+                      className="w-full"
+                      size="lg"
+                      data-testid="button-generate-logo"
+                    >
+                      {isGeneratingLogo ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating Logo...
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Generate Logo
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Tech Stack Advisor */}
             <Card>
               <CardHeader>
@@ -1223,6 +1343,72 @@ export default function IdeaDetail() {
                     </Button>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Stack Template */}
+            <Card data-testid="card-stack-template">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-primary" />
+                  Stack Template
+                </CardTitle>
+                <CardDescription>Get a head start with a production-ready template</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(() => {
+                  const projectType = project.type ?? "Other";
+                  const matched = STACK_TEMPLATES.find(t => t.types.includes(projectType)) ?? STACK_TEMPLATES[0];
+                  const others = STACK_TEMPLATES.filter(t => t.id !== matched.id);
+                  const MatchedIcon = matched.icon;
+                  return (
+                    <>
+                      {/* Primary recommendation */}
+                      <div className="p-4 border-2 border-primary/30 rounded-lg bg-primary/5" data-testid="section-primary-template">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-primary/10">
+                            <MatchedIcon className="w-6 h-6 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold">{matched.name}</h4>
+                              <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">{matched.description}</p>
+                            <Button asChild size="sm" className="mt-3" data-testid="button-use-stack-primary">
+                              <a href={matched.repo} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                Use This Stack
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Secondary options */}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Other templates</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {others.map(tpl => {
+                            const OtherIcon = tpl.icon;
+                            return (
+                              <div key={tpl.id} className="p-3 border rounded-lg flex items-start gap-2" data-testid={`section-secondary-template-${tpl.id}`}>
+                                <OtherIcon className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium">{tpl.name}</p>
+                                  <p className="text-xs text-muted-foreground line-clamp-2">{tpl.description}</p>
+                                  <a href={tpl.repo} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1" data-testid={`link-use-stack-${tpl.id}`}>
+                                    Use This Stack <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </CardContent>
             </Card>
 

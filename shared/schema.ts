@@ -43,6 +43,7 @@ export const projects = pgTable("projects", {
   difficultyRoiRatio: jsonb("difficulty_roi_ratio"), // { ratio, verdict, reasoning }
   pivotSuggestions: jsonb("pivot_suggestions"), // Array of pivot objects
   specialistAssessments: jsonb("specialist_assessments"), // Array of specialist assessment objects
+  logoData: text("logo_data"), // Base64 data URL of generated brand logo
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

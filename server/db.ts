@@ -30,6 +30,7 @@ if (databaseUrl) {
     'ALTER TABLE projects ADD COLUMN IF NOT EXISTS difficulty_roi_ratio JSONB',
     'ALTER TABLE projects ADD COLUMN IF NOT EXISTS pivot_suggestions JSONB',
     'ALTER TABLE projects ADD COLUMN IF NOT EXISTS specialist_assessments JSONB',
+    'ALTER TABLE projects ADD COLUMN IF NOT EXISTS logo_data TEXT',
   ];
   Promise.all(migrations.map(stmt => migSql.unsafe(stmt)))
     .then(() => { console.log('[db] Assessment columns migrated'); return migSql.end(); })

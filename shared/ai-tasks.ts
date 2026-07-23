@@ -84,6 +84,13 @@ export const AI_TASKS: AITaskDefinition[] = [
     defaultProvider: "anthropic",
     defaultModel: "claude-sonnet-5",
   },
+  {
+    key: "logo-generation",
+    label: "Logo Generation",
+    description: "Generate a brand logo from idea context",
+    defaultProvider: "gemini",
+    defaultModel: "gemini-2.5-flash-image",
+  },
 ];
 
 export const AI_TASK_KEYS = AI_TASKS.map(t => t.key);
