@@ -27,9 +27,8 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
     { path: "/app", label: "Dashboard", icon: LayoutDashboard },
     { path: "/app/new", label: "New Idea", icon: Plus },
   ];
-
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex overflow-x-hidden">
       {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-card hidden md:flex flex-col">
         <div className="p-4 border-b border-border">
@@ -91,7 +90,7 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
         <header className="md:hidden border-b border-border p-4 flex items-center justify-between relative">
           <div className="flex items-center gap-2">
             <button
@@ -176,7 +175,7 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
         </header>
 
         {/* Page Content */}
-        <main className="flex-1">
+        <main className="flex-1 overflow-x-hidden">
           {showBackButton && (
             <div className="container mx-auto px-6 pt-6">
               <Button 
