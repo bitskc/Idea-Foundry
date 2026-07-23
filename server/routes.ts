@@ -6,7 +6,9 @@ import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
 import { getAIServiceForUser, getFallbackService, getProviderName } from "./ai/factory";
 import { z } from "zod";
-import { TechStackRecommendationSchema, IdeaClassificationSchema, DevelopmentDifficultySchema, DifficultyRoiRatioSchema, PivotSuggestionSchema, SpecialistAssessmentSchema } from "../shared/schema";
+import { TechStackRecommendationSchema, IdeaClassificationSchema, DevelopmentDifficultySchema, DifficultyRoiRatioSchema, PivotSuggestionSchema, SpecialistAssessmentSchema, users } from "../shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { extractAIError } from "../shared/ai-tasks";
 import { stripe, createCheckoutSession, createPortalSession, getOrCreateCustomer } from "./stripe";
 import Stripe from "stripe";
@@ -15,7 +17,7 @@ import { MCP_TOOLS, executeMcpTool } from "./mcp/index";
 import { validateApiToken } from "./mcp/auth";
 import { getStorage } from "./storage";
 import type { IStorage } from "./storage";
-import { registerUser, loginUser } from "./auth";
+import { registerUser, loginUser, generateResetToken, verifyResetToken, updateUserPassword } from "./auth";
 import { registerRadarRoutes } from "./radar-routes";
 import { registerShareRoutes, registerPublicShareRoutes } from "./share-routes";
 
@@ -277,6 +279,53 @@ export async function registerRoutes(
         console.error("Login error:", error);
         res.status(500).json({ error: "Login failed" });
       }
+    }
+  });
+
+  // Forgot password — generate reset token and return reset link
+  // (No email service; the reset link is returned to the client for display)
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+      // Always return success to prevent email enumeration
+      // Only generate a token if the user exists
+      const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (user) {
+        const resetToken = generateResetToken(user.id, user.email);
+        const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, "") || `https://${req.headers.host}`;
+        const resetUrl = `${origin}/reset-password?token=${resetToken}`;
+        return res.json({ success: true, resetUrl });
+      }
+      // User not found — still return success (no enumeration)
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      return res.status(500).json({ error: "Failed to process request" });
+    }
+  });
+
+  // Reset password — validate token and set new password
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password) {
+        return res.status(400).json({ error: "Token and password are required" });
+      }
+      if (password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      const payload = verifyResetToken(token);
+      if (!payload) {
+        return res.status(400).json({ error: "Invalid or expired reset link. Please request a new one." });
+      }
+      await updateUserPassword(payload.id, password);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      return res.status(500).json({ error: "Failed to reset password" });
     }
   });
 

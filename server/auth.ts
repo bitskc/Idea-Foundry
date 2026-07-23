@@ -88,3 +88,35 @@ export async function loginUser(email: string, password: string) {
   const token = signToken({ id: user.id, email: user.email });
   return { token, user: { id: user.id, email: user.email } };
 }
+
+const RESET_EXPIRES_IN = "15m";
+
+/**
+ * Generate a password reset token (JWT with short expiry).
+ * Contains user id + email + purpose="reset".
+ */
+export function generateResetToken(userId: string, email: string): string {
+  return jwt.sign({ id: userId, email, purpose: "reset" }, JWT_SECRET, { expiresIn: RESET_EXPIRES_IN });
+}
+
+/**
+ * Verify a password reset token.
+ * Returns { id, email } if valid and has purpose="reset", null otherwise.
+ */
+export function verifyResetToken(token: string): { id: string; email: string } | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; purpose?: string };
+    if (decoded.purpose !== "reset") return null;
+    return { id: decoded.id, email: decoded.email };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Update a user's password by user ID.
+ */
+export async function updateUserPassword(userId: string, newPassword: string): Promise<void> {
+  const hashedPassword = await hashPassword(newPassword);
+  await db.update(users).set({ password: hashedPassword }).where(eq(users.id, userId));
+}

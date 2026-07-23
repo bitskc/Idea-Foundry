@@ -14,6 +14,8 @@ import Conversation from "@/pages/conversation";
 import PrdView from "@/pages/prd-view";
 import IdeaDetail from "@/pages/idea-detail";
 import AuthPage from "@/pages/auth";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import UpgradePage from "@/pages/upgrade";
 import SettingsPage from "@/pages/settings";
 import SharedIdea from "@/pages/shared-idea";
@@ -67,6 +69,9 @@ function SubdomainRouter() {
         <Route path="/" component={AuthPage} />
         <Route path="/auth" component={AuthPage} />
 
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+        <Route path="/reset-password/:token" component={ResetPasswordPage} />
         {/* Protected app routes */}
         <Route path="/app">
           {() => <ProtectedRoute><Dashboard /></ProtectedRoute>}
@@ -116,6 +121,9 @@ function SubdomainRouter() {
       <Route path="/share/:token" component={SharedIdea} />
       <Route path="/" component={Landing} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/reset-password/:token" component={ResetPasswordPage} />
 
       {/* Protected app routes */}
       <Route path="/app">

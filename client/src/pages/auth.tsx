@@ -124,7 +124,6 @@ export default function AuthPage() {
                                                         </button>
                                                     </div>
                                                 </FormControl>
-                                                <FormMessage />
                                             </FormItem>
                                         )}
                                     />
@@ -132,6 +131,18 @@ export default function AuthPage() {
                                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                         {mode === "login" ? "Sign In" : "Sign Up"}
                                     </Button>
+                                    {mode === "login" && (
+                                        <div className="text-center">
+                                            <Button
+                                                type="button"
+                                                variant="link"
+                                                className="text-sm text-muted-foreground"
+                                                onClick={() => setLocation("/forgot-password")}
+                                            >
+                                                Forgot password?
+                                            </Button>
+                                        </div>
+                                    )}
                                 </form>
                             </Form>
                     </CardContent>
