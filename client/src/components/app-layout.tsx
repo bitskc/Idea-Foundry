@@ -139,9 +139,6 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <Button variant="outline" size="sm" onClick={() => setLocation("/app/new")}>
-              <Plus className="w-4 h-4" />
-            </Button>
           </div>
         </header>
 

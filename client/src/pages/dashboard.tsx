@@ -169,14 +169,15 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <div className="container mx-auto p-6 md:p-10 max-w-6xl">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="min-w-0">
             <h1 className="text-3xl font-display font-bold mb-2 break-words">My Ideas</h1>
             <p className="text-muted-foreground">Your ideas, refined and ready to build.</p>
           </div>
-          <Button onClick={() => setLocation("/app/new")} className="gap-2" data-testid="button-new-idea">
+          <Button onClick={() => setLocation("/app/new")} className="gap-2 hidden md:flex" data-testid="button-new-idea">
             <Plus className="w-4 h-4" /> New Idea
           </Button>
+        </div>
 
         {/* Velocity Streak Strip */}
         {projects.length > 0 && (() => {
@@ -231,7 +232,6 @@ export default function Dashboard() {
             </div>
           );
         })()}
-        </div>
 
         {/* Status Filter Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2" data-testid="status-filters">

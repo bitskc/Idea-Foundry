@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 const authSchema = z.object({
     email: z.string().email("Invalid email address"),
@@ -22,6 +22,7 @@ export default function AuthPage() {
     const [mode, setMode] = useState<AuthMode>("login");
     const [isLoading, setIsLoading] = useState(false);
     const [, setLocation] = useLocation();
+    const [showPassword, setShowPassword] = useState(false);
 
     const form = useForm<AuthFormValues>({
         resolver: zodResolver(authSchema),
@@ -104,12 +105,24 @@ export default function AuthPage() {
                                             <FormItem>
                                                 <FormLabel>Password</FormLabel>
                                                 <FormControl>
-                                                    <Input 
-                                                        type="password" 
-                                                        placeholder="••••••" 
-                                                        autoComplete={mode === "login" ? "current-password" : "new-password"}
-                                                        {...field} 
-                                                    />
+                                                    <div className="relative">
+                                                        <Input 
+                                                            type={showPassword ? "text" : "password"} 
+                                                            placeholder="••••••" 
+                                                            autoComplete={mode === "login" ? "current-password" : "new-password"}
+                                                            className="pr-10"
+                                                            {...field} 
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowPassword(!showPassword)}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                                            tabIndex={-1}
+                                                            aria-label={showPassword ? "Hide password" : "Show password"}
+                                                        >
+                                                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                        </button>
+                                                    </div>
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

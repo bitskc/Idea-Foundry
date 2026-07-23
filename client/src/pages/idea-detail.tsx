@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
@@ -219,10 +220,21 @@ export default function IdeaDetail() {
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
   const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     loadProjectData();
+    loadAllProjects();
   }, [params.id]);
+
+  const loadAllProjects = async () => {
+    try {
+      const data = await api.get<Project[]>("/api/projects");
+      setAllProjects(data);
+    } catch (err) {
+      console.warn("Could not load project list");
+    }
+  };
 
   const loadProjectData = async () => {
     try {
@@ -577,18 +589,40 @@ ${sections}
     <AppLayout>
       <div className="container mx-auto p-6 md:p-8 max-w-5xl">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setLocation("/app")}
-            className="mb-4 -ml-2"
+            className="-ml-2"
             data-testid="button-back"
           >
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Ideas
+            <ArrowLeft className="w-4 h-4 mr-1" /> All Ideas
           </Button>
+          {allProjects.length > 1 && (
+            <Select
+              value={String(project.id)}
+              onValueChange={(val) => setLocation(`/app/ideas/${val}${activeTab !== "overview" ? `?tab=${activeTab}` : ""}`)}
+            >
+              <SelectTrigger className="h-8 w-auto min-w-[180px] max-w-[280px] text-sm" data-testid="idea-selector">
+                <SelectValue placeholder="Switch idea" />
+              </SelectTrigger>
+              <SelectContent>
+                {allProjects
+                  .filter(p => (p.ideaStatus || "exploring") !== "archived")
+                  .map(p => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
 
-          <div className="flex items-start justify-between gap-4">
+        {/* Title + Score + Share */}
+
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 <Badge variant="secondary">{project.type}</Badge>
@@ -596,8 +630,7 @@ ${sections}
                   <StatusIcon className="w-3 h-3" />
                   {statusConfig.label}
                 </Badge>
-              </div>
-              <h1 className="text-3xl font-display font-bold mb-2 break-words">{project.title}</h1>
+              <h1 className="text-2xl md:text-3xl font-display font-bold mb-2 break-words">{project.title}</h1>
               <p className="text-muted-foreground">{project.description}</p>
             </div>
 
