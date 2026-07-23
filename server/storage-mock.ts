@@ -83,6 +83,11 @@ As a user, I want to create API tokens for MCP integration.
   synergyAnalysis: null,
   techStack: null,
   techStackRecommendation: null,
+  ideaClassification: null,
+  developmentDifficulty: null,
+  difficultyRoiRatio: null,
+  pivotSuggestions: null,
+  specialistAssessments: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

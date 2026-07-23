@@ -1,13 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { isDevMode } from "./middleware/auth";
+import { isDevMode, requireAuth, type AuthenticatedRequest } from "./middleware/auth";
 import { GeminiAdapter } from "./ai/gemini";
 import { AnthropicAdapter } from "./ai/anthropic";
 import { AIService, AIMessage } from "./ai/service";
 import { getAIServiceForUser, getFallbackService, getProviderName } from "./ai/factory";
 import { z } from "zod";
-import { requireAuth, type AuthenticatedRequest } from "./middleware/auth";
-import { TechStackRecommendationSchema } from "../shared/schema";
+import { TechStackRecommendationSchema, IdeaClassificationSchema, DevelopmentDifficultySchema, DifficultyRoiRatioSchema, PivotSuggestionSchema, SpecialistAssessmentSchema } from "../shared/schema";
 import { extractAIError } from "../shared/ai-tasks";
 import { stripe, createCheckoutSession, createPortalSession, getOrCreateCustomer } from "./stripe";
 import Stripe from "stripe";
@@ -209,6 +208,9 @@ const ResearchSchema = z.object({
     url: z.string().optional(),
   })),
   keyInsights: z.array(z.string()),
+  developmentDifficulty: DevelopmentDifficultySchema,
+  difficultyRoiRatio: DifficultyRoiRatioSchema,
+  pivotSuggestions: z.array(PivotSuggestionSchema),
 });
 
 export async function registerRoutes(
@@ -424,7 +426,8 @@ export async function registerRoutes(
           .map(m => ({
             id: m.name.replace("models/", ""),
             name: m.displayName,
-          }));
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
         res.json({ models });
       } else if (provider === "anthropic") {
         // Anthropic SDK has a models.list() method
@@ -434,7 +437,7 @@ export async function registerRoutes(
         const models = list.data.map((m: { id: string; display_name?: string }) => ({
           id: m.id,
           name: m.display_name || m.id,
-        }));
+        })).sort((a, b) => a.name.localeCompare(b.name));
         res.json({ models });
       }
     } catch (error) {
@@ -824,8 +827,12 @@ Rules for good names:
         viabilityScore: z.number().min(0).max(10).optional(),
         viabilityBreakdown: z.any().optional(),
         competitors: z.any().optional(),
-        keyInsights: z.any().optional(),
         techStack: z.any().optional(),
+        ideaClassification: z.any().optional(),
+        developmentDifficulty: z.any().optional(),
+        difficultyRoiRatio: z.any().optional(),
+        pivotSuggestions: z.any().optional(),
+        specialistAssessments: z.any().optional(),
       });
       const result = updateProjectSchema.safeParse(req.body);
       if (!result.success) {
@@ -875,48 +882,132 @@ Rules for good names:
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const prompt = `Analyze this business idea and provide competitor research and a viability assessment.
+      const ideaContext = `IDEA: ${project.title}\nDESCRIPTION: ${project.description}\nRAW IDEA: ${project.rawIdea}\nTYPE: ${project.type}`;
 
-IDEA: ${project.title}
-DESCRIPTION: ${project.description}
-RAW IDEA: ${project.rawIdea}
-TYPE: ${project.type}
+      // ── Step 1: Idea Classification (fast, cheap Gemini call) ──
+      let classification = null;
+      try {
+        const classifyService = await getAIServiceForUser(authReq.user.id, storage, "idea-classification");
+        const classifyProvider = getProviderName(classifyService);
+        try {
+          classification = await classifyService.generateJSON(
+            `Classify this product idea into a primary type and subtype.\n\n${ideaContext}\n\nRespond with JSON: { "primaryType": string, "subtype": string, "confidence": 0-1, "reasoning": string }. primaryType should be one of: B2B SaaS, B2C App, Marketplace, Creator Tool, AI/ML, Developer Tool, E-commerce, Social, Productivity, Hardware, Other. subtype is a more specific category.`,
+            [],
+            { schema: IdeaClassificationSchema, systemPrompt: "You are an idea taxonomist. Classify the product idea precisely." }
+          );
+        } catch (e) {
+          const fb = await getFallbackService(authReq.user.id, storage, classifyProvider);
+          if (fb) classification = await fb.generateJSON(
+            `Classify this product idea into a primary type and subtype.\n\n${ideaContext}\n\nRespond with JSON: { "primaryType": string, "subtype": string, "confidence": 0-1, "reasoning": string }.`,
+            [], { schema: IdeaClassificationSchema, systemPrompt: "You are an idea taxonomist." }
+          );
+        }
+      } catch (e) {
+        console.error("Classification failed (non-fatal):", e);
+      }
+
+      const classifiedType = classification ? `${classification.primaryType} / ${classification.subtype}` : project.type;
+
+      // ── Step 2: Base Research (extended with difficulty + ROI + pivots) ──
+      const researchPrompt = `Analyze this business idea and provide a comprehensive assessment.
+
+${ideaContext}
+CLASSIFIED TYPE: ${classifiedType}
 
 Respond with a JSON object containing:
 1. "viabilityScore": number from 1-10 (10 = highly viable)
 2. "viabilityBreakdown": object with "marketSize", "competition", "effort", "profitPotential" each 1-10
 3. "competitors": array of 3-5 competitor objects, each with "name", "description", "strengths" (array of 2-3 strings), "weaknesses" (array of 2-3 strings), "url" (optional)
 4. "keyInsights": array of 4-6 key insights or recommendations (strings)
+5. "developmentDifficulty": object with "overall" (1-10, where 10 = extremely hard to build), "frontend" (1-10), "backend" (1-10), "infra" (1-10), "aiMl" (1-10, 0 if no AI), "integrations" (1-10), "totalEstimate" (string, e.g. "4-6 weeks for a solo founder"), "reasoning" (string explaining the difficulty assessment)
+6. "difficultyRoiRatio": object with "ratio" (number = profitPotential / developmentDifficulty.overall, 1 decimal), "verdict" ("strong" if ratio >= 1.5, "balanced" if 1.0-1.5, "weak" if < 1.0), "reasoning" (string)
+7. "pivotSuggestions": array of 0-3 objects with "title" (string), "rationale" (why this pivot could work), "newAngle" (what specifically to change), "estimatedDifficulty" (1-10), "estimatedRoi" (1-10). Only include pivots if viabilityScore < 7 or ratio verdict is "weak". Return empty array if the idea is already strong.
 
-Be realistic and honest in your assessment. Consider market size, competition intensity, required effort to build, and profit potential.`;
+Be realistic and honest. For development difficulty, consider what a SOLO FOUNDER would face — not a team. Think about: auth, payments, real-time features, AI integration complexity, data modeling, third-party integrations, scaling concerns. The goal is to help founders identify LOW HANGING FRUIT — ideas that are easy to build but have decent revenue potential.`;
 
-      // Use per-task model preference (defaults to Anthropic for reasoning)
       const service = await getAIServiceForUser(authReq.user.id, storage, "research");
       const providerName = getProviderName(service);
 
       let researchData;
       try {
-        researchData = await service.generateJSON(prompt, [], {
+        researchData = await service.generateJSON(researchPrompt, [], {
           schema: ResearchSchema,
-          systemPrompt: "You are a business analyst providing competitor research and viability assessments."
+          systemPrompt: "You are a senior business analyst and product strategist. Provide honest, detailed assessments that help founders avoid building difficult, low-ROI products. Focus on identifying low-hanging fruit — ideas that are simple to build but have real revenue potential."
         });
       } catch (primaryError) {
-        // Primary provider failed (e.g. credits exhausted) — try the other provider
         console.error(`Research with ${providerName} failed, trying fallback:`, primaryError);
         const fallback = await getFallbackService(authReq.user.id, storage, providerName);
         if (!fallback) throw primaryError;
-        researchData = await fallback.generateJSON(prompt, [], {
+        researchData = await fallback.generateJSON(researchPrompt, [], {
           schema: ResearchSchema,
-          systemPrompt: "You are a business analyst providing competitor research and viability assessments."
+          systemPrompt: "You are a senior business analyst and product strategist. Provide honest, detailed assessments."
         });
       }
 
-      // Update project with research data
+      // ── Step 3: Specialist Agents (parallel, non-fatal) ──
+      const specialistPromises = [
+        // Marketing specialist
+        (async () => {
+          try {
+            const svc = await getAIServiceForUser(authReq.user.id, storage, "specialist-marketing");
+            const provName = getProviderName(svc);
+            try {
+              return await svc.generateJSON(
+                `You are assessing this product idea from a MARKETING perspective.\n\n${ideaContext}\nCLASSIFIED TYPE: ${classifiedType}\n\nAssess: positioning, channel fit, target audience reachability, launch strategy, and customer acquisition difficulty. Be specific about which marketing channels would work and which wouldn't.\n\nRespond with JSON: { "agent": "marketing-expert", "role": "Marketing Strategist", "verdict": string (1-2 sentence overall verdict), "score": 1-10, "reasoning": string, "recommendations": array of strings }.`,
+                [], { schema: SpecialistAssessmentSchema, systemPrompt: `You are a senior marketing strategist with deep go-to-market experience for ${classification?.primaryType || "software"} products. Assess positioning, channel fit, and launch feasibility.` }
+              );
+            } catch (e) {
+              const fb = await getFallbackService(authReq.user.id, storage, provName);
+              if (!fb) return null;
+              return await fb.generateJSON(
+                `Assess this product idea from a MARKETING perspective.\n\n${ideaContext}\n\nRespond with JSON: { "agent": "marketing-expert", "role": "Marketing Strategist", "verdict": string, "score": 1-10, "reasoning": string, "recommendations": array of strings }.`,
+                [], { schema: SpecialistAssessmentSchema, systemPrompt: "You are a senior marketing strategist." }
+              );
+            }
+          } catch (e) {
+            console.error("Marketing specialist failed (non-fatal):", e);
+            return null;
+          }
+        })(),
+        // Developer specialist
+        (async () => {
+          try {
+            const svc = await getAIServiceForUser(authReq.user.id, storage, "specialist-developer");
+            const provName = getProviderName(svc);
+            try {
+              return await svc.generateJSON(
+                `You are assessing this product idea from a DEVELOPMENT perspective.\n\n${ideaContext}\nCLASSIFIED TYPE: ${classifiedType}\n\nAssess: technical feasibility for a solo founder, hardest engineering challenges, recommended tech stack, build time estimate, and key technical risks. Be specific about what's hard vs easy to build.\n\nRespond with JSON: { "agent": "developer", "role": "Senior Developer", "verdict": string (1-2 sentence overall verdict), "score": 1-10 (10 = very easy to build), "reasoning": string, "recommendations": array of strings }.`,
+                [], { schema: SpecialistAssessmentSchema, systemPrompt: `You are a senior full-stack developer who has shipped ${classification?.primaryType || "software"} products. Assess technical feasibility, recommend the stack you'd personally use, and flag the hardest engineering risks.` }
+              );
+            } catch (e) {
+              const fb = await getFallbackService(authReq.user.id, storage, provName);
+              if (!fb) return null;
+              return await fb.generateJSON(
+                `Assess this product idea from a DEVELOPMENT perspective.\n\n${ideaContext}\n\nRespond with JSON: { "agent": "developer", "role": "Senior Developer", "verdict": string, "score": 1-10, "reasoning": string, "recommendations": array of strings }.`,
+                [], { schema: SpecialistAssessmentSchema, systemPrompt: "You are a senior full-stack developer." }
+              );
+            }
+          } catch (e) {
+            console.error("Developer specialist failed (non-fatal):", e);
+            return null;
+          }
+        })(),
+      ];
+
+      const specialistResults = await Promise.all(specialistPromises);
+      const specialistAssessments = specialistResults.filter(r => r !== null) as z.infer<typeof SpecialistAssessmentSchema>[];
+
+      // ── Step 4: Persist all results ──
       const updatedProject = await storage.updateProject(id, {
         viabilityScore: researchData.viabilityScore,
         viabilityBreakdown: researchData.viabilityBreakdown,
         competitors: researchData.competitors,
         keyInsights: researchData.keyInsights,
+        ideaClassification: classification,
+        developmentDifficulty: researchData.developmentDifficulty,
+        difficultyRoiRatio: researchData.difficultyRoiRatio,
+        pivotSuggestions: researchData.pivotSuggestions,
+        specialistAssessments,
       });
 
       res.json(updatedProject);

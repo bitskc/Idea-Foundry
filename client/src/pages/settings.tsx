@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { Loader2, Key, User as UserIcon, CreditCard, Trash2, Plus, Eye, EyeOff, Sliders } from "lucide-react";
 import { AI_TASKS } from "@shared/ai-tasks";
+import { ModelSelect } from "@/components/model-select";
 
 // BYOK key type returned by the API (key is masked)
 interface ApiKeyInfo {
@@ -383,16 +384,13 @@ export default function SettingsPage() {
                           <Loader2 className="w-3 h-3 animate-spin" /> Loading models...
                         </div>
                       ) : modelsByProvider[selectedProvider]?.length ? (
-                        <select
-                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                        <ModelSelect
                           value={selectedModel}
-                          onChange={(e) => setSelectedModel(e.target.value)}
-                        >
-                          <option value="">Default (provider auto-selects)</option>
-                          {modelsByProvider[selectedProvider].map((m) => (
-                            <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
-                          ))}
-                        </select>
+                          onChange={setSelectedModel}
+                          models={modelsByProvider[selectedProvider]}
+                          placeholder="Search models..."
+                          defaultLabel="Default (provider auto-selects)"
+                        />
                       ) : (
                         <p className="text-xs text-muted-foreground">
                           Save your key first, then select a model.
@@ -437,17 +435,15 @@ export default function SettingsPage() {
                               {loadingModels[key.provider] ? (
                                 <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
                               ) : modelsByProvider[key.provider]?.length ? (
-                                <select
-                                  className="flex h-8 flex-1 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm"
+                                <ModelSelect
                                   value={key.model || ""}
+                                  onChange={(v) => handleUpdateModel(key.id, v)}
+                                  models={modelsByProvider[key.provider]}
+                                  placeholder="Search models..."
+                                  defaultLabel="Default (auto)"
+                                  className="h-8 flex-1 text-xs"
                                   disabled={updatingModelId === key.id}
-                                  onChange={(e) => handleUpdateModel(key.id, e.target.value)}
-                                >
-                                  <option value="">Default (auto)</option>
-                                  {modelsByProvider[key.provider].map((m) => (
-                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                  ))}
-                                </select>
+                                />
                               ) : (
                                 <span className="text-xs text-muted-foreground">Unable to load models</span>
                               )}
@@ -507,17 +503,15 @@ export default function SettingsPage() {
                             <Loader2 className="w-3 h-3 animate-spin" /> Loading...
                           </div>
                         ) : models?.length ? (
-                          <select
-                            className="flex h-8 flex-1 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm"
+                          <ModelSelect
                             value={currentModel}
+                            onChange={(v) => handleSaveTaskPref(task.key, currentProvider, v)}
+                            models={models}
+                            placeholder="Search models..."
+                            defaultLabel={`Default (${task.defaultProvider === "gemini" ? "Flash Lite Latest" : "Claude Sonnet 5"})`}
+                            className="h-8 flex-1 text-xs"
                             disabled={savingTask === task.key}
-                            onChange={(e) => handleSaveTaskPref(task.key, currentProvider, e.target.value)}
-                          >
-                            <option value="">Default ({task.defaultProvider === "gemini" ? "Flash Lite Latest" : "Claude Sonnet 5"})</option>
-                            {models.map((m) => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                          </select>
+                          />
                         ) : (
                           <span className="text-xs text-muted-foreground">No models available — add an API key for this provider</span>
                         )}
