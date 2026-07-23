@@ -191,3 +191,12 @@
     word-break: break-word;
   }
 }
+
+/* Safe area padding for mobile bottom nav (iPhone home indicator) */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* Prevent tap highlight on touch UI */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
