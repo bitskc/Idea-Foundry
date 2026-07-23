@@ -113,20 +113,46 @@ export class GeminiAdapter implements AIService {
                     responseMimeType: "application/json",
                 }
             });
-
             const result = await chat.sendMessage(prompt);
             const output = result.response.text();
 
+
             try {
-                const json = JSON.parse(output);
+                if (!output || output.trim().length === 0) {
+                    throw new Error("Gemini returned an empty response — the API key may be exhausted or the model is unavailable");
+                }
+                // Try direct parse first
+                let json: unknown;
+                try {
+                    json = JSON.parse(output);
+                } catch {
+                    // Fallback: extract JSON from markdown code blocks or mixed text
+                    const jsonMatch = output.match(/```(?:json)?\s*([\s\S]*?)```/);
+                    if (jsonMatch) {
+                        json = JSON.parse(jsonMatch[1].trim());
+                    } else {
+                        // Fallback: find first { or [ and parse from there
+                        const firstBrace = output.indexOf('{');
+                        const firstBracket = output.indexOf('[');
+                        const start = firstBrace === -1 ? firstBracket : firstBracket === -1 ? firstBrace : Math.min(firstBrace, firstBracket);
+                        if (start === -1) {
+                            throw new Error(`No JSON found in response. Output starts with: ${output.slice(0, 200)}`);
+                        }
+                        const lastBrace = output.lastIndexOf('}');
+                        const lastBracket = output.lastIndexOf(']');
+                        const end = Math.max(lastBrace, lastBracket);
+                        json = JSON.parse(output.slice(start, end + 1));
+                    }
+                }
                 // Validate with Zod if schema provided
                 if (options.schema) {
                     return options.schema.parse(json);
                 }
                 return json as T;
             } catch (parseError) {
-                console.error("Gemini JSON Parse Error:", parseError, "Output:", output);
-                throw new Error("Failed to parse Gemini JSON response");
+                const errMsg = parseError instanceof Error ? parseError.message : String(parseError);
+                console.error("Gemini JSON Parse Error:", errMsg, "Output length:", output?.length || 0, "Output preview:", output?.slice(0, 300));
+                throw new Error(`Failed to parse Gemini JSON response: ${errMsg}`);
             }
         } catch (error) {
             console.error("Gemini JSON Generation Error:", error);

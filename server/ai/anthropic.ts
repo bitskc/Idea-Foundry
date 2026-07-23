@@ -79,14 +79,34 @@ export class AnthropicAdapter implements AIService {
     ): Promise<T> {
         try {
             // Append instruction to ensure JSON
-            const jsonPrompt = `${prompt}\n\nRespond with valid JSON only.`;
+            const jsonPrompt = `${prompt}\n\nRespond with valid JSON only. No markdown, no explanation, just the JSON object.`;
 
             const text = await this.generateText(jsonPrompt, history, options);
 
-            // Attempt to clean markdown code blocks if present
-            const cleanText = text.replace(/```json\n?|\n?```/g, "").trim();
+            if (!text || text.trim().length === 0) {
+                throw new Error("Anthropic returned an empty response — the API key may be exhausted or have insufficient credits");
+            }
 
-            const json = JSON.parse(cleanText);
+            // Attempt to clean markdown code blocks if present
+            let cleanText = text.replace(/```json\n?|\n?```/g, "").trim();
+
+            let json: unknown;
+            try {
+                json = JSON.parse(cleanText);
+            } catch {
+                // Fallback: extract JSON from mixed text
+                const firstBrace = cleanText.indexOf('{');
+                const firstBracket = cleanText.indexOf('[');
+                const start = firstBrace === -1 ? firstBracket : firstBracket === -1 ? firstBrace : Math.min(firstBrace, firstBracket);
+                if (start === -1) {
+                    throw new Error(`No JSON found in Anthropic response. Output starts with: ${cleanText.slice(0, 200)}`);
+                }
+                const lastBrace = cleanText.lastIndexOf('}');
+                const lastBracket = cleanText.lastIndexOf(']');
+                const end = Math.max(lastBrace, lastBracket);
+                json = JSON.parse(cleanText.slice(start, end + 1));
+            }
+
             if (options.schema) {
                 return options.schema.parse(json);
             }
