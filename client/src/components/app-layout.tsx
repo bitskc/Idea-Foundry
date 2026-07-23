@@ -11,6 +11,7 @@ import {
   Crown,
 } from "lucide-react";
 import { signOut } from "@/lib/auth";
+import { BottomNav } from "mobile-bottom-nav";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -26,17 +27,14 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
     { path: "/app/new", label: "New Idea", icon: Plus },
   ];
 
-  // Bottom nav items (mobile only)
-  const bottomNavItems = [
-    { path: "/app", label: "Home", icon: LayoutDashboard },
-    { path: "/app/new", label: "New", icon: Plus },
-    { path: "/app/settings", label: "Settings", icon: Settings },
-    { path: "/app/upgrade", label: "Pro", icon: Crown },
-  ];
+  const navigate = (href: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setLocation(href);
+  };
 
-  const isActive = (path: string) => {
-    if (path === "/app") return location === "/app";
-    return location.startsWith(path);
+  const handleSignOut = () => {
+    signOut();
+    setLocation("/auth");
   };
 
   return (
@@ -134,42 +132,41 @@ export default function AppLayout({ children, showBackButton, backTo }: AppLayou
           {children}
         </main>
 
-        {/* Mobile Bottom Navigation */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border safe-area-pb">
-          <div className="flex items-center justify-around h-16 px-2">
-            {bottomNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.path);
-              return (
-                <button
-                  key={item.path}
-                  onClick={() => setLocation(item.path)}
-                  className={`flex flex-col items-center justify-center gap-1 px-3 py-1 rounded-lg transition-colors min-w-[60px] ${
-                    active
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  aria-label={item.label}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">{item.label}</span>
-                </button>
-              );
-            })}
-            {/* Sign Out — 5th action */}
-            <button
-              onClick={() => {
-                signOut();
-                setLocation("/auth");
-              }}
-              className="flex flex-col items-center justify-center gap-1 px-3 py-1 rounded-lg transition-colors min-w-[60px] text-muted-foreground hover:text-foreground"
-              aria-label="Sign Out"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="text-[10px] font-medium">Sign Out</span>
-            </button>
-          </div>
-        </nav>
+        {/* Mobile Bottom Navigation — reusable library */}
+        <BottomNav
+          currentPath={location}
+          navigate={navigate}
+          items={[
+            {
+              label: "Home",
+              icon: <LayoutDashboard className="w-5 h-5" />,
+              href: "/app",
+              matchPaths: ["/app"],
+            },
+            {
+              label: "New",
+              icon: <Plus className="w-5 h-5" />,
+              href: "/app/new",
+            },
+            {
+              label: "Settings",
+              icon: <Settings className="w-5 h-5" />,
+              href: "/app/settings",
+            },
+            {
+              label: "Pro",
+              icon: <Crown className="w-5 h-5" />,
+              href: "/app/upgrade",
+            },
+          ]}
+          actions={[
+            {
+              label: "Sign Out",
+              icon: <LogOut className="w-5 h-5" />,
+              onClick: handleSignOut,
+            },
+          ]}
+        />
       </div>
     </div>
   );
