@@ -14,6 +14,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import type { Project } from "@shared/schema";
 import { api } from "@/lib/api";
 import { computeVelocity, computeStreak } from "@/lib/velocity";
@@ -284,7 +291,9 @@ export default function Dashboard() {
             const StatusIcon = statusConfig.icon;
             const velocity = computeVelocity(project);
             return (
-              <Card key={project.id} className={`group hover:shadow-lg transition-all border-border/60 ${velocity.isStale ? "border-yellow-300/50" : ""}`} data-testid={`card-idea-${project.id}`}>
+              <ContextMenu key={project.id}>
+                <ContextMenuTrigger asChild>
+              <Card className={`group hover:shadow-lg transition-all border-border/60 ${velocity.isStale ? "border-yellow-300/50" : ""}`} data-testid={`card-idea-${project.id}`}>
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div className="flex gap-2 mb-2 flex-wrap">
@@ -448,6 +457,36 @@ export default function Dashboard() {
                   </Button>
                 </CardFooter>
               </Card>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-48" data-testid={`context-menu-${project.id}`}>
+                  <ContextMenuItem onClick={() => updateIdeaStatus(project.id, "active")}>
+                    <Flame className="w-4 h-4 mr-2 text-green-600" />
+                    Move to Active
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => updateIdeaStatus(project.id, "exploring")}>
+                    <Lightbulb className="w-4 h-4 mr-2 text-yellow-600" />
+                    Move to Exploring
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => updateIdeaStatus(project.id, "backburner")}>
+                    <Clock className="w-4 h-4 mr-2 text-blue-600" />
+                    Move to Backburner
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => updateIdeaStatus(project.id, "archived")}>
+                    <Archive className="w-4 h-4 mr-2 text-gray-600" />
+                    Archive
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => setLocation(`/app/ideas/${project.id}`)}>
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    View Idea
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => deleteProject(project.id)} className="text-destructive">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             );
           })}
         </div>
