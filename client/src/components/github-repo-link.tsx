@@ -123,7 +123,7 @@ export function GitHubRepoLink({ projectId, initialUrl, onUpdate }: GitHubRepoLi
                   href={initialUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium hover:underline flex items-center gap-1"
+                  className="font-medium hover:underline flex items-center gap-1 break-all"
                 >
                   {repoInfo.owner}/{repoInfo.repo}
                   <ExternalLink className="w-3 h-3" />

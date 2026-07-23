@@ -296,7 +296,7 @@ export default function IdeaDetail() {
           </Button>
 
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 <Badge variant="secondary">{project.type}</Badge>
                 <Badge variant="outline" className={`${statusConfig.color} gap-1`}>
@@ -304,13 +304,13 @@ export default function IdeaDetail() {
                   {statusConfig.label}
                 </Badge>
               </div>
-              <h1 className="text-3xl font-display font-bold mb-2">{project.title}</h1>
+              <h1 className="text-3xl font-display font-bold mb-2 break-words">{project.title}</h1>
               <p className="text-muted-foreground">{project.description}</p>
             </div>
 
             {project.viabilityScore && (
               <div className="text-center shrink-0">
-                <div className={`text-4xl font-bold ${project.viabilityScore >= 7 ? 'text-green-600' :
+                <div className={`text-3xl md:text-4xl font-bold ${project.viabilityScore >= 7 ? 'text-green-600' :
                   project.viabilityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
                   }`}>
                   {project.viabilityScore}
@@ -425,7 +425,7 @@ export default function IdeaDetail() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">{competitor.description}</p>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                           <div>
                             <p className="font-medium text-green-600 mb-1">Strengths</p>
                             <ul className="list-disc list-inside text-muted-foreground">
@@ -574,7 +574,7 @@ export default function IdeaDetail() {
                               </div>
                               <button
                                 onClick={() => deleteNote(note.id)}
-                                className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all shrink-0"
+                                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all shrink-0"
                                 data-testid={`button-delete-note-${note.id}`}
                               >
                                 <Trash2 className="w-4 h-4" />

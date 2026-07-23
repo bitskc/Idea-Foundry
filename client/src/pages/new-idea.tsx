@@ -578,7 +578,7 @@ export default function NewIdea() {
                       <label className="block text-sm font-medium mb-2">
                         Company size
                       </label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {COMPANY_SIZES.filter(s => s.id !== "consumer").map((size) => (
                           <button
                             key={size.id}

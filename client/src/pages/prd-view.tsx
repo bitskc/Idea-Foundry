@@ -221,13 +221,13 @@ export default function PrdView() {
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-display font-bold">{project.title}</h1>
+            <div className="min-w-0">
+              <h1 className="text-2xl md:text-3xl font-display font-bold break-words">{project.title}</h1>
               <p className="text-sm text-muted-foreground mt-1">{project.type}</p>
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button 
               variant="outline" 
               onClick={copyToClipboard}

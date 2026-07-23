@@ -222,10 +222,10 @@ export default function ConversationPage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-screen md:h-[calc(100vh-theme(spacing.0))] bg-background">
+      <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen bg-background">
         {/* Header / Progress */}
         <div className="border-b bg-card/50 backdrop-blur p-4 flex items-center justify-between sticky top-0 z-10">
-          <div className="flex flex-col gap-1 w-full max-w-md">
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
             <div className="flex justify-between text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <span>{currentSection}</span>
               <span>{progress}% Complete</span>
@@ -332,7 +332,7 @@ export default function ConversationPage() {
               
               <Button 
                 size="icon" 
-                className="rounded-lg h-10 w-10 shrink-0"
+                className="rounded-lg h-11 w-11 shrink-0"
                 onClick={handleSend}
                 disabled={!input.trim() || isSending}
                 data-testid="button-send"

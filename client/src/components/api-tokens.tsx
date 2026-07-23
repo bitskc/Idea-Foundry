@@ -157,7 +157,7 @@ export function ApiTokensSection() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{token.name}</div>
-                  <div className="text-sm text-muted-foreground flex items-center gap-3">
+                  <div className="text-sm text-muted-foreground flex items-center gap-3 flex-wrap">
                     <span>Created {formatDate(token.createdAt)}</span>
                     <span>•</span>
                     <span>{formatLastUsed(token.lastUsedAt)}</span>

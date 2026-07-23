@@ -49,7 +49,7 @@ export default function FloatingNotes({ projectId, initialNotes, onNotesUpdate }
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-20 right-6 z-50 w-80 bg-card border rounded-xl shadow-xl"
+            className="fixed bottom-20 right-6 z-50 w-[calc(100vw-3rem)] max-w-80 bg-card border rounded-xl shadow-xl"
             data-testid="floating-notes-panel"
           >
             <div className="flex items-center justify-between p-3 border-b">

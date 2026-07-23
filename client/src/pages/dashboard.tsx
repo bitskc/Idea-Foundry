@@ -162,8 +162,8 @@ export default function Dashboard() {
     <AppLayout>
       <div className="container mx-auto p-6 md:p-10 max-w-6xl">
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-display font-bold mb-2">My Ideas</h1>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-display font-bold mb-2 break-words">My Ideas</h1>
             <p className="text-muted-foreground">Your ideas, refined and ready to build.</p>
           </div>
           <Button onClick={() => setLocation("/app/new")} className="gap-2" data-testid="button-new-idea">
@@ -231,7 +231,7 @@ export default function Dashboard() {
               <Card key={project.id} className="group hover:shadow-lg transition-all border-border/60" data-testid={`card-idea-${project.id}`}>
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
-                    <div className="flex gap-2 mb-2">
+                    <div className="flex gap-2 mb-2 flex-wrap">
                       <Badge variant="secondary">{project.type}</Badge>
                       <Badge variant="outline" className={`${statusConfig.color} gap-1`}>
                         <StatusIcon className="w-3 h-3" />
@@ -321,7 +321,7 @@ export default function Dashboard() {
                           e.stopPropagation();
                           startEditing(project);
                         }}
-                        className="opacity-0 group-hover/desc:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all shrink-0"
+                        className="opacity-100 md:opacity-0 md:group-hover/desc:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all shrink-0"
                         data-testid={`button-edit-description-${project.id}`}
                       >
                         <Pencil className="w-3 h-3" />
