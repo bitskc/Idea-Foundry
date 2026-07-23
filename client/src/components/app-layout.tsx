@@ -11,7 +11,8 @@ import {
   Crown,
 } from "lucide-react";
 import { signOut } from "@/lib/auth";
-import { BottomNav } from "mobile-bottom-nav";
+
+import { BottomNav } from "@/lib/bottom-nav";
 
 interface AppLayoutProps {
   children: ReactNode;
