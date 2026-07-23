@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AppLayout from "@/components/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,14 +16,19 @@ interface ApiKeyInfo {
   id: number;
   provider: string;
   maskedKey: string;
+  model: string | null;
   createdAt: string;
   lastUsedAt: string | null;
+}
+
+interface ModelInfo {
+  id: string;
+  name: string;
 }
 
 const PROVIDERS = [
   { id: "gemini", label: "Google Gemini", placeholder: "AIza..." },
   { id: "anthropic", label: "Anthropic (Claude)", placeholder: "sk-ant-..." },
-  { id: "openai", label: "OpenAI", placeholder: "sk-..." },
 ];
 
 export default function SettingsPage() {
@@ -31,12 +36,40 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   // BYOK state
   const [selectedProvider, setSelectedProvider] = useState("gemini");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [isSavingKey, setIsSavingKey] = useState(false);
+
+  // Model selection state — keyed by provider
+  const [modelsByProvider, setModelsByProvider] = useState<Record<string, ModelInfo[]>>({});
+  const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [updatingModelId, setUpdatingModelId] = useState<number | null>(null);
+
+  // Fetch available models for a provider (uses user's BYOK key or server default)
+  const fetchModels = useCallback(async (provider: string) => {
+    if (provider !== "gemini" && provider !== "anthropic") return;
+    setLoadingModels(prev => ({ ...prev, [provider]: true }));
+    try {
+      const data = await api.get<{ models: ModelInfo[] }>(`/api/models/${provider}`);
+      setModelsByProvider(prev => ({ ...prev, [provider]: data.models }));
+    } catch {
+      // Silently fail — dropdown just won't populate
+    } finally {
+      setLoadingModels(prev => ({ ...prev, [provider]: false }));
+    }
+  }, []);
+
+  // When provider changes in the add-key form, fetch models for that provider
+  useEffect(() => {
+    if (selectedProvider === "gemini" || selectedProvider === "anthropic") {
+      fetchModels(selectedProvider);
+    }
+  }, [selectedProvider, fetchModels]);
+
+
 
   // Fetch user profile
   const { data: user, isLoading: isLoadingUser } = useQuery<User>({
@@ -49,6 +82,17 @@ export default function SettingsPage() {
     queryKey: ["/api/user/keys"],
     queryFn: () => api.get("/api/user/keys"),
   });
+
+  // When keys load, fetch models for each saved provider
+  useEffect(() => {
+    if (apiKeys) {
+      for (const key of apiKeys) {
+        if ((key.provider === "gemini" || key.provider === "anthropic") && !modelsByProvider[key.provider]) {
+          fetchModels(key.provider);
+        }
+      }
+    }
+  }, [apiKeys, fetchModels, modelsByProvider]);
 
   const handleChangePassword = async () => {
     if (newPassword.length < 6) {
@@ -83,9 +127,17 @@ export default function SettingsPage() {
     }
     setIsSavingKey(true);
     try {
-      await api.post("/api/user/keys", { provider: selectedProvider, apiKey: apiKeyInput.trim() });
+      await api.post("/api/user/keys", {
+        provider: selectedProvider,
+        apiKey: apiKeyInput.trim(),
+        model: selectedModel || null,
+      });
       toast({ title: "API key saved", description: `Your ${PROVIDERS.find(p => p.id === selectedProvider)?.label} key has been saved.` });
       setApiKeyInput("");
+      setSelectedModel("");
+      // Refetch models with the new key, then refetch keys
+      setModelsByProvider(prev => { const next = { ...prev }; delete next[selectedProvider]; return next; });
+      fetchModels(selectedProvider);
       refetchKeys();
     } catch (error) {
       toast({
@@ -109,6 +161,23 @@ export default function SettingsPage() {
         title: "Failed to remove key",
         description: error instanceof Error ? error.message : "Unknown error",
       });
+    }
+  };
+
+  const handleUpdateModel = async (keyId: number, model: string) => {
+    setUpdatingModelId(keyId);
+    try {
+      await api.patch(`/api/user/keys/${keyId}`, { model: model || null });
+      toast({ title: "Model updated", description: model ? `Switched to ${model}` : "Using provider default" });
+      refetchKeys();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to update model",
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setUpdatingModelId(null);
     }
   };
 
@@ -209,14 +278,16 @@ export default function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Add new key */}
                 <div className="space-y-3">
                   <Label>Add a new API key</Label>
                   <div className="flex gap-2">
                     <select
                       className="flex h-9 w-[180px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                       value={selectedProvider}
-                      onChange={(e) => setSelectedProvider(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedProvider(e.target.value);
+                        setSelectedModel("");
+                      }}
                     >
                       {PROVIDERS.map((p) => (
                         <option key={p.id} value={p.id}>{p.label}</option>
@@ -241,6 +312,32 @@ export default function SettingsPage() {
                       {isSavingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     </Button>
                   </div>
+                  {/* Model selector for new key — shows available models from server default key */}
+                  {(selectedProvider === "gemini" || selectedProvider === "anthropic") && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Model (optional — defaults to provider's latest)</Label>
+                      {loadingModels[selectedProvider] ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Loading models...
+                        </div>
+                      ) : modelsByProvider[selectedProvider]?.length ? (
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                          value={selectedModel}
+                          onChange={(e) => setSelectedModel(e.target.value)}
+                        >
+                          <option value="">Default (provider auto-selects)</option>
+                          {modelsByProvider[selectedProvider].map((m) => (
+                            <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Save your key first, then select a model.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Existing keys */}
@@ -253,22 +350,47 @@ export default function SettingsPage() {
                   ) : !apiKeys || apiKeys.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No API keys saved yet.</p>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {apiKeys.map((key) => (
-                        <div key={key.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">
-                              {PROVIDERS.find(p => p.id === key.provider)?.label || key.provider}
-                            </span>
-                            <span className="text-xs text-muted-foreground font-mono">{key.maskedKey}</span>
+                        <div key={key.id} className="p-3 rounded-lg border border-border bg-card space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">
+                                {PROVIDERS.find(p => p.id === key.provider)?.label || key.provider}
+                              </span>
+                              <span className="text-xs text-muted-foreground font-mono">{key.maskedKey}</span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteKey(key.id)}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteKey(key.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                          {/* Model selector for saved key */}
+                          {(key.provider === "gemini" || key.provider === "anthropic") && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">Model:</span>
+                              {loadingModels[key.provider] ? (
+                                <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                              ) : modelsByProvider[key.provider]?.length ? (
+                                <select
+                                  className="flex h-8 flex-1 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm"
+                                  value={key.model || ""}
+                                  disabled={updatingModelId === key.id}
+                                  onChange={(e) => handleUpdateModel(key.id, e.target.value)}
+                                >
+                                  <option value="">Default (auto)</option>
+                                  {modelsByProvider[key.provider].map((m) => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Unable to load models</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

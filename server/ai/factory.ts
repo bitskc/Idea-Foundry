@@ -16,27 +16,26 @@ export async function getAIServiceForUser(
   preferredProvider: "gemini" | "anthropic" = "gemini"
 ): Promise<AIService> {
   // Check if user has a BYOK key for the preferred provider
-  const byokKey = await storage.getUserApiKey(userId, preferredProvider);
+  const byokEntry = await storage.getUserApiKey(userId, preferredProvider);
 
-  if (byokKey) {
+  if (byokEntry) {
     if (preferredProvider === "gemini") {
-      return new GeminiAdapter(byokKey);
+      return new GeminiAdapter(byokEntry.key, byokEntry.model || undefined);
     }
     if (preferredProvider === "anthropic") {
-      return new AnthropicAdapter(byokKey);
+      return new AnthropicAdapter(byokEntry.key, byokEntry.model || undefined);
     }
   }
 
   // No BYOK key for preferred provider — check the other provider
-  // (user might have only an Anthropic key when Gemini is preferred, or vice versa)
   const otherProvider = preferredProvider === "gemini" ? "anthropic" : "gemini";
-  const otherKey = await storage.getUserApiKey(userId, otherProvider);
-  if (otherKey) {
+  const otherEntry = await storage.getUserApiKey(userId, otherProvider);
+  if (otherEntry) {
     if (otherProvider === "gemini") {
-      return new GeminiAdapter(otherKey);
+      return new GeminiAdapter(otherEntry.key, otherEntry.model || undefined);
     }
     if (otherProvider === "anthropic") {
-      return new AnthropicAdapter(otherKey);
+      return new AnthropicAdapter(otherEntry.key, otherEntry.model || undefined);
     }
   }
 

@@ -336,7 +336,7 @@ export async function registerRoutes(
   app.post("/api/user/keys", requireAuth, async (req, res) => {
     try {
       const authReq = req as unknown as AuthenticatedRequest;
-      const { provider, apiKey } = req.body;
+      const { provider, apiKey, model } = req.body;
       if (!provider || !apiKey) {
         return res.status(400).json({ error: "Provider and apiKey are required" });
       }
@@ -346,7 +346,7 @@ export async function registerRoutes(
       }
       const { encrypt } = await import("./crypto");
       const encryptedKey = encrypt(apiKey.trim());
-      const result = await storage.createUserApiKey(authReq.user.id, provider, encryptedKey);
+      const result = await storage.createUserApiKey(authReq.user.id, provider, encryptedKey, model || null);
       res.json(result);
     } catch (error) {
       console.error("Error saving API key:", error);
@@ -367,6 +367,80 @@ export async function registerRoutes(
     }
   });
 
+
+  // BYOK: Update model selection for a key
+  app.patch("/api/user/keys/:id", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+      const { model } = req.body;
+      if (typeof model !== "string" && model !== null) {
+        return res.status(400).json({ error: "model must be a string or null" });
+      }
+      await storage.updateUserApiKeyModel(id, authReq.user.id, model || null);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating API key model:", error);
+      res.status(500).json({ error: "Failed to update model" });
+    }
+  });
+
+  // BYOK: List available models for a provider (uses user's key or server default)
+  app.get("/api/models/:provider", requireAuth, async (req, res) => {
+    try {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const provider = Array.isArray(req.params.provider) ? req.params.provider[0] : req.params.provider;
+      const validProviders = ["gemini", "anthropic"];
+      if (!validProviders.includes(provider)) {
+        return res.status(400).json({ error: "Invalid provider. Supported: gemini, anthropic" });
+      }
+
+      // Get the user's BYOK key for this provider, or fall back to server default
+      const byokEntry = await storage.getUserApiKey(authReq.user.id, provider);
+      let apiKey: string | undefined;
+      if (byokEntry) {
+        apiKey = byokEntry.key;
+      } else {
+        apiKey = provider === "gemini" ? process.env.GEMINI_API_KEY : process.env.ANTHROPIC_API_KEY;
+      }
+
+      if (!apiKey) {
+        return res.status(400).json({ error: `No API key available for ${provider}. Add your key in Settings.` });
+      }
+
+      if (provider === "gemini") {
+        // Gemini doesn't have a listModels method in the SDK — use REST API directly
+        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          const errText = await resp.text();
+          console.error("Gemini models API error:", resp.status, errText);
+          return res.status(resp.status).json({ error: `Gemini API error: ${resp.statusText}` });
+        }
+        const data = await resp.json() as { models?: Array<{ name: string; displayName: string; supportedGenerationMethods?: string[] }> };
+        const models = (data.models || [])
+          .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+          .map(m => ({
+            id: m.name.replace("models/", ""),
+            name: m.displayName,
+          }));
+        res.json({ models });
+      } else if (provider === "anthropic") {
+        // Anthropic SDK has a models.list() method
+        const Anthropic = (await import("@anthropic-ai/sdk")).default;
+        const client = new Anthropic({ apiKey });
+        const list = await client.models.list();
+        const models = list.data.map((m: { id: string; display_name?: string }) => ({
+          id: m.id,
+          name: m.display_name || m.id,
+        }));
+        res.json({ models });
+      }
+    } catch (error) {
+      console.error("Error listing models:", error);
+      res.status(500).json({ error: "Failed to list models" });
+    }
+  });
   // Stripe webhook - registered before requireAuth because it uses its own
   // signature verification and must receive the raw request body.
   app.post("/api/webhook/stripe", async (req, res) => {

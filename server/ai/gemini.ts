@@ -5,10 +5,11 @@ export class GeminiAdapter implements AIService {
     provider = "gemini" as const;
     private client: GoogleGenerativeAI;
     private apiKey: string;
-    private defaultModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+    private defaultModel: string;
 
-    constructor(apiKey?: string) {
+    constructor(apiKey?: string, model?: string) {
         this.apiKey = apiKey || process.env.GEMINI_API_KEY || "";
+        this.defaultModel = model || process.env.GEMINI_MODEL || "gemini-2.0-flash";
         if (!this.apiKey) {
             console.warn("GEMINI_API_KEY is missing. Gemini adapter will fail if used.");
         }

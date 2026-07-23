@@ -65,9 +65,10 @@ export interface IStorage {
   updateApiTokenLastUsed(id: number): Promise<void>;
   deleteApiToken(id: number): Promise<void>;
   // User API Key methods (BYOK)
-  getUserApiKeys(userId: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }[]>;
-  getUserApiKey(userId: string, provider: string): Promise<string | null>;
-  createUserApiKey(userId: string, provider: string, encryptedKey: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }>;
+  getUserApiKeys(userId: string): Promise<{ id: number; provider: string; maskedKey: string; model: string | null; createdAt: Date; lastUsedAt: Date | null }[]>;
+  getUserApiKey(userId: string, provider: string): Promise<{ key: string; model: string | null } | null>;
+  createUserApiKey(userId: string, provider: string, encryptedKey: string, model?: string | null): Promise<{ id: number; provider: string; maskedKey: string; model: string | null; createdAt: Date; lastUsedAt: Date | null }>;
+  updateUserApiKeyModel(id: number, userId: string, model: string | null): Promise<void>;
   deleteUserApiKey(id: number, userId: string): Promise<void>;
 }
 
@@ -265,9 +266,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // User API Key methods (BYOK)
-  async getUserApiKeys(userId: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }[]> {
+  async getUserApiKeys(userId: string): Promise<{ id: number; provider: string; maskedKey: string; model: string | null; createdAt: Date; lastUsedAt: Date | null }[]> {
     const keys = await db.select().from(userApiKeys).where(eq(userApiKeys.userId, userId));
-    // Decrypt each key to mask it (we need the plaintext to show the first/last chars)
     const { decrypt, maskKey } = await import("./crypto");
     return keys.map(k => {
       let masked = "****";
@@ -281,27 +281,29 @@ export class DatabaseStorage implements IStorage {
         id: k.id,
         provider: k.provider,
         maskedKey: masked,
+        model: k.model,
         createdAt: k.createdAt,
         lastUsedAt: k.lastUsedAt,
       };
     });
   }
 
-  async getUserApiKey(userId: string, provider: string): Promise<string | null> {
+  async getUserApiKey(userId: string, provider: string): Promise<{ key: string; model: string | null } | null> {
     const [key] = await db.select().from(userApiKeys)
       .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
     if (!key) return null;
     const { decrypt } = await import("./crypto");
-    return decrypt(key.encryptedKey);
+    return { key: decrypt(key.encryptedKey), model: key.model };
   }
 
-  async createUserApiKey(userId: string, provider: string, encryptedKey: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }> {
+  async createUserApiKey(userId: string, provider: string, encryptedKey: string, model?: string | null): Promise<{ id: number; provider: string; maskedKey: string; model: string | null; createdAt: Date; lastUsedAt: Date | null }> {
     // Delete existing key for this provider first (one key per provider per user)
     await db.delete(userApiKeys).where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
     const [created] = await db.insert(userApiKeys).values({
       userId,
       provider,
       encryptedKey,
+      model: model || null,
     }).returning();
     const { decrypt, maskKey } = await import("./crypto");
     let masked = "****";
@@ -312,9 +314,14 @@ export class DatabaseStorage implements IStorage {
       id: created.id,
       provider: created.provider,
       maskedKey: masked,
+      model: created.model,
       createdAt: created.createdAt,
       lastUsedAt: created.lastUsedAt,
     };
+  }
+
+  async updateUserApiKeyModel(id: number, userId: string, model: string | null): Promise<void> {
+    await db.update(userApiKeys).set({ model }).where(and(eq(userApiKeys.id, id), eq(userApiKeys.userId, userId)));
   }
 
   async deleteUserApiKey(id: number, userId: string): Promise<void> {

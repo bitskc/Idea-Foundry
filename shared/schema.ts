@@ -82,6 +82,7 @@ export const userApiKeys = pgTable("user_api_keys", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(), // 'gemini' | 'anthropic' | 'openai'
   encryptedKey: text("encrypted_key").notNull(), // AES-256-GCM encrypted
+  model: text("model"), // User-selected model (null = provider default)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastUsedAt: timestamp("last_used_at"),
 });

@@ -319,14 +319,17 @@ export class MockStorage implements IStorage {
   }
 
   // User API Key methods (BYOK) — mock returns empty/null
-  async getUserApiKeys(_userId: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }[]> {
+  async getUserApiKeys(_userId: string): Promise<{ id: number; provider: string; maskedKey: string; model: string | null; createdAt: Date; lastUsedAt: Date | null }[]> {
     return [];
   }
-  async getUserApiKey(_userId: string, _provider: string): Promise<string | null> {
+  async getUserApiKey(_userId: string, _provider: string): Promise<{ key: string; model: string | null } | null> {
     return null;
   }
-  async createUserApiKey(_userId: string, provider: string, _encryptedKey: string): Promise<{ id: number; provider: string; maskedKey: string; createdAt: Date; lastUsedAt: Date | null }> {
-    return { id: 1, provider, maskedKey: "****", createdAt: new Date(), lastUsedAt: null };
+  async createUserApiKey(_userId: string, provider: string, _encryptedKey: string, model?: string | null): Promise<{ id: number; provider: string; maskedKey: string; model: string | null; createdAt: Date; lastUsedAt: Date | null }> {
+    return { id: 1, provider, maskedKey: "****", model: model || null, createdAt: new Date(), lastUsedAt: null };
+  }
+  async updateUserApiKeyModel(_id: number, _userId: string, _model: string | null): Promise<void> {
+    // no-op
   }
   async deleteUserApiKey(_id: number, _userId: string): Promise<void> {
     // no-op
