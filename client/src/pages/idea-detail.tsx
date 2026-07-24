@@ -625,25 +625,29 @@ ${sections}
           >
             <ArrowLeft className="w-4 h-4 mr-1" /> All Ideas
           </Button>
-          {allProjects.length > 1 && (
-            <Select
-              value={String(project.id)}
-              onValueChange={(val) => setLocation(`/app/ideas/${val}${activeTab !== "overview" ? `?tab=${activeTab}` : ""}`)}
-            >
-              <SelectTrigger className="h-8 w-auto min-w-0 flex-1 max-w-[280px] text-sm" data-testid="idea-selector">
-                <SelectValue placeholder="Switch idea" />
-              </SelectTrigger>
-              <SelectContent>
-                {allProjects
-                  .filter(p => (p.ideaStatus || "exploring") !== "archived")
-                  .map(p => (
+          {(() => {
+            const switchableProjects = allProjects.filter(
+              (p) => (p.ideaStatus || "exploring") !== "archived" || p.id === project.id
+            );
+            if (switchableProjects.length <= 1) return null;
+            return (
+              <Select
+                value={String(project.id)}
+                onValueChange={(val) => setLocation(`/app/ideas/${val}${activeTab !== "overview" ? `?tab=${activeTab}` : ""}`)}
+              >
+                <SelectTrigger className="h-8 w-auto min-w-0 flex-1 max-w-[280px] text-sm" data-testid="idea-selector">
+                  <SelectValue placeholder="Switch idea" />
+                </SelectTrigger>
+                <SelectContent>
+                  {switchableProjects.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.title}
                     </SelectItem>
                   ))}
-              </SelectContent>
-            </Select>
-          )}
+                </SelectContent>
+              </Select>
+            );
+          })()}
         </div>
 
         {/* Tabs — at top for easy switching */}
