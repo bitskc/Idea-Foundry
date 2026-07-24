@@ -614,8 +614,8 @@ ${sections}
   return (
     <AppLayout>
       <div className="container mx-auto p-4 md:p-8 max-w-5xl">
-        {/* Header */}
-        <div className="mb-4 flex items-center gap-2">
+        {/* Top bar: back + idea selector */}
+        <div className="mb-3 flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -646,9 +646,25 @@ ${sections}
           )}
         </div>
 
-        {/* Title + Score + Share */}
+        {/* Tabs — at top for easy switching */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsTrigger value="overview" className="gap-1 md:gap-2 text-xs md:text-sm" data-testid="tab-overview">
+              <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" /> Overview
+            </TabsTrigger>
+            <TabsTrigger value="think" className="gap-1 md:gap-2 text-xs md:text-sm" data-testid="tab-think">
+              <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" /> Think
+            </TabsTrigger>
+            <TabsTrigger value="make" className="gap-1 md:gap-2 text-xs md:text-sm" data-testid="tab-make">
+              <Hammer className="w-3.5 h-3.5 md:w-4 md:h-4" /> Make
+            </TabsTrigger>
+            <TabsTrigger value="pitch" className="gap-1 md:gap-2 text-xs md:text-sm" data-testid="tab-pitch">
+              <Presentation className="w-3.5 h-3.5 md:w-4 md:h-4" /> Pitch
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        {/* Title + Score + Share */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 <Badge variant="secondary">{project.type}</Badge>
@@ -656,14 +672,14 @@ ${sections}
                   <StatusIcon className="w-3 h-3" />
                 </Badge>
               </div>
-              <h1 className="text-2xl md:text-3xl font-display font-bold mb-2 break-words">{project.title}</h1>
-              <p className="text-muted-foreground">{project.description}</p>
+              <h1 className="text-xl md:text-3xl font-display font-bold mb-2 break-words">{project.title}</h1>
+              <p className="text-sm md:text-base text-muted-foreground">{project.description}</p>
             </div>
 
-            <div className="flex flex-col items-end gap-2 shrink-0">
+            <div className="flex flex-row sm:flex-col items-center sm:items-end gap-3 sm:gap-2 shrink-0">
               {project.viabilityScore && (
                 <div className="text-center">
-                  <div className={`text-3xl md:text-4xl font-bold ${project.viabilityScore >= 7 ? 'text-green-600' :
+                  <div className={`text-2xl md:text-4xl font-bold ${project.viabilityScore >= 7 ? 'text-green-600' :
                     project.viabilityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
                     }`}>
                     {project.viabilityScore}
@@ -684,22 +700,6 @@ ${sections}
             </div>
           </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="overview" className="gap-2" data-testid="tab-overview">
-              <Eye className="w-4 h-4" /> Overview
-            </TabsTrigger>
-            <TabsTrigger value="think" className="gap-2" data-testid="tab-think">
-              <MessageSquare className="w-4 h-4" /> Think
-            </TabsTrigger>
-            <TabsTrigger value="make" className="gap-2" data-testid="tab-make">
-              <Hammer className="w-4 h-4" /> Make
-            </TabsTrigger>
-            <TabsTrigger value="pitch" className="gap-2" data-testid="tab-pitch">
-              <Presentation className="w-4 h-4" /> Pitch
-            </TabsTrigger>
-          </TabsList>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
