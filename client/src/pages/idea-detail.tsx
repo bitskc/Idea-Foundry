@@ -613,14 +613,14 @@ ${sections}
 
   return (
     <AppLayout>
-      <div className="container mx-auto p-6 md:p-8 max-w-5xl">
+      <div className="container mx-auto p-4 md:p-8 max-w-5xl">
         {/* Header */}
-        <div className="mb-4 flex items-center gap-2 flex-wrap">
+        <div className="mb-4 flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setLocation("/app")}
-            className="-ml-2"
+            className="-ml-2 shrink-0"
             data-testid="button-back"
           >
             <ArrowLeft className="w-4 h-4 mr-1" /> All Ideas
@@ -630,7 +630,7 @@ ${sections}
               value={String(project.id)}
               onValueChange={(val) => setLocation(`/app/ideas/${val}${activeTab !== "overview" ? `?tab=${activeTab}` : ""}`)}
             >
-              <SelectTrigger className="h-8 w-auto min-w-[180px] max-w-[280px] text-sm" data-testid="idea-selector">
+              <SelectTrigger className="h-8 w-auto min-w-0 flex-1 max-w-[280px] text-sm" data-testid="idea-selector">
                 <SelectValue placeholder="Switch idea" />
               </SelectTrigger>
               <SelectContent>
@@ -654,8 +654,8 @@ ${sections}
                 <Badge variant="secondary">{project.type}</Badge>
                 <Badge variant="outline" className={`${statusConfig.color} gap-1`}>
                   <StatusIcon className="w-3 h-3" />
-                  {statusConfig.label}
                 </Badge>
+              </div>
               <h1 className="text-2xl md:text-3xl font-display font-bold mb-2 break-words">{project.title}</h1>
               <p className="text-muted-foreground">{project.description}</p>
             </div>
@@ -683,7 +683,6 @@ ${sections}
               </Button>
             </div>
           </div>
-        </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
