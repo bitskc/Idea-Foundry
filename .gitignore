@@ -14,3 +14,6 @@ vite.config.ts.*
 .cecli*
 .aider*
 .env*
+
+# AI assistant session data
+.aider-desk/

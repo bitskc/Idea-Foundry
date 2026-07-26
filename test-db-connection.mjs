@@ -1,8 +1,13 @@
 import postgres from 'postgres';
 
-const connectionString = "postgresql://postgres:REDACTED_DB_PASSWORD@db.hwzuxqfqcfvyvtdpafqd.supabase.co:5432/postgres";
+const connectionString = process.env.DATABASE_URL || process.env.ideas_DATABASE_URL || process.env.POSTGRES_URL;
 
-console.log('Testing Supabase connection...');
+if (!connectionString) {
+  console.error('Set DATABASE_URL (or ideas_DATABASE_URL / POSTGRES_URL) in your environment');
+  process.exit(1);
+}
+
+console.log('Testing database connection...');
 
 try {
   // Try with default settings first
