@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { getAppUrl } from "@/lib/routing";
-import { 
-  Lightbulb, 
-  Target, 
-  FileText, 
-  TrendingUp, 
+import {
+  Lightbulb,
+  Target,
+  FileText,
+  TrendingUp,
   Zap,
   CheckCircle2,
   X,
@@ -15,7 +15,8 @@ import {
   Rocket,
   Twitter,
   Linkedin,
-  Mail
+  Mail,
+  Github
 } from "lucide-react";
 
 export default function Landing() {
@@ -47,6 +48,9 @@ export default function Landing() {
               <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
             </div>
             <div className="flex items-center gap-4">
+              <a href="https://github.com/bitskc/Idea-Foundry" target="_blank" rel="noopener noreferrer" aria-label="View source on GitHub" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Github className="w-5 h-5" aria-hidden="true" />
+              </a>
               <Button variant="ghost" onClick={handleGetStarted} data-testid="button-signin">
                 Sign In
               </Button>
