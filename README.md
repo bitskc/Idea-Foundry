@@ -1,89 +1,45 @@
 # Idea Foundry
 
-Idea Foundry is an AI-powered platform for entrepreneurs to capture, refine, and validate business ideas. It acts as a "supportive co-founder" or "brutal challenger" to help you think through problems, identify target audiences, and generate Product Requirement Documents (PRDs).
+<img src="screenshot.png" alt="Idea Foundry — AI-powered idea validation" width="600">
 
-## Features
+An AI co-founder that helps you think through ideas before you sink time into them. Chat with it, get a viability score, generate a PRD, and walk away knowing whether to build or move on.
 
-- **AI Co-Founder**: Chat with an AI that adapts to your needs (Supportive or Challenger mode).
-- **PRD Generation**: Automatically transform conversations into structured product requirements.
-- **Viability Scoring**: Get an AI assessment of your idea's market potential and competition.
-- **Synergy Analysis**: Discover cross-promotion and integration opportunities between your projects.
-- **Voice Interaction**: Speak your ideas and hear the feedback (Client-side TTS/STT).
+**Live at [ideafoundry.app](https://ideafoundry.app)**
 
-## Tech Stack
+## Why this exists
 
-- **Frontend**: React, Vite, TailwindCSS, shadcn/ui
-- **Backend**: Node.js, Express (Serverless-ready for Vercel)
-- **Database**: PostgreSQL (Supabase) + Drizzle ORM
-- **AI**: Google Gemini (via `google-generative-ai`) and Anthropic Claude (via `anthropic-sdk`)
-- **Authentication**: Supabase Auth
+Most ideas die not because they're bad, but because they're underthought. You get excited, you start building, and three weeks in you realize the market's wrong or the problem isn't real. The cheapest fix is thinking harder *before* you write code — but most people don't have a co-founder to bounce ideas off of.
 
-## Prerequisites
+Idea Foundry is that co-founder. It adapts its mode — supportive when you need encouragement, challenger when you need honesty. It scores viability, maps competition, and turns the conversation into a structured PRD you can actually hand to a developer.
 
-- Node.js 20+
-- Supabase Account
-- Google Gemini API Key
-- Anthropic API Key (Optional, for advanced reasoning)
+## What it does
 
-## Local Development
+- **AI Co-Founder chat** — supportive or challenger mode, adapts to your stage
+- **Viability scoring** — market potential, competition, problem-solution fit
+- **PRD generation** — turns conversations into structured product requirements
+- **Synergy analysis** — finds cross-promotion opportunities across your projects
+- **Voice interaction** — speak your ideas, hear the feedback (client-side TTS/STT)
+- **GitHub export** — push generated PRDs directly to a repo
 
-1. **Clone the repository**
-   ```bash
-   git clone <repo-url>
-   cd Idea-Foundry
-   ```
+## How it's built
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+- **React + Vite + TailwindCSS + shadcn/ui** — frontend
+- **Node.js + Express** — serverless-ready API (Vercel)
+- **PostgreSQL via Drizzle ORM** — Neon Postgres in production
+- **Google Gemini + Anthropic Claude** — provider routing with automatic failover; if Gemini's down, Claude picks up
+- **Supabase Auth** — magic link authentication
 
-3. **Configure Environment**
-   Copy `.env.example` to `.env` and fill in the required values:
-   ```bash
-   cp .env.example .env
-   ```
-   *See Environment Variables section below.*
+The AI routing is the interesting piece — it's not just "call the API." It routes across providers with per-request failover, so a Gemini outage doesn't take the app down. Each provider has its own adapter, and the service layer picks based on availability and cost.
 
-4. **Database Setup**
-   Push the schema to your Supabase database:
-   ```bash
-   npm run db:push
-   ```
+## Run it locally
 
-5. **Start the Development Server**
-   ```bash
-   npm run dev
-   ```
-   The app will be available at `http://localhost:5000`.
-
-## Testing
-
-Run the automated test suite:
 ```bash
-npm run test
+npm install
+cp .env.example .env          # Add your database URL + AI keys
+npm run db:push               # Sync schema to your database
+npm run dev                   # http://localhost:5000
 ```
-
-## Deployment (Vercel)
-
-This project is configured for Vercel deployment.
-
-1. Install Vercel CLI: `npm install -g vercel`
-2. Run `vercel` to deploy.
-3. Ensure all environment variables are set in the Vercel project settings.
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Supabase Protocol Connection String (Transaction Mode preferred) |
-| `GEMINI_API_KEY` | Google AI Studio API Key |
-| `ANTHROPIC_API_KEY` | (Optional) Anthropic API Key |
-| `VITE_SUPABASE_URL` | Supabase Project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase Anon Public Key |
-| `AI_INTEGRATIONS_OPENAI_API_KEY` | (Legacy/Optional) |
 
 ## License
 
-MIT
-
+Proprietary. All rights reserved.
